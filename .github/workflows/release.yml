@@ -1,0 +1,74 @@
+name: Release
+
+# Eine Veroeffentlichung entsteht ausschliesslich durch eine Markierung: `git tag 1.0.1` und
+# `git push --tags`. Ein normaler Push auf main baut nichts -- so erzeugt kein Tippfehler-Fix
+# versehentlich eine Fassung, die das Wandpanel dann installieren wuerde.
+#
+# Der Knopf im Actions-Reiter (workflow_dispatch) ist der Notausgang fuer den Fall, dass die
+# Markierung schon gesetzt ist und der Build trotzdem noch einmal laufen muss.
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # npm ci statt npm install: installiert exakt die Fassungen aus package-lock.json.
+      # Das ist hier nicht Bequemlichkeit, sondern Bedingung -- differenzielle Updates
+      # vergleichen Dateibloecke, und eine andere electron-builder-Fassung verschiebt das
+      # Archivlayout so weit, dass aus dem Delta still wieder ein Volldownload wird.
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      # Zwischen einer kaputten Aenderung und dem Wandpanel steht ab hier eine Pruefung.
+      # Schlaegt sie fehl, gibt es kein Release.
+      - name: Tests
+        run: npm test
+
+      - name: Pruefen, dass die Markierung zur Version in package.json passt
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "Manuell ausgeloest -- Versionsabgleich uebersprungen."
+            exit 0
+          fi
+          TAG="${GITHUB_REF#refs/tags/}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Markierung ($TAG) und package.json ($PKG) stimmen nicht ueberein."
+            echo "Erhoehe die Version in package.json, committe sie und setze die Markierung neu."
+            exit 1
+          fi
+          echo "Markierung und Version stimmen ueberein: $TAG"
+
+      - name: Bauen und veroeffentlichen
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Wir signieren nicht; ohne diese Zeile sucht electron-builder nach einem
+          # Zertifikat und laesst den Build unnoetig lange haengen.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Quellcode-Archiv anhaengen
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          [ "${{ github.event_name }}" = "push" ] || TAG=$(node -p "require('./package.json').version")
+          git archive --format=zip --prefix=italien-wall-exe/ HEAD -o italien-wall-exe.zip
+          gh release upload "$TAG" italien-wall-exe.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

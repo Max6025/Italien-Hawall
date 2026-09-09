@@ -23,15 +23,19 @@ können auf demselben Gerät nebeneinander laufen.
 - **Nachtsperre** mit Vorrang vor dem Kalender: in diesem Zeitfenster bleibt der Bildschirm aus,
   auch wenn ein Termin läuft
 - **Zugangscode** für die Einrichtungsseite
+- **Updates nur auf Knopfdruck** und nur mit den geänderten Teilen — die Anwendung
+  kontaktiert GitHub von sich aus nie
 - das komplette Karten-Dashboard von HA Wall Display: Editor, Unterdashboards, Themes,
-  Screensaver (standardmäßig aus), Annäherungserkennung, Auto-Update
+  Screensaver (standardmäßig aus), Annäherungserkennung
 
 ## Installation
 
 Den Installer aus den [Releases](https://github.com/Max6025/Italien-Hawall/releases) herunterladen
-und ausführen. Eine Datei für x64 und ARM64 — das Setup wählt selbst das passende.
+und ausführen. Gebaut wird für **64-Bit-Windows (x64)**.
 
 Nach der Installation startet die Anwendung bei jeder Windows-Anmeldung automatisch im Vollbild.
+Beim ersten Start trägt sie sich in den Autostart ein, sperrt die Windows-Wischgesten per
+Registry und startet dafür einmalig den Explorer neu. `Strg+Alt+Q` beendet sie.
 
 ## Einrichtung
 
@@ -75,11 +79,41 @@ wenn der Bildschirm ohnehin an ist. Alle Fehler landen in
 
 Warum das so ist, steht in [ADR 0003](docs/adr/0003-stillbleiben-bei-netzausfall.md).
 
+## Updates
+
+Die Anwendung fragt GitHub **von sich aus nie**: kein Abruf beim Start, kein Intervall im
+Hintergrund. Ein Update entsteht nur, wenn du auf der Einrichtungsseite unter *Update* auf
+**Nach Updates suchen und installieren** drückst. Dann läuft alles in einem Durchgang durch —
+auch wenn gerade ein Termin läuft; das Wall Display ist dabei kurz unterbrochen.
+
+Heruntergeladen wird dabei nur, was sich geändert hat. Das Gerät vergleicht die alte und die neue
+Fassung blockweise und holt per Bereichsabfragen ausschließlich die abweichenden Teile — bei einer
+reinen Code-Änderung typischerweise wenige Megabyte statt der vollen Installationsgröße.
+
+## Veröffentlichen
+
+Releases baut **GitHub**, nicht der Entwicklungsrechner:
+
+```bash
+# Version in package.json erhöhen, committen, dann:
+git tag 1.0.1
+git push --tags
+```
+
+Der Arbeitsablauf in [.github/workflows/release.yml](.github/workflows/release.yml) installiert die
+exakt festgelegten Abhängigkeiten, lässt die Tests laufen — **schlägt einer fehl, gibt es kein
+Release** —, prüft, dass Markierung und `package.json` dieselbe Version nennen, baut den Installer
+und hängt das Quellcode-Archiv an.
+
+Zwei Regeln, an die man sich halten muss, sonst zerfallen die differenziellen Updates still zu
+Volldownloads: **Versionsnummer immer erhöhen** (eine gleiche Version wird nie als Update erkannt)
+und **Dateien eines veröffentlichten Releases nie austauschen**.
+
 ## Entwicklung
 
 ```bash
 npm install
-npm test      # 24 Tests für Kalenderauswertung und Zustandslogik
+npm test      # 31 Tests: Kalenderauswertung, Zustandslogik, Zugangsschutz
 npm start     # lokal starten
 npm run dist  # Installer bauen
 ```

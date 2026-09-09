@@ -30,8 +30,17 @@ store.set('lastKnownVersion', currentVersion);
 let mainWindow = null;
 let updateState = { checking: false, available: false, downloaded: false, version: null, progress: 0, error: null };
 
+// GitHub wird ausschliesslich auf ausdruecklichen Wunsch gefragt: kein Abruf beim Start, kein
+// Intervall im Hintergrund. Ausgeloest wird eine Suche nur ueber "Nach Updates suchen" in der
+// Einrichtungsoberflaeche. autoDownload darf deshalb an bleiben -- es greift erst nach einer
+// Suche, und eine Suche gibt es nur auf Knopfdruck.
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = false;
+
+// Ein Druck genuegt: suchen, laden und installieren laufen ohne weitere Rueckfrage durch.
+// Auch dann, wenn gerade ein Anzeigefenster laeuft -- die Unterbrechung ist gewollt in Kauf
+// genommen, weil der Anstoss vom Nutzer selbst kam.
+let installWhenDownloaded = false;
 
 autoUpdater.on('checking-for-update', () => {
   updateState = { ...updateState, checking: true, error: null };
@@ -47,6 +56,10 @@ autoUpdater.on('download-progress', (p) => {
 });
 autoUpdater.on('update-downloaded', (info) => {
   updateState = { ...updateState, checking: false, downloaded: true, version: info.version, progress: 100 };
+  if (installWhenDownloaded) {
+    installWhenDownloaded = false;
+    updater.install();
+  }
 });
 autoUpdater.on('error', (err) => {
   updateState = { ...updateState, checking: false, error: String((err && err.message) || err) };
@@ -55,9 +68,15 @@ autoUpdater.on('error', (err) => {
 const updater = {
   currentVersion: app.getVersion(),
   getState: () => updateState,
-  check: () => autoUpdater.checkForUpdates().catch(err => {
-    updateState = { ...updateState, checking: false, error: String(err.message || err) };
-  }),
+  // autoInstall: bei true wird nach dem Herunterladen sofort installiert (der Ein-Klick-Weg
+  // aus der Einrichtungsoberflaeche).
+  check: (autoInstall = false) => {
+    installWhenDownloaded = !!autoInstall;
+    return autoUpdater.checkForUpdates().catch(err => {
+      installWhenDownloaded = false;
+      updateState = { ...updateState, checking: false, error: String(err.message || err) };
+    });
+  },
   install: () => {
     if (!updateState.downloaded) return;
     // Update-Bildschirm auf dem Wall Display zeigen, dann still (ohne Assistent,
@@ -242,7 +261,7 @@ app.whenReady().then(() => {
   // Auto-Start bei Windows-Anmeldung aktivieren
   app.setLoginItemSettings({ openAtLogin: true, path: process.execPath });
 
-  updater.check();
+  // Bewusst KEIN updater.check() hier: GitHub wird nur auf Knopfdruck gefragt.
 
   screen.on('display-metrics-changed', (event, display, changedMetrics) => {
     if (changedMetrics.includes('rotation') || changedMetrics.includes('bounds')) {

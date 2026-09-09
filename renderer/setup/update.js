@@ -3,7 +3,7 @@ let polling = null;
 
 function describe(state) {
   if (state.error) return 'Fehler: ' + state.error;
-  if (state.downloaded) return `Update ${state.version} heruntergeladen – bereit zur Installation.`;
+  if (state.downloaded) return `Update ${state.version} heruntergeladen – wird installiert, die App startet gleich neu.`;
   if (state.checking) return 'Suche nach Updates...';
   if (state.available) return `Update ${state.version} verfügbar – wird heruntergeladen (${state.progress || 0}%).`;
   return 'Kein Update verfügbar. Diese Version ist aktuell.';
@@ -34,9 +34,15 @@ async function refresh() {
   }
 }
 
+// Ein Druck: suchen, laden, installieren. GitHub wird ausschliesslich hier gefragt -- die App
+// pruft weder beim Start noch in einem Intervall von sich aus.
 $('checkBtn').addEventListener('click', async () => {
   $('statusText').textContent = 'Suche nach Updates...';
-  await fetch('/api/update/check', { method: 'POST' });
+  await fetch('/api/update/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ autoInstall: true })
+  });
   if (!polling) polling = setInterval(refresh, 2000);
   refresh();
 });

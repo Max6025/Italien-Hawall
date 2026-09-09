@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "electron": "^31.7.5",
-    "electron-builder": "^26.15.7"
+    "electron-builder": "26.15.7"
   },
   "build": {
     "appId": "de.max.italienwalldisplay",
@@ -36,7 +36,12 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64", "arm64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
@@ -45,7 +50,7 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "differentialPackage": false,
+      "differentialPackage": true,
       "artifactName": "Italien-Wall-Display-Setup-${version}.${ext}"
     },
     "publish": [

@@ -486,9 +486,10 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     res.json({ ok: true, currentVersion: updater.currentVersion, ...updater.getState() });
   });
 
+  // autoInstall=true ist der Ein-Klick-Weg: suchen, laden, installieren ohne weitere Rueckfrage.
   app.post('/api/update/check', (req, res) => {
     if (!updater) return res.status(400).json({ ok: false, error: 'Updater nicht verfuegbar' });
-    updater.check();
+    updater.check(!!(req.body && req.body.autoInstall));
     res.json({ ok: true });
   });
 
