@@ -176,8 +176,12 @@ class Controller {
   }
 
   resume() {
+    // Nur protokollieren, wenn tatsaechlich eine Pause lief. Sonst fuellt jeder Druck auf
+    // "Pause beenden" das Protokoll, auch wenn er nichts bewirkt -- und ein zugemuelltes
+    // Protokoll ist genau dann wertlos, wenn man es braucht.
+    const lief = this.pausedUntil > Date.now();
     this.pausedUntil = 0;
-    this.log('info', 'Pause vorzeitig beendet');
+    if (lief) this.log('info', 'Pause vorzeitig beendet');
     this.tick();
   }
 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen, session } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, session, powerSaveBlocker, powerMonitor } = require('electron');
 const path = require('path');
 const os = require('os');
 const { exec } = require('child_process');
@@ -89,6 +89,32 @@ const updater = {
     }, 1200);
   }
 };
+
+// --- Das System wach halten, das Display aber schlafen lassen ---------------------------------
+//
+// Gemessen am 2026-09-09 auf dem Surface Go: Eine Minute nach dem Abschalten des Panels ging das
+// GERAET in Connected Standby (Kernel-Power 506). Die Anwendung war damit weg -- kein
+// Kalender-Abruf, kein Setup-Server, und ein Termin, der in dieser Zeit begann, blieb unbemerkt.
+// Erst beim Aufwachen (Kernel-Power 507) lief alles weiter und das Panel ging an.
+//
+// "prevent-app-suspension" haelt das System wach und erlaubt dem Bildschirm ausdruecklich weiter,
+// sich abzuschalten. Genau diese Kombination brauchen wir: dunkles Panel, wacher Rechner.
+//
+// Vorbehalt: Auf Modern-Standby-Geraeten behandelt Windows solche Anforderungen anders als auf
+// klassischen PCs. Ob es dort ausreicht, ist am Geraet zu messen -- deshalb wird der Zustand
+// protokolliert, damit man es im Nachhinein nachvollziehen kann.
+let powerBlockerId = null;
+
+function keepSystemAwake(reason) {
+  if (process.platform !== 'win32') return;
+  try {
+    if (powerBlockerId !== null && powerSaveBlocker.isStarted(powerBlockerId)) return;
+    powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+    if (controller) controller.log('info', `System wird wachgehalten (${reason}), Bildschirm darf weiter abschalten`);
+  } catch (err) {
+    if (controller) controller.log('warn', `System konnte nicht wachgehalten werden: ${err.message}`);
+  }
+}
 
 function getLocalIps() {
   const nets = os.networkInterfaces();
@@ -254,6 +280,12 @@ app.whenReady().then(() => {
     onStateChange: pushControlState
   });
   controller.start();
+
+  keepSystemAwake('Start');
+  // Nach einem Aufwachen die Anforderung neu setzen: Windows verwirft sie in manchen
+  // Uebergaengen, und ein stillschweigend verlorener Wachhalter waere derselbe Fehler
+  // wie eine stille Panel-Steuerung.
+  powerMonitor.on('resume', () => keepSystemAwake('nach dem Aufwachen'));
 
   startServer({ port: SETUP_PORT, store, onConfigSaved, getLocalIps, updater, controller });
   applyWindowsKioskLockdown();

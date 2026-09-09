@@ -45,6 +45,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   `test/panel.test.js` prüft das gegen einen echten PowerShell-Prozess.
 - **Zugangscode und Loopback**: Das Wall Display selbst ruft über `http://localhost` auf und ist
   vom Code ausgenommen. Diese Grenze nicht aufweichen, sonst sperrt sich das Gerät selbst aus.
+- **Modern Standby frisst die Anwendung.** Gemessen am 2026-09-09 auf dem Surface Go: eine
+  Minute nach dem Abschalten des Panels ging das *Gerät* in Connected Standby (Kernel-Power 506),
+  die App war weg, der Setup-Server unerreichbar, und ein Termin in dieser Zeit blieb unbemerkt.
+  Dagegen hält `keepSystemAwake()` in `main.js` eine `prevent-app-suspension`-Anforderung. Wird
+  hier je etwas an der Panel-Abschaltung geändert, muss dieser Fall neu gemessen werden --
+  „Panel aus" und „Gerät schläft" sehen von außen identisch aus.
 - **Doppelte Nachtlogik**: Der alte Nachtmodus im Renderer ist deaktiviert, solange die
   Kalendersteuerung aktiv ist (`panelControlActive` in `dashboard.html`). Beide gleichzeitig
   laufen zu lassen führt zu Flackern.
