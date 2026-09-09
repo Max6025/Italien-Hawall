@@ -66,8 +66,8 @@ du ihn durch Berühren aufweckst. Es gibt drei Wege, das für 30 Minuten anzuhal
 Die Pause endet immer von selbst. **Strg+Alt+Q** beendet die Anwendung ganz.
 
 Zwei weitere Sicherungen greifen automatisch: Solange die Kalendersteuerung nicht vollständig
-eingerichtet ist, wird nie abgeschaltet — und nach jedem Start gilt eine Karenzzeit von zehn
-Minuten.
+eingerichtet ist, wird nie abgeschaltet — und nach jedem Start gilt eine Karenzzeit von einer
+Minute, in der nicht abgeschaltet wird.
 
 ## Wenn Home Assistant nicht erreichbar ist
 

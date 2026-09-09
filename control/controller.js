@@ -20,7 +20,7 @@ const { Panel } = require('./panel');
 
 const TICK_MS = 5 * 1000;               // Wächter-Takt
 const POLL_MS = 2 * 60 * 1000;          // Kalender-Abruf
-const GRACE_MS = 10 * 60 * 1000;        // Karenzzeit nach dem Start
+const GRACE_MS = 1 * 60 * 1000;         // Karenzzeit nach dem Start (auf Wunsch von 10 auf 1 Minute)
 const PAUSE_MS = 30 * 60 * 1000;        // Dauer einer Pause
 const FAILURES_BEFORE_ERROR = 3;        // erst danach erscheint die Fehlerseite
 
