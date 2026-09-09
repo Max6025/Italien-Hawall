@@ -1,0 +1,59 @@
+/* Setup-Oberflaeche im selben edlen, dunklen Stil wie das ueberarbeitete Wall-Display-Design
+   (siehe /shared/dashboard.css) -- eigene, einfachere Tokens, da die Setup-Seiten keinen
+   Tag/Nacht-Wechsel brauchen (die werden ja am PC/Handy vom Nutzer selbst bedient). */
+* { box-sizing: border-box; }
+:root {
+  --bg: #0a0a0b;
+  --surface: #17181b;
+  --surface2: #1e1f23;
+  --card-border: rgba(255,255,255,0.07);
+  --text: #f2f2f0;
+  --muted: #8a8b91;
+  --accent: #4f7cff;
+  --accent-hover: #3d68f0;
+  --accent-soft: rgba(79,124,255,0.14);
+}
+body {
+  font-family: 'Segoe UI', -apple-system, Roboto, Arial, sans-serif;
+  background: var(--bg); margin: 0; padding: 0;
+  color: var(--text);
+}
+.page-content { padding: 2.4rem 2rem; }
+.wizard { max-width: 600px; margin: 0 auto 1.6rem; background: var(--surface); border-radius: 20px;
+  padding: 2rem 2.2rem; border: 1px solid var(--card-border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 12px 32px rgba(0,0,0,0.35); }
+h1 { font-size: 1.35rem; margin-top: 0; font-weight: 700; letter-spacing: -0.2px; color: var(--text); }
+h2 { font-size: 1.05rem; color: var(--text); font-weight: 600; opacity: 0.85; }
+.step { display: none; }
+.step.active { display: block; }
+label { display: block; margin: 1rem 0 0.35rem; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+input[type="text"], input[type="password"], input[type="number"], input[type="time"], select {
+  width: 100%; padding: 0.65rem 0.75rem; border: 1px solid var(--card-border); border-radius: 10px; font-size: 0.95rem;
+  background: var(--bg); color: var(--text); transition: border-color 0.15s, background 0.15s; font-family: inherit;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); background: var(--surface2); }
+.row2 { display: flex; gap: 1rem; }
+.row2 > div { flex: 1; }
+button {
+  margin-top: 1.3rem; padding: 0.7rem 1.4rem; border: none; border-radius: 12px;
+  background: var(--accent); color: #fff; font-size: 0.92rem; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+button:hover { background: var(--accent-hover); }
+button:active { transform: scale(0.98); }
+button:disabled { background: rgba(79,124,255,0.35); cursor: not-allowed; }
+.result { margin-top: 0.6rem; font-size: 0.88rem; }
+.result.ok { color: #7fd68a; }
+.result.err { color: #ff8a8a; }
+.entity-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--card-border); border-radius: 12px; margin-top: 0.6rem; }
+.entity-item { display: flex; align-items: center; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--card-border); }
+.entity-item:last-child { border-bottom: none; }
+.entity-item input { width: auto; margin-right: 0.6rem; }
+.entity-item .domain { color: var(--muted); font-size: 0.75rem; margin-left: auto; }
+.note { font-size: 0.85rem; color: var(--muted); margin-top: 1.2rem; line-height: 1.5; }
+.note a { color: var(--accent); font-weight: 500; }
+.hint-text { color: var(--muted); font-size: 0.85rem; margin: 0.4rem 0 0; }
+.room-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--card-border); }
+.room-item:last-child { border-bottom: none; }
+.room-item .ename { flex: 1; font-size: 0.9rem; }
+.room-item input { width: 160px; padding: 0.35rem 0.5rem; font-size: 0.9rem; }

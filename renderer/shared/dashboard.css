@@ -1,0 +1,461 @@
+* { box-sizing: border-box; }
+:root {
+  --bg: #0a0a0b;        /* Seitenhintergrund -- sehr dunkel, edel */
+  --surface: #131416;   /* Modal/Picker */
+  --panel2: #17181b;    /* Karten-Hintergrund (neutrale Karten: Schalter/Taster/Gauge/Sensor) */
+  --card-border: rgba(255,255,255,0.06);
+  --text: #f2f2f0;
+  --muted: #85868c;
+  --accent-blue: linear-gradient(155deg, #4f7cff, #24418f);
+  --accent-orange: linear-gradient(155deg, #ffb648, #d9791f);
+  --accent-green: linear-gradient(155deg, #57c98a, #2a7d54);
+  --accent-teal: linear-gradient(155deg, #7fd1c1, #367f72);
+  --accent-rain: linear-gradient(155deg, #6b8fd9, #33508f);
+  --accent-pressure: linear-gradient(155deg, #b18cf0, #5b3fa0);
+  /* "Auf-Karte"-Farben: fuer Elemente INNERHALB der farbigen/neutralen Kacheln
+     (Badges, Buttons, Slider, Gauge-Ring, Sparkline). Dunkles Theme = helle
+     Overlays auf dunklem Grund; helles Theme dreht das komplett um. */
+  --on-card-soft: rgba(255,255,255,0.12);
+  --on-card-med: rgba(255,255,255,0.22);
+  --on-card-strong: #ffffff;
+  --on-card-faint: rgba(255,255,255,0.65);
+  --on-card-track: rgba(255,255,255,0.12);
+  --switch-on-bg: #362d18;
+  --switch-on-text: #ffd27a;
+}
+/* Helles Tag-Theme -- wird per JS anhand der gewaehlten Sonnen-Entitaet gesetzt.
+   Warmes Hellgrau statt reinem Weiss, damit es nicht klinisch wirkt. Die farbigen
+   Gradient-Kacheln (Klima/Lampe/Rollladen/Wind/Regen/Temperatur) bleiben in beiden
+   Themes gleich kraeftig -- nur die neutralen Karten und "auf-Karte"-Overlays drehen um. */
+body.light-theme {
+  --bg: #eeebe4;
+  --surface: #faf9f5;
+  --panel2: #faf9f5;
+  --card-border: rgba(0,0,0,0.06);
+  --text: #201f1c;
+  --muted: #706d66;
+  --on-card-soft: rgba(0,0,0,0.07);
+  --on-card-med: rgba(0,0,0,0.13);
+  --on-card-strong: #201f1c;
+  --on-card-faint: rgba(0,0,0,0.55);
+  --on-card-track: rgba(0,0,0,0.09);
+  --switch-on-bg: #fff3d6;
+  --switch-on-text: #b45309;
+}
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--text); font-family: 'Segoe UI', Arial, sans-serif; -webkit-user-select: none;
+  transition: background 0.6s ease, color 0.6s ease; }
+.app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+/* Main (keine Sidebar mehr -- ungenutzt) */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.statusbar { display: flex; justify-content: space-between; align-items: center;
+  padding: 1.8vh 2vw 0.6vh; font-size: 1.6vh; color: var(--muted); }
+.statusbar .clock { font-size: 2.6vh; color: var(--text); font-weight: 300; }
+.statusbar .icon-btn { width: 3.4vh; height: 3.4vh; border-radius: 10px; display: flex; align-items: center;
+  justify-content: center; color: var(--muted); cursor: pointer; background: var(--surface); }
+.statusbar .icon-btn svg { width: 55%; height: 55%; }
+.statusbar .icon-btn.warn { color: #fff; background: #dc3545; animation: warn-pulse 1.6s ease-in-out infinite; }
+@keyframes warn-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.statusbar .icon-row { display: flex; gap: 0.8vh; align-items: center; }
+
+/* Nachtmodus: rein schwarzer, inhaltsloser Bildschirm (Energiesparen) -- verschwindet
+   sofort bei Beruehrung und zeigt dann das normale Dashboard statt des Screensavers. */
+.night-overlay { position: fixed; inset: 0; background: #000; display: none; z-index: 5001; }
+.night-overlay.show { display: block; }
+
+.grid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 14vh;
+  grid-auto-flow: dense; gap: 1.2vh; padding: 0 2vw 1.4vh; overflow-y: auto; align-content: start;
+  touch-action: pan-y; }
+
+.card { position: relative; container-type: size; border-radius: 22px; padding: 1.4vh 1.2vw;
+  display: flex; flex-direction: column; justify-content: space-between; background: var(--panel2);
+  border: 1px solid var(--card-border); box-shadow: 0 0.6vh 1.6vh rgba(0,0,0,0.18);
+  backdrop-filter: var(--card-blur, none); -webkit-backdrop-filter: var(--card-blur, none);
+  transition: background 0.6s ease, color 0.6s ease; overflow: hidden; }
+/* Glas-Glanzrand (Specular Highlight): standardmaessig unsichtbar (transparent), ein
+   importiertes Design kann --card-highlight setzen, um oben eine helle Lichtkante zu zeigen --
+   typisch fuer "Liquid Glass"-artige Optik. */
+.card::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  border-top: 1px solid var(--card-highlight, transparent); border-left: 1px solid var(--card-highlight-side, transparent);
+  opacity: 0.6; }
+body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
+/* Farbige Kacheln bleiben in beiden Themes gleich (immer gesaettigter Farbverlauf) --
+   Text/Overlays bleiben dafuer bewusst immer "weiss auf Farbe", unabhaengig vom Theme. */
+.card.type-climate, .card.type-light, .card.type-cover, .card.type-wind, .card.type-rain, .card.type-temperature, .card.type-pressure {
+  color: #fff;
+  --on-card-soft: rgba(255,255,255,0.18);
+  --on-card-med: rgba(255,255,255,0.3);
+  --on-card-strong: #ffffff;
+  --on-card-faint: rgba(255,255,255,0.7);
+  --on-card-track: rgba(255,255,255,0.15);
+}
+.card.type-climate { background: var(--accent-blue); }
+.card.type-light { background: var(--accent-orange); }
+.card.type-cover { background: var(--accent-green); }
+.card.type-wind { background: var(--accent-teal); }
+.card.type-rain { background: var(--accent-rain); }
+.card.type-pressure { background: var(--accent-pressure); }
+.card.type-wind, .card.type-rain, .card.type-pressure { justify-content: center; align-items: center; gap: 0.6vh; text-align: center; }
+.card .row { display: flex; justify-content: space-between; align-items: center; }
+
+/* Fluid-Typografie: skaliert automatisch mit der TATSAECHLICHEN Kartengroesse
+   (Container Query Units) statt mit festen Groessenklassen -- funktioniert dadurch
+   bei jeder frei gezogenen Groesse (auch hochkant), ohne dass etwas ueberlappt. */
+.card .name { font-size: clamp(1.1vh, 7cqmin, 2.6vh); opacity: 0.9; }
+.card .icon { width: clamp(2vh, 16cqmin, 6vh); height: clamp(2vh, 16cqmin, 6vh); opacity: 0.9; flex-shrink: 0; }
+.card .badge { font-size: clamp(0.9vh, 8cqmin, 4vh); padding: 0.3vh 1.2vh; border-radius: 20px;
+  background: var(--on-card-soft); color: inherit; white-space: nowrap; }
+.card .value { font-size: clamp(1.8vh, 22cqmin, 12vh); font-weight: 600; line-height: 1.1; }
+
+.card .controls { display: flex; gap: 0.8vh; margin-top: 0.6vh; align-items: center; }
+.card .controls button { flex: 1; border: none; border-radius: 8px; background: var(--on-card-soft);
+  color: inherit; font-size: clamp(1.4vh, 12cqmin, 3vh); padding: 0.6vh 0; cursor: pointer; }
+.card .controls button:disabled { opacity: 0.4; cursor: default; }
+.card .controls.slider-row button { flex: 0 0 auto; width: 4vh; }
+.card .controls.slider-row input[type="range"] {
+  flex: 1; -webkit-appearance: none; appearance: none; height: 0.9vh; border-radius: 6px;
+  background: var(--on-card-med); outline: none; cursor: pointer;
+}
+.card .controls.slider-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 2.4vh; height: 2.4vh; border-radius: 50%;
+  background: var(--on-card-strong); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.card .controls.slider-row input[type="range"]::-moz-range-thumb {
+  width: 2.4vh; height: 2.4vh; border-radius: 50%; background: var(--on-card-strong); border: none; cursor: pointer;
+}
+.card .controls.slider-row input[type="range"]:disabled { opacity: 0.4; cursor: default; }
+
+.card.type-switch, .card.type-button, .card.type-sensor { justify-content: center; align-items: center;
+  gap: 0.8vh; text-align: center; }
+.card.type-switch.on { background: var(--switch-on-bg); }
+.card.type-switch .name, .card.type-button .name, .card.type-sensor .name { color: var(--muted); }
+.card.type-switch.on .name { color: var(--switch-on-text); }
+.card.type-button { cursor: pointer; }
+.card.type-button.pressed { background: #4f7cff; color: #fff; }
+.card.type-button.pressed .name { color: #fff; }
+
+.card.type-gauge { align-items: center; justify-content: center; padding: 0.8vh; position: relative; }
+.card.type-gauge .gauge-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.card.type-gauge .gauge-content { position: relative; text-align: center; width: 80%; margin-top: 12%; }
+.card.type-gauge .gauge-title { font-size: clamp(0.8vh, 6cqmin, 1.6vh); letter-spacing: 0.15vh;
+  color: var(--muted); }
+.card.type-gauge .gauge-value { font-size: clamp(1.6vh, 20cqmin, 8vh); font-weight: 300; line-height: 1;
+  margin-top: 0.3vh; color: inherit; white-space: nowrap; }
+.card.type-gauge .gauge-unit { font-size: 0.4em; font-weight: 400; color: var(--muted); margin-left: 0.15em; }
+
+.card.type-graph { min-width: 0; }
+.card.type-graph .graph-wrap { flex: 1; margin-top: 0.6vh; min-height: 0; }
+.card.type-graph .sparkline { width: 100%; height: 100%; }
+.card.type-graph .graph-empty { font-size: 1.3vh; color: var(--muted); text-align: center; padding-top: 1vh; }
+.card.type-graph .graph-caption { font-size: 1.2vh; color: var(--on-card-faint); text-align: right; margin-top: 0.3vh; }
+
+.card.type-radar { padding: 1vh; }
+.card.type-radar .radar-wrap { flex: 1; border-radius: 10px; overflow: hidden; background: #000;
+  display: flex; align-items: center; justify-content: center; margin-top: 0.6vh; min-height: 0; }
+.card.type-radar .radar-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.card.type-temperature { justify-content: center; align-items: center; gap: 0.6vh; text-align: center; }
+
+.card.type-clock { align-items: center; justify-content: center; text-align: center; }
+.card.type-clock .clock-time { font-size: clamp(2vh, 26cqmin, 14vh); font-weight: 200; line-height: 1; }
+.card.type-clock .clock-date { font-size: clamp(0.8vh, 8cqmin, 3vh); color: var(--muted); margin-top: 0.5vh; }
+
+.card.type-energy { padding: 1vh; }
+.ef-wrap { position: relative; width: 100%; height: 100%; }
+.ef-lines { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.ef-path { fill: none; stroke: var(--on-card-track); stroke-width: 3; stroke-linecap: round; }
+.ef-path.active { stroke: #4f7cff; stroke-dasharray: 6 6; animation: ef-flow 0.8s linear infinite; }
+.ef-path.active.reverse { animation-direction: reverse; }
+@keyframes ef-flow { to { stroke-dashoffset: -24; } }
+.ef-node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column;
+  align-items: center; z-index: 1; text-align: center; gap: 0.1vh; }
+.ef-node .ef-icon svg { width: clamp(1.8vh, 11cqmin, 3.6vh); height: clamp(1.8vh, 11cqmin, 3.6vh); }
+.ef-node .ef-val { font-size: clamp(1vh, 7cqmin, 2vh); font-weight: 600; color: var(--text); }
+.ef-node .ef-label { font-size: clamp(0.7vh, 5cqmin, 1.3vh); color: var(--muted); white-space: nowrap; }
+.ef-solar { top: 14%; left: 50%; }
+.ef-solar .ef-icon { color: #ff9800; }
+.ef-grid { top: 50%; left: 16%; }
+.ef-grid .ef-icon { color: #4f7cff; }
+.ef-home { top: 50%; left: 50%; }
+.ef-home .ef-icon { color: var(--text); }
+.ef-battery { top: 50%; left: 84%; }
+.ef-battery .ef-icon { color: #22c55e; }
+
+.card.type-media_player { padding: 1vh; }
+.card.has-art-bg { position: relative; overflow: hidden; }
+.mp-bg { position: absolute; inset: -10%; background-size: cover; background-position: center;
+  filter: blur(18px) brightness(0.7); transform: scale(1.15); z-index: 0; }
+.mp-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.32); z-index: 0; }
+.mp-wrap2 { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 0.5vh; text-align: center; }
+.card.has-art-bg .mp-title2, .card.has-art-bg .mp-artist2, .card.has-art-bg .mp-controls2 button,
+.card.has-art-bg .mp-vol-icon { color: #fff; }
+.mp-art2 { width: clamp(3vh, 26cqmin, 9vh); aspect-ratio: 1/1; border-radius: 12px; overflow: hidden;
+  background: var(--on-card-soft, rgba(0,0,0,0.08)); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0.4vh 1.2vh rgba(0,0,0,0.3); margin-bottom: 0.3vh; }
+.mp-art2 img { width: 100%; height: 100%; object-fit: cover; }
+.mp-art2 svg { width: 45%; height: 45%; color: var(--muted); }
+.mp-title2 { font-size: clamp(1vh, 9cqmin, 2.1vh); font-weight: 700; color: var(--text);
+  max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-artist2 { font-size: clamp(0.8vh, 6.5cqmin, 1.5vh); color: var(--muted);
+  max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-controls2 { display: flex; align-items: center; gap: clamp(0.6vh, 2cqmin, 1.6vh); margin-top: 0.6vh; }
+.mp-controls2 button { border: none; border-radius: 50%; background: var(--on-card-soft, rgba(0,0,0,0.08));
+  color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: transform 0.1s, background 0.15s; flex-shrink: 0; }
+.mp-controls2 button:active { transform: scale(0.92); }
+.mp-btn-sm { width: clamp(2.4vh, 15cqmin, 4vh); height: clamp(2.4vh, 15cqmin, 4vh); }
+.mp-btn-sm svg { width: 50%; height: 50%; }
+.mp-btn-sm.active { background: #4f7cff; color: #fff; }
+.mp-btn-spacer { width: clamp(2.4vh, 15cqmin, 4vh); flex-shrink: 0; }
+.mp-btn-md { width: clamp(3.2vh, 20cqmin, 5.6vh); height: clamp(3.2vh, 20cqmin, 5.6vh); }
+.mp-btn-md svg { width: 55%; height: 55%; }
+.mp-btn-lg { width: clamp(4.2vh, 26cqmin, 7.2vh); height: clamp(4.2vh, 26cqmin, 7.2vh);
+  background: #4f7cff !important; color: #fff !important; }
+.mp-btn-lg svg { width: 48%; height: 48%; }
+.mp-volume2 { display: flex; align-items: center; gap: 0.8vh; margin-top: 0.6vh; width: 80%; }
+.mp-vol-icon { cursor: pointer; flex-shrink: 0; display: flex; }
+.mp-vol-icon svg { width: 1.8vh; height: 1.8vh; color: var(--muted); }
+.mp-volume2 input[type="range"] { flex: 1; -webkit-appearance: none; appearance: none; height: 0.7vh;
+  border-radius: 4px; background: var(--on-card-med, rgba(0,0,0,0.14)); outline: none; cursor: pointer; }
+.mp-volume2 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 2vh; height: 2vh;
+  border-radius: 50%; background: #4f7cff; cursor: pointer; box-shadow: 0 0.2vh 0.5vh rgba(0,0,0,0.3); }
+
+.mp-power { position: absolute; top: 0.8vh; right: 0.8vh; z-index: 2; border: none; border-radius: 50%;
+  width: clamp(2.4vh, 15cqmin, 3.6vh); height: clamp(2.4vh, 15cqmin, 3.6vh);
+  background: var(--on-card-soft, rgba(0,0,0,0.08)); color: var(--muted);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.mp-power svg { width: 55%; height: 55%; }
+.mp-power.active { background: #4f7cff; color: #fff; }
+.card.has-art-bg .mp-power.active { background: #4f7cff; }
+.mp-progress2 { display: flex; align-items: center; gap: 0.8vh; width: 88%; margin-top: 0.4vh; }
+.mp-time { font-size: clamp(0.7vh, 5cqmin, 1.2vh); color: var(--muted); flex-shrink: 0; }
+.card.has-art-bg .mp-time { color: rgba(255,255,255,0.75); }
+.mp-progress-track { flex: 1; height: 0.5vh; border-radius: 4px; background: var(--on-card-med, rgba(0,0,0,0.14)); overflow: hidden; }
+.mp-progress-fill { height: 100%; background: #4f7cff; border-radius: 4px; }
+.mp-source { margin-top: 0.6vh; width: 88%; font-size: clamp(0.8vh, 6cqmin, 1.3vh); padding: 0.4vh 0.8vh;
+  border-radius: 8px; border: none; background: var(--on-card-soft, rgba(0,0,0,0.08)); color: var(--text);
+  cursor: pointer; }
+.card.has-art-bg .mp-source { color: #fff; background: rgba(255,255,255,0.15); }
+
+/* Schnellzugriff-Kacheln: quadratische Buttons nebeneinander, eigenes Bild pro Kachel.
+   Die aktive Quelle bekommt nur einen sehr feinen Rahmen -- bewusst KEIN Ausgrauen der
+   anderen Kacheln, das wollte der Nutzer explizit nicht. */
+.card.quicktiles-card { justify-content: flex-start; gap: 0.6vh; }
+.qt-title { font-size: clamp(1vh, 8cqmin, 1.6vh); font-weight: 700; color: var(--text); margin-bottom: 0.2vh; }
+.qt-row { display: flex; flex-wrap: wrap; gap: 1vh; align-content: flex-start; }
+.qt-tile { aspect-ratio: 1/1; height: clamp(4vh, 45cqmin, 9vh); border: none; border-radius: 14px;
+  background-color: var(--on-card-soft, rgba(0,0,0,0.08)); background-size: cover; background-position: center;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0.4vh;
+  transition: box-shadow 0.2s, transform 0.1s; }
+.qt-tile:active { transform: scale(0.95); }
+.qt-tile.active { box-shadow: 0 0 0 2px rgba(79,124,255,0.55); }
+.qt-tile-label { font-size: clamp(0.7vh, 8cqmin, 1.2vh); color: var(--text); text-align: center;
+  line-height: 1.2; overflow: hidden; }
+
+.waste-next { display: flex; align-items: center; gap: 0.8vh; margin-top: 0.6vh; }
+.waste-dot { width: 1.2vh; height: 1.2vh; border-radius: 50%; flex-shrink: 0; }
+.waste-next-title { font-size: clamp(1vh, 9cqmin, 2.2vh); font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waste-next-date { font-size: clamp(0.8vh, 6cqmin, 1.5vh); color: var(--muted); }
+.waste-list { margin-top: 0.8vh; display: flex; flex-direction: column; gap: 0.4vh; }
+.waste-item { display: flex; align-items: center; gap: 0.6vh; font-size: clamp(0.75vh, 5.5cqmin, 1.3vh); }
+.waste-item .waste-dot { width: 0.9vh; height: 0.9vh; }
+.waste-item-title { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waste-item-date { color: var(--muted); flex-shrink: 0; }
+
+.card.type-select { justify-content: center; align-items: stretch; gap: 0.6vh; }
+
+/* Foto-Bereich-Karte: fuellt ihre gesamte Flaeche mit einem Bild, andere erlaubte Karten
+   (Media Player, Wetter) duerfen sie ueberlappen und bekommen dabei automatisch denselben
+   durchscheinenden Glas-Effekt wie beim Screensaver-Hintergrund. */
+.card.photo-card { background-size: cover; background-position: center; background-repeat: no-repeat;
+  background-color: var(--on-card-soft, rgba(0,0,0,0.08)); z-index: 0; }
+.photo-card-label { position: absolute; left: 1.2vh; bottom: 1vh; font-size: clamp(1vh, 8cqmin, 2vh);
+  font-weight: 700; color: #fff; text-shadow: 0 0.2vh 0.6vh rgba(0,0,0,0.6); }
+.photo-card-empty { display: flex; align-items: center; justify-content: center; height: 100%;
+  color: var(--muted); font-size: 1.3vh; text-align: center; padding: 1vh; }
+.card.card-on-photo { position: relative; z-index: 2;
+  box-shadow: inset 0 0 0 1000px rgba(0,0,0,0.35);
+  backdrop-filter: blur(2px);
+  background-color: transparent !important; }
+.card.card-on-photo .mp-title2, .card.card-on-photo .mp-artist2, .card.card-on-photo .mp-controls2 button,
+.card.card-on-photo .mp-vol-icon, .card.card-on-photo .name, .card.card-on-photo .value { color: #fff; }
+.card.type-select .name { text-align: center; }
+.card.type-select .select-input { width: 100%; padding: 0.8vh; border-radius: 8px; border: none;
+  background: var(--on-card-soft); color: inherit; font-size: clamp(1.2vh, 9cqmin, 2.4vh); cursor: pointer; }
+
+.card.type-navigate { justify-content: center; align-items: center; gap: 0.8vh; text-align: center; cursor: pointer; }
+.card.type-navigate .name { font-size: clamp(1.2vh, 9cqmin, 2.2vh); color: var(--text); }
+
+.card.type-forecast .forecast-row { flex: 1; display: flex; justify-content: space-between; align-items: stretch;
+  margin-top: 0.6vh; gap: 0.6vh; }
+.card.type-forecast .forecast-day { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 0.4vh; }
+.card.type-forecast .fc-label { font-size: clamp(0.8vh, 6cqmin, 1.6vh); color: var(--muted); text-transform: uppercase; }
+.card.type-forecast .fc-icon svg { width: clamp(1.8vh, 12cqmin, 4vh); height: clamp(1.8vh, 12cqmin, 4vh); }
+.card.type-forecast .fc-temps { font-size: clamp(1vh, 8cqmin, 2vh); }
+.card.type-forecast .fc-lo { color: var(--muted); margin-left: 0.4vh; }
+
+/* Screensaver: reduzierte Ansicht bei Inaktivitaet, grosse Uhrzeit + grosse Wetterkarten.
+   Einblenden weich (Opacity-Transition nur in .show vorhanden), Ausblenden bewusst hart/
+   sofort (Transition existiert dann nicht mehr, da sie an die Klasse gebunden ist). */
+.screensaver { position: fixed; inset: 0; background: var(--bg); display: flex;
+  flex-direction: column; align-items: center; justify-content: center; z-index: 5000;
+  opacity: 0; pointer-events: none; }
+.screensaver.show { opacity: 1; pointer-events: auto; transition: opacity 0.6s ease, background 0.6s ease; }
+/* Eigenes Hintergrundbild: Karten-Boxen bekommen einen leichten dunklen Dimm-Schleier,
+   damit sie ueber jedem Foto lesbar bleiben -- via inset-box-shadow, wirkt unabhaengig
+   davon, ob die Karte selbst hell/dunkel/farbig ist. Gilt sowohl fuer die echte Anzeige
+   (.screensaver) als auch fuer die Editor-Vorschau (#ssEditGrid), fuer WYSIWYG. */
+.has-bg-image { background-size: cover; background-position: center; background-repeat: no-repeat; }
+.has-bg-image .card {
+  box-shadow: inset 0 0 0 1000px rgba(0,0,0,0.35);
+  backdrop-filter: blur(2px);
+}
+.screensaver .ss-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 20vh;
+  grid-auto-flow: row; gap: 1.6vh; padding: 2vh; width: 100%; height: 100%; box-sizing: border-box; }
+.ss-battery-banner { position: absolute; top: 0; left: 0; right: 0; padding: 1.4vh 2vw;
+  background: #dc3545; color: #fff; font-size: 1.8vh; text-align: center; font-weight: 600;
+  z-index: 51; display: none; }
+.ss-battery-banner.show { display: block; animation: warn-pulse 1.6s ease-in-out infinite; }
+
+/* Screensaver-Editor: gleiche groessere Zellen wie in der echten Anzeige, damit WYSIWYG stimmt */
+#ssEditGrid { grid-auto-rows: 20vh !important; grid-auto-flow: row !important; }
+.card.editable.moving { outline: 2px solid #4f7cff; z-index: 6; opacity: 0.9; }
+
+.footer { text-align: center; font-size: 1.3vh; color: var(--muted); padding: 0.8vh 0 1.4vh; }
+
+.room-tabs { display: flex; justify-content: center; align-items: center; gap: 0.8vh;
+  padding: 0.8vh 2vw; flex-wrap: wrap; }
+
+/* Kleiner Anwesenheits-Indikator (Annaeherungserkennung): standardmaessig komplett
+   ausgeblendet -- wird per JS nur eingeblendet (display:block via .relevant), waehrend die
+   Funktion aktiv ist, und leuchtet nur gruen (.occupied), solange jemand erkannt wird. */
+.motion-indicator { display: none; position: fixed; top: 0.8vh; left: 0.8vh; z-index: 9000;
+  width: 1.1vh; height: 1.1vh; border-radius: 50%; background: transparent;
+  border: 1px solid var(--card-border); transition: background 0.2s, border-color 0.2s; }
+.motion-indicator.relevant { display: block; }
+.motion-indicator.occupied { background: #22c55e; border-color: #22c55e;
+  box-shadow: 0 0 0.8vh rgba(34,197,94,0.7); }
+
+/* Tracker-Unterdashboard: Standort + Verlauf auf einer OpenStreetMap-Karte */
+.tracker-view { flex: 1; display: flex; flex-direction: column; padding: 0 2vw 1vh; gap: 1vh; min-height: 0; }
+.tracker-toolbar { display: flex; align-items: center; gap: 1.2vh; flex-wrap: wrap; }
+.tracker-battery { font-size: 1.4vh; color: var(--muted); font-weight: 600; min-width: 6vh; }
+.tracker-battery.low { color: #ff8a8a; }
+.tracker-range-btns { display: flex; gap: 0.6vh; }
+.tracker-range-btns button, .tracker-custom-range button {
+  border: 1px solid var(--card-border); border-radius: 999px; padding: 0.6vh 1.4vh; font-size: 1.2vh; font-weight: 600;
+  background: var(--panel2); color: var(--text); cursor: pointer; }
+.tracker-range-btns button.active { background: #4f7cff; color: #fff; border-color: transparent; }
+.tracker-custom-range { display: flex; align-items: center; gap: 0.6vh; margin-left: auto; }
+.tracker-custom-range input { font-size: 1.1vh; padding: 0.5vh 0.8vh; border-radius: 8px;
+  border: 1px solid var(--card-border); background: var(--panel2); color: var(--text); }
+.tracker-custom-range span { color: var(--muted); font-size: 1.1vh; }
+#trackerMap { flex: 1; border-radius: 22px; overflow: hidden; min-height: 0; }
+.room-tab { border: 1px solid var(--card-border); border-radius: 999px; padding: 0.7vh 1.8vh; font-size: 1.3vh;
+  font-weight: 600; color: var(--text); background: var(--panel2);
+  cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+.room-tab.active { background: #4f7cff; color: #fff; border-color: transparent; }
+.empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 6vh 0; font-size: 1.8vh; }
+
+/* Ankuendigungs-Box: erscheint, wenn die konfigurierte input_text-Entitaet Inhalt hat --
+   dunkelt alles ab, der Rahmen "zeichnet" sich zuegig, danach faedet der Text ein. */
+.notify-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0); display: flex;
+  align-items: center; justify-content: center; z-index: 80; pointer-events: none;
+  transition: background 0.4s ease; }
+.notify-overlay.show { background: rgba(0,0,0,0.82); pointer-events: auto; }
+.notify-box-svg { position: absolute; width: 70vw; height: 40vh; }
+.notify-box-svg rect { stroke-dasharray: 320; stroke-dashoffset: 320; }
+.notify-box-svg rect.draw { animation: notify-draw 0.45s ease-out forwards; }
+@keyframes notify-draw { to { stroke-dashoffset: 0; } }
+.notify-text { position: relative; width: 60vw; max-height: 34vh; overflow: hidden;
+  color: #fff; font-size: 3vh; text-align: center; opacity: 0; animation: notify-fade 0.5s ease-out 0.4s forwards; }
+@keyframes notify-fade { to { opacity: 1; } }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
+  align-items: center; justify-content: center; z-index: 30; }
+.modal-backdrop.show { display: flex; }
+.modal { background: var(--surface); border-radius: 14px; padding: 3vh 3vw; max-width: 60vw; color: var(--text); }
+.modal h3 { margin-top: 0; }
+.modal .close { margin-top: 2vh; background: #4f7cff; border: none; color: #fff; padding: 1vh 2vw;
+  border-radius: 8px; cursor: pointer; }
+
+/* Editor-spezifisch (nur im Browser-Editor genutzt) */
+.card.editable { cursor: grab; outline: 2px dashed transparent; padding-bottom: 3vh; }
+.card.editable.dragging { opacity: 0.4; }
+.card.editable.drag-over { outline-color: #4f7cff; }
+.card .drag-handle { position: absolute; top: 0.6vh; left: 0.8vh; font-size: 1.4vh; opacity: 0.6; z-index: 2; }
+.card .remove-btn { position: absolute; top: 0.4vh; right: 0.6vh; width: 2.2vh; height: 2.2vh; border-radius: 50%;
+  background: rgba(0,0,0,0.55); color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 1.6vh; cursor: pointer; line-height: 1; z-index: 2; }
+.card .settings-btn { position: absolute; top: 0.4vh; right: 2.9vh; width: 2.2vh; height: 2.2vh; border-radius: 50%;
+  background: rgba(0,0,0,0.55); color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2; }
+.card .settings-btn svg { width: 65%; height: 65%; }
+.card .copy-btn { position: absolute; top: 0.4vh; right: 5.4vh; width: 2.2vh; height: 2.2vh; border-radius: 50%;
+  background: rgba(0,0,0,0.55); color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2; }
+.card .copy-btn svg { width: 60%; height: 60%; }
+.card .edit-bar { position: absolute; left: 0.6vh; right: 0.6vh; bottom: 0.5vh; display: flex; gap: 0.5vh;
+  align-items: center; justify-content: flex-start; z-index: 2; }
+.card .type-select { font-size: 1.1vh; background: rgba(0,0,0,0.4); color: #fff; border: none; border-radius: 6px;
+  padding: 0.2vh 0.4vh; max-width: 90%; }
+.card .resize-handle { position: absolute; right: 0.3vh; bottom: 0.3vh; width: 2.2vh; height: 2.2vh;
+  border-radius: 50%; background: rgba(0,0,0,0.55); color: #fff; display: flex; align-items: center;
+  justify-content: center; cursor: nwse-resize; z-index: 3; touch-action: none; }
+.card .resize-handle svg { width: 65%; height: 65%; }
+.card .drag-handle { touch-action: none; }
+.card.editable.resizing { outline: 2px solid #4f7cff; z-index: 5; }
+.add-tile { border: 2px dashed var(--muted); border-radius: 16px; display: flex; align-items: center;
+  justify-content: center; font-size: 4vh; color: var(--muted); cursor: pointer; grid-column: span 1; grid-row: span 1; }
+.add-tile:hover { color: var(--text); border-color: var(--text); }
+
+.picker-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
+  align-items: center; justify-content: center; z-index: 20; }
+.picker-backdrop.show { display: flex; }
+.picker { background: var(--surface); border-radius: 14px; padding: 2.4vh 2vw; width: 40vw; max-height: 70vh;
+  display: flex; flex-direction: column; color: var(--text); }
+.picker input[type="text"] { padding: 1vh; border-radius: 8px; border: 1px solid #444; background: var(--bg);
+  color: var(--text); margin-bottom: 1.4vh; font-size: 1.6vh; }
+.picker-list { overflow-y: auto; flex: 1; }
+.picker-item { display: flex; justify-content: space-between; padding: 1vh 0.6vh; border-bottom: 1px solid #383b42;
+  cursor: pointer; font-size: 1.5vh; }
+.picker-item:hover { background: var(--bg); }
+.picker-item .domain { color: var(--muted); font-size: 1.2vh; }
+.picker-close { margin-top: 1.4vh; align-self: flex-end; background: #444; border: none; color: #fff;
+  padding: 0.8vh 1.6vw; border-radius: 8px; cursor: pointer; }
+.type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1vh; overflow-y: auto; flex: 1; min-height: 0; }
+.type-tile { display: flex; flex-direction: column; align-items: center; gap: 0.6vh; padding: 1.6vh 0.6vh;
+  background: var(--bg); border-radius: 10px; cursor: pointer; color: var(--text); border: 1px solid #383b42; }
+.type-tile:hover { border-color: #4f7cff; }
+.type-tile svg { width: 2.8vh; height: 2.8vh; }
+.type-tile span { font-size: 1.2vh; text-align: center; }
+.picker-back { background: none; border: none; color: #4f7cff; cursor: pointer; font-size: 1.3vh;
+  padding: 0; margin-bottom: 0.8vh; display: block; }
+.save-btn { background: #4f7cff; border: none; color: #fff; padding: 0.8vh 1.6vw; border-radius: 8px;
+  cursor: pointer; font-size: 1.5vh; }
+
+/* Karten-Einstellungsdialog (z.B. Gauge: Suffix, Min/Max, Farbschwellen) */
+.settings-modal { background: var(--surface); border-radius: 14px; padding: 2.4vh 2vw; width: 32vw;
+  max-height: 80vh; overflow-y: auto; color: var(--text); }
+.settings-modal h3 { margin-top: 0; font-size: 1.8vh; }
+.settings-modal label { display: block; margin: 1.2vh 0 0.4vh; font-size: 1.3vh; color: var(--muted); }
+.settings-modal input[type="text"], .settings-modal input[type="number"] {
+  width: 100%; padding: 0.8vh; border-radius: 6px; border: 1px solid #444; background: var(--bg);
+  color: var(--text); font-size: 1.4vh; }
+.settings-modal .row2 { display: flex; gap: 1vh; }
+.settings-modal .row2 > div { flex: 1; }
+.threshold-row { display: flex; gap: 0.6vh; align-items: center; margin-top: 0.6vh; }
+.threshold-row input[type="number"] { flex: 1; }
+.threshold-row input[type="color"] { width: 4vh; height: 3.4vh; border: none; border-radius: 6px; padding: 0; cursor: pointer; }
+.threshold-row .remove-threshold { width: 2.6vh; height: 2.6vh; border-radius: 50%; background: #444; color: #fff;
+  border: none; cursor: pointer; flex-shrink: 0; }
+.add-threshold { margin-top: 0.8vh; background: var(--panel2); color: var(--text); border: 1px dashed var(--muted);
+  border-radius: 8px; padding: 0.6vh 1.2vh; cursor: pointer; font-size: 1.3vh; }
+.settings-modal .actions { display: flex; justify-content: flex-end; gap: 1vh; margin-top: 2vh; }
+.settings-modal .actions button { padding: 0.8vh 1.6vh; border-radius: 8px; border: none; cursor: pointer; font-size: 1.4vh; }
+.settings-modal .btn-save { background: #4f7cff; color: #fff; }
+.settings-modal .btn-cancel { background: #444; color: #fff; }

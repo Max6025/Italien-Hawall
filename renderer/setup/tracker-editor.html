@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hawall – Tracker einrichten</title>
+<link rel="stylesheet" href="/shared/nav.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="hawall-nav">
+    <div class="hawall-nav-brand"><span class="hawall-logo">H</span> Hawall</div>
+    <div class="hawall-nav-links">
+      <a href="index.html">Verbindung</a>
+      <a href="editor.html">Karten</a>
+      <a href="screensaver.html">Screensaver</a>
+      <a href="theme.html">Design</a>
+      <a href="design-import.html">Design-Import</a>
+      <a href="dashboards.html" class="active">Unterdashboards</a>
+      <a href="update.html">Update</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </nav>
+  <div class="page-content">
+    <div class="wizard">
+      <h1 id="pageTitle">Tracker einrichten</h1>
+      <p class="note" style="margin-top:0;">
+        Dieses Unterdashboard zeigt auf dem Wall Display eine Karte mit dem aktuellen Standort
+        und dem Verlauf der gewählten Entität, plus Akkustand (sofern die Entität einen liefert).
+      </p>
+      <label>Tracker-Entität</label>
+      <input type="text" id="trackerEntity" list="trackerEntityList" placeholder="device_tracker.katze">
+      <datalist id="trackerEntityList"></datalist>
+
+      <label>Eigenes Symbol für den Marker (optional)</label>
+      <div style="display:flex; align-items:center; gap:0.8rem;">
+        <img id="iconPreview" style="display:none; width:2.4rem; height:2.4rem; border-radius:50%; object-fit:cover; background:var(--bg);">
+        <span id="iconNoneText" style="font-size:0.85rem; color:var(--muted);">Standard-Stecknadel</span>
+        <input type="file" id="iconFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+        <button type="button" id="iconUploadBtn" style="margin:0;">Symbol wählen</button>
+        <button type="button" id="iconRemoveBtn" style="display:none; margin:0; background:#6c757d;">Entfernen</button>
+      </div>
+
+      <label>Standard-Zoomstufe beim Öffnen</label>
+      <input type="number" id="defaultZoom" min="1" max="19" value="16" style="max-width:120px;">
+      <p class="hint-text">1 = ganze Welt, 19 = einzelnes Grundstück.</p>
+
+      <label><input type="checkbox" id="autoCenter" style="width:auto; margin-right:0.5rem;" checked>Karte automatisch auf die aktuelle Position zentrieren</label>
+      <label><input type="checkbox" id="showZones" style="width:auto; margin-right:0.5rem;">Home-Assistant-Zonen einzeichnen (z.B. "Zuhause") – als Kreis mit Namen</label>
+
+      <button id="saveBtn">Speichern</button>
+      <div id="result" class="result"></div>
+      <p class="hint-text" style="margin-top:1.6rem;">
+        <a href="dashboards.html" style="color:var(--accent); font-weight:600; text-decoration:none;">← Zurück zu den Unterdashboards</a>
+      </p>
+    </div>
+  </div>
+<script src="/shared/nav.js"></script>
+<script src="tracker-editor.js"></script>
+</body>
+</html>

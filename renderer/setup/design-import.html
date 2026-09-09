@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Hawall – Design-Import</title>
+<link rel="stylesheet" href="/shared/nav.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="hawall-nav">
+    <div class="hawall-nav-brand"><span class="hawall-logo">H</span> Hawall</div>
+    <div class="hawall-nav-links">
+      <a href="index.html">Verbindung</a>
+      <a href="editor.html">Karten</a>
+      <a href="screensaver.html">Screensaver</a>
+      <a href="theme.html">Design</a>
+      <a href="design-import.html" class="active">Design-Import</a>
+      <a href="dashboards.html">Unterdashboards</a>
+      <a href="update.html">Update</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </nav>
+  <div class="page-content">
+    <div class="wizard">
+      <h1>Design importieren</h1>
+      <p class="note" style="margin-top:0;">
+        Lade eine Design-Datei (.json) hoch, um Farben <b>und</b> Formen/Abstände (Kartenrundung, Ränder, Schatten)
+        auf einen Schlag zu ersetzen – für Hell- und Dunkel-Modus. Ersetzt keine Einstellungen, nur das Aussehen.
+      </p>
+
+      <div id="currentThemeInfo" style="display:none; margin-bottom:1rem;">
+        <div class="result ok">Aktuell ist ein eigenes Design aktiv.</div>
+      </div>
+
+      <input type="file" id="themeFileInput" accept="application/json,.json" style="display:none;">
+      <button type="button" id="themeUploadBtn">Design-Datei wählen</button>
+      <button type="button" id="themeResetBtn" style="display:none; background:#6c757d; margin-left:0.6rem;">Auf Standard zurücksetzen</button>
+      <div class="result" id="themeResult"></div>
+
+      <h1 style="margin-top:2.4rem; font-size:1.1rem;">Format der Design-Datei</h1>
+      <p class="hint-text">
+        Eine JSON-Datei mit diesem Aufbau (alle Farben als Text, z.B. Hex-Code oder rgba(...)):
+      </p>
+      <pre style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:1rem;
+        font-size:0.78rem; overflow-x:auto; color:var(--text); line-height:1.5;">{
+  "name": "Mein Design",
+  "dark": {
+    "bg": "#0a0a0b",
+    "surface": "#131416",
+    "panel2": "#17181b",
+    "cardBorder": "rgba(255,255,255,0.06)",
+    "text": "#f2f2f0",
+    "muted": "#85868c"
+  },
+  "light": {
+    "bg": "#eeebe4",
+    "surface": "#faf9f5",
+    "panel2": "#faf9f5",
+    "cardBorder": "rgba(0,0,0,0.06)",
+    "text": "#201f1c",
+    "muted": "#706d66"
+  },
+  "cardRadius": "22px",
+  "cardShadow": "0 0.6vh 1.6vh rgba(0,0,0,0.18)"
+}</pre>
+      <p class="note">Die Felder <code>cardRadius</code> und <code>cardShadow</code> sind optional – ohne sie bleibt die Kartenform wie im Standard-Design.</p>
+
+      <h1 style="margin-top:2.4rem; font-size:1.1rem;">Erweitert: Glas-/Milchglas-Effekte & komplexere Designs</h1>
+      <p class="hint-text">
+        Für Effekte wie "Liquid Glass" (durchscheinende, weichgezeichnete Karten) <b>panel2</b>/<b>surface</b>
+        als halbtransparente Farbe angeben (z.B. <code>rgba(255,255,255,0.08)</code>) und diese zusätzlichen
+        Felder verwenden:
+      </p>
+      <pre style="background:var(--bg); border:1px solid var(--card-border); border-radius:10px; padding:1rem;
+        font-size:0.78rem; overflow-x:auto; color:var(--text); line-height:1.5;">{
+  "cardBlur": "22px",
+  "cardSaturate": "180%",
+  "cardHighlight": "rgba(255,255,255,0.45)",
+  "cardHighlightSide": "rgba(255,255,255,0.18)",
+  "pageBgGradient": "radial-gradient(circle at 20% 20%, #6a5acd 0%, transparent 45%), #0a0a0f",
+  "extraCss": "/* beliebiges eigenes CSS, wird ganz am Ende angehängt */"
+}</pre>
+      <p class="note">
+        <b>cardBlur</b>/<b>cardSaturate</b> erzeugen den Weichzeichner-Effekt hinter den Karten (braucht einen
+        farbigen Hintergrund zum Durchscheinen, z.B. via <b>pageBgGradient</b>). <b>cardHighlight</b>/<b>cardHighlightSide</b>
+        setzen eine feine helle Lichtkante oben/links auf jeder Karte. <b>extraCss</b> ist ein Escape-Hatch für
+        alles, was die anderen Felder nicht abdecken – wird roh als CSS angehängt und überschreibt bei Bedarf
+        alles andere. Alle Felder hier sind optional und einzeln kombinierbar.
+      </p>
+    </div>
+  </div>
+<script src="/shared/dashboard-render.js"></script>
+<script src="/shared/nav.js"></script>
+<script src="design-import.js"></script>
+</body>
+</html>

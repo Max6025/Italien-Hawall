@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hawall – Karten</title>
+<link rel="stylesheet" href="/shared/nav.css">
+<link rel="stylesheet" href="/shared/dashboard.css">
+<style>
+  .editor-topbar { display: flex; justify-content: space-between; align-items: center;
+    padding: 1.6vh 2vw; background: var(--surface); flex-wrap: wrap; gap: 1vh; }
+  .editor-topbar h1 { font-size: 2vh; font-weight: 400; margin: 0; }
+  .editor-hint { font-size: 1.3vh; color: var(--muted); padding: 0 2vw 1vh; }
+  .save-result { font-size: 1.4vh; margin-left: 1.4vw; }
+  .save-result.ok { color: #7fd68a; }
+  .save-result.err { color: #ff8a8a; }
+  .display-settings { display: flex; align-items: center; gap: 0.8vh; font-size: 1.4vh; color: var(--muted); }
+  .display-settings input { width: 6vh; padding: 0.4vh; border-radius: 6px; border: 1px solid #444;
+    background: var(--bg); color: var(--text); }
+  .help-btn { width: 3.2vh; height: 3.2vh; border-radius: 50%; border: 1px solid var(--muted);
+    background: transparent; color: var(--muted); font-size: 1.6vh; font-weight: 700; cursor: pointer;
+    margin-right: 0.8vh; padding: 0; }
+  .help-btn:hover { color: #fff; border-color: #fff; }
+</style>
+</head>
+<body>
+  <nav class="hawall-nav">
+    <div class="hawall-nav-brand"><span class="hawall-logo">H</span> Hawall</div>
+    <div class="hawall-nav-links">
+      <a href="index.html">Verbindung</a>
+      <a href="editor.html">Karten</a>
+      <a href="screensaver.html">Screensaver</a>
+      <a href="theme.html">Design</a>
+      <a href="design-import.html">Design-Import</a>
+      <a href="dashboards.html">Unterdashboards</a>
+      <a href="update.html">Update</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </nav>
+  <div class="app" style="flex-direction: column; height: auto; min-height: 100vh;">
+    <div class="editor-topbar">
+      <h1 id="title">Wall Display – Karten einrichten</h1>
+      <div>
+        <button class="help-btn" id="helpBtn" title="Hilfe">?</button>
+        <button class="save-btn" id="saveBtn">Speichern</button>
+        <span class="save-result" id="saveResult"></span>
+      </div>
+    </div>
+    <div class="grid editor-canvas" id="grid" style="height: auto; grid-auto-rows: 14vh; grid-template-rows: repeat(6, 14vh); max-height: calc(6 * 14vh + 5 * 1.2vh); border: 1px dashed var(--muted); border-radius: 8px;"></div>
+  </div>
+
+  <div class="modal-backdrop" id="helpModal">
+    <div class="modal">
+      <h3>Hilfe</h3>
+      <p>Am Griff (⋮⋮) frei an eine Position innerhalb der Arbeitsfläche ziehen – wie später auf dem echten Wall Display, nichts kann mehr aus dem Sichtbereich verschwinden.</p>
+      <p>Ecke unten rechts ziehen, um Größe/Form frei zu ändern (auch hochkant).</p>
+      <p>× entfernt eine Karte, ⚙ öffnet Karten-Einstellungen (u.a. Anzeigename), + fügt eine neue hinzu – erst Kartentyp, dann Entität wählen.</p>
+      <p>Zeigt die echten aktuellen Zustände. Screensaver einrichten: <a href="screensaver.html">eigene Seite</a>.</p>
+      <button class="close" id="helpModalClose">Schließen</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="leaveWarnModal">
+    <div class="modal">
+      <h3>Ungespeicherte Änderungen</h3>
+      <p>Du hast Änderungen vorgenommen, die noch nicht gespeichert sind. Wenn du jetzt gehst, gehen sie verloren.</p>
+      <button class="close" id="leaveWarnCancel">Hier bleiben</button>
+      <button class="close" id="leaveWarnConfirm" style="background:#dc3545; margin-left:0.8vh;">Trotzdem verlassen</button>
+    </div>
+  </div>
+
+  <div class="picker-backdrop" id="picker">
+    <div class="picker">
+      <h3 id="pickerTitle" style="margin-top:0;">Kartentyp wählen</h3>
+      <div class="type-grid" id="typeGrid"></div>
+      <div id="entityStep" style="display:none;">
+        <button type="button" class="picker-back" id="pickerBack">← Anderer Typ</button>
+        <input type="text" id="pickerFilter" placeholder="Suchen...">
+        <div class="picker-list" id="pickerList"></div>
+      </div>
+      <button class="picker-close" id="pickerClose">Schließen</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="settings-modal">
+      <h3 id="settingsTitle">Karten-Einstellungen</h3>
+      <div id="settingsBody"></div>
+      <div class="actions">
+        <button class="btn-cancel" id="settingsCancel">Abbrechen</button>
+        <button class="btn-save" id="settingsSave">Übernehmen</button>
+      </div>
+    </div>
+  </div>
+
+<script src="/shared/nav.js"></script>
+<script src="/shared/dashboard-render.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

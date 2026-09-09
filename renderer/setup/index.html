@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hawall – Verbindung</title>
+<link rel="stylesheet" href="/shared/nav.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="hawall-nav">
+    <div class="hawall-nav-brand"><span class="hawall-logo">H</span> Hawall</div>
+    <div class="hawall-nav-links">
+      <a href="index.html">Verbindung</a>
+      <a href="editor.html">Karten</a>
+      <a href="screensaver.html">Screensaver</a>
+      <a href="theme.html">Design</a>
+      <a href="design-import.html">Design-Import</a>
+      <a href="dashboards.html">Unterdashboards</a>
+      <a href="update.html">Update</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </nav>
+  <div class="page-content">
+    <div class="wizard">
+      <h1>Wall Display einrichten</h1>
+      <h2>Verbindung zu Home Assistant</h2>
+      <div id="connectionStatus" class="note" style="display:none; margin-top:0;">Verbunden mit: <b id="connectedUrl"></b></div>
+      <label>Home Assistant URL</label>
+      <input id="haUrl" type="text" placeholder="http://192.168.1.10:8123">
+      <div id="tokenFieldWrap">
+        <label>Long-Lived Access Token</label>
+        <input id="token" type="password" placeholder="Token aus HA-Profil">
+      </div>
+      <button id="newTokenBtn" type="button" style="display:none; background:#6c757d;">Neuen Token eintragen</button>
+      <label>Titel des Dashboards</label>
+      <input id="title" type="text" value="Wall Display">
+      <button id="testBtn">Verbindung testen</button>
+      <div id="testResult" class="result"></div>
+      <button id="saveBtn" disabled>Speichern &amp; Dashboard starten</button>
+      <div id="saveResult" class="result"></div>
+      <p class="note">Karten wählst du im Anschluss jederzeit über <b>"Karten"</b> oben
+        aus – dort siehst du das Dashboard live und kannst es frei einrichten.
+        Alle weiteren Einstellungen findest du in der Navigation oben.</p>
+    </div>
+  </div>
+  <script src="/shared/nav.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

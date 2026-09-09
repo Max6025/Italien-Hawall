@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hawall – Vorhersage-Debug</title>
+<link rel="stylesheet" href="/shared/nav.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  .wizard { max-width: 780px; }
+  .step { border: 1px solid #ddd; border-radius: 8px; padding: 0.8rem 1rem; margin-top: 0.8rem; }
+  .step-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .badge-ok { color: #198754; }
+  .badge-fail { color: #dc3545; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 0.8rem; border-radius: 6px; overflow-x: auto;
+    max-height: 220px; font-size: 0.78rem; white-space: pre-wrap; word-break: break-word; }
+  .entity-row { display: flex; gap: 0.6rem; margin-top: 0.4rem; }
+  .entity-row select { flex: 1; margin: 0; }
+  #summary { margin-top: 1rem; font-weight: 600; }
+</style>
+</head>
+<body>
+  <nav class="hawall-nav">
+    <div class="hawall-nav-brand"><span class="hawall-logo">H</span> Hawall</div>
+    <div class="hawall-nav-links">
+      <a href="index.html">Verbindung</a>
+      <a href="editor.html">Karten</a>
+      <a href="screensaver.html">Screensaver</a>
+      <a href="theme.html">Design</a>
+      <a href="dashboards.html">Unterdashboards</a>
+      <a href="update.html">Update</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </nav>
+  <div class="page-content">
+  <div class="wizard">
+    <h1>Vorhersage-Debug</h1>
+    <p class="note">Testet die Wettervorhersage direkt gegen Home Assistant und zeigt jeden
+      einzelnen Versuch mit Status und Rohantwort. Felder leer lassen, um die bereits
+      gespeicherte Verbindung zu nutzen.</p>
+
+    <label>Home Assistant URL (optional, sonst gespeicherte Verbindung)</label>
+    <input type="text" id="haUrl" placeholder="http://192.168.1.10:8123">
+    <label>Long-Lived Access Token (optional, sonst gespeicherter Token)</label>
+    <input type="password" id="token" placeholder="Nur bei abweichender Verbindung nötig">
+
+    <div class="entity-row">
+      <select id="entitySelect"><option value="">-- weather-Entität wählen --</option></select>
+      <button id="loadEntitiesBtn">Entitäten laden</button>
+    </div>
+    <label style="margin-top:0.8rem;">Oder Entity-ID manuell</label>
+    <input type="text" id="entityManual" placeholder="weather.dwd_home">
+
+    <button id="testBtn" style="margin-top:1rem;">Vorhersage testen</button>
+    <div id="loadResult" class="result"></div>
+
+    <div id="summary"></div>
+    <div id="steps"></div>
+  </div>
+  </div>
+  <script src="/shared/nav.js"></script>
+  <script src="debug-forecast.js"></script>
+</body>
+</html>

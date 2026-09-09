@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Update erfolgreich</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #000; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    -webkit-user-select: none;
+  }
+  .box { text-align: center; }
+  .checkmark { width: 4.4vw; height: 4.4vw; border-radius: 50%; background: #198754;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 1.6vw;
+    animation: pop 0.4s ease; }
+  .checkmark svg { width: 2.4vw; height: 2.4vw; }
+  @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .title { font-size: 2.4vw; font-weight: 300; margin-bottom: 0.6vw; }
+  .hint { font-size: 1.2vw; opacity: 0.6; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="checkmark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l6 6L20 6"/></svg>
+    </div>
+    <div class="title" id="title">Erfolgreich aktualisiert</div>
+    <div class="hint" id="hint"></div>
+  </div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const version = params.get('version') || '';
+  if (version) {
+    document.getElementById('title').textContent = 'Erfolgreich auf Version ' + version + ' aktualisiert';
+  }
+  document.getElementById('hint').textContent = 'Das Wall Display startet gleich normal weiter.';
+  setTimeout(() => {
+    if (window.wallApi && window.wallApi.reloadView) window.wallApi.reloadView();
+  }, 5000);
+</script>
+</body>
+</html>

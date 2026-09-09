@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Update wird installiert</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #000; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    -webkit-user-select: none;
+  }
+  .box { text-align: center; }
+  .title { font-size: 2.8vw; font-weight: 300; margin-bottom: 1.2vw; }
+  .hint { font-size: 1.2vw; opacity: 0.6; }
+  .spinner { width: 4vw; height: 4vw; border: 0.4vw solid rgba(255,255,255,0.2);
+    border-top-color: #fff; border-radius: 50%; margin: 0 auto 2vw; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner"></div>
+    <div class="title">Update wird installiert…</div>
+    <div class="hint">Läuft automatisch im Hintergrund. Das Wall Display startet gleich neu.</div>
+  </div>
+</body>
+</html>

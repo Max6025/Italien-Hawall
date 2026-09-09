@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Wall Display</title>
+<link rel="stylesheet" href="shared/dashboard.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+</head>
+<body>
+  <div class="motion-indicator" id="motionIndicator" title="Annäherungserkennung: Anwesenheit erkannt"></div>
+  <div class="app">
+    <div class="main">
+      <header class="statusbar">
+        <div><div class="clock" id="clock">--:--</div><div id="dateline">-</div></div>
+        <div id="title">Wall Display</div>
+        <div class="icon-row">
+          <div class="icon-btn" id="backBtn" title="Zurück zum Hauptdashboard" style="display:none;"></div>
+          <div class="icon-btn warn" id="batteryWarnBtn" title="Batterie niedrig" style="display:none;"></div>
+          <div class="icon-btn" id="refreshBtn" title="Aktualisieren"></div>
+          <div class="icon-btn" id="settingsBtn" title="Einstellungen"></div>
+        </div>
+      </header>
+      <div class="grid" id="grid"></div>
+      <div class="tracker-view" id="trackerView" style="display:none;">
+        <div class="tracker-toolbar">
+          <div class="tracker-battery" id="trackerBattery"></div>
+          <div class="tracker-range-btns" id="trackerRangeBtns">
+            <button data-range="6h">6 Std</button>
+            <button data-range="24h">24 Std</button>
+            <button data-range="today">Heute</button>
+            <button data-range="yesterday">Gestern</button>
+            <button data-range="7d">7 Tage</button>
+          </div>
+          <div class="tracker-custom-range">
+            <input type="datetime-local" id="trackerFrom">
+            <span>bis</span>
+            <input type="datetime-local" id="trackerTo">
+            <button id="trackerLoadCustom">Verlauf laden</button>
+          </div>
+        </div>
+        <div id="trackerMap"></div>
+      </div>
+      <div class="room-tabs" id="roomTabs" style="display:none;"></div>
+      <footer class="footer" id="footer">Zuletzt aktualisiert –</footer>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h3>Einstellungen</h3>
+      <p id="modalIps">IP: ...</p>
+      <p>Karten hinzufügen/anordnen: obige Adresse + Pfad <code>/setup/editor.html</code> auf einem anderen Gerät öffnen.</p>
+      <p>Verbindung ändern: Pfad <code>/setup/</code>.</p>
+      <p>Update: Pfad <code>/setup/update.html</code>.</p>
+      <p>Design, Ankündigungs-Box, Batteriewarnung, Nachtmodus: Pfad <code>/setup/theme.html</code>.</p>
+      <p>Screensaver: Pfad <code>/setup/screensaver.html</code>.</p>
+      <p>Unterdashboards: Pfad <code>/setup/dashboards.html</code>.</p>
+      <p>App beenden: <code>Strg+Alt+Q</code></p>
+      <button class="close" id="modalClose">Schließen</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="batteryModal">
+    <div class="modal">
+      <h3>Batterie niedrig</h3>
+      <div id="batteryList"></div>
+      <button class="close" id="batteryModalClose">Schließen</button>
+    </div>
+  </div>
+
+  <div class="screensaver" id="screensaver">
+    <div class="ss-battery-banner" id="ssBatteryBanner"></div>
+    <div class="ss-grid" id="ssGrid"></div>
+  </div>
+
+  <div class="night-overlay" id="nightOverlay"></div>
+
+  <!-- Fehlerseite: erscheint, wenn Home Assistant dreimal in Folge nicht erreichbar war.
+       Sie wird ausschliesslich vom Hauptprozess gesteuert und nie eingeblendet, waehrend das
+       Panel aus ist -- ein Netzausfall darf das Geraet nicht wecken (ADR 0003). -->
+  <div id="haErrorOverlay" style="display:none;position:fixed;inset:0;z-index:9998;
+       background:#12151a;color:#e8eaed;font-family:Segoe UI,system-ui,sans-serif;
+       flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6vw">
+    <div style="font-size:9vw;line-height:1;margin-bottom:3vh">⚠</div>
+    <div style="font-size:4.4vw;font-weight:600;margin-bottom:2vh">Home Assistant nicht erreichbar</div>
+    <div id="haErrorDetail" style="font-size:2.4vw;color:#9aa0a6;max-width:80vw;line-height:1.6"></div>
+    <div id="haErrorSince" style="font-size:2vw;color:#6b7075;margin-top:3vh"></div>
+    <div style="font-size:2vw;color:#6b7075;margin-top:1vh">
+      Die Anzeige wird automatisch fortgesetzt, sobald die Verbindung wieder steht.
+    </div>
+  </div>
+
+  <div class="notify-overlay" id="notifyOverlay">
+    <svg class="notify-box-svg" viewBox="0 0 100 60" preserveAspectRatio="none">
+      <rect id="notifyBoxRect" x="2" y="2" width="96" height="56" rx="4" fill="none" stroke="#fff" stroke-width="1.2"/>
+    </svg>
+    <div class="notify-text" id="notifyText"></div>
+  </div>
+
+<script src="shared/dashboard-render.js"></script>
+<script>
+const { ICONS, defaultCardType, buildCard, resolveSpan } = DashboardRender;
+const params = new URLSearchParams(location.search);
+const PORT = params.get('port') || '8787';
+const API = `http://localhost:${PORT}`;
+
+let config = null;
+let statesById = {};
+let historyCache = {};
+let forecastCache = {};
+let currentDashboardId = 'main';
+
+// Prueft, ob eine Karte geometrisch eine Foto-Bereich-Karte im selben Layout ueberlappt
+// (fuer den automatischen Glas-Effekt) -- nur relevant fuer dafuer zugelassene Kartentypen.
+function findOverlappingPhotoInLayout(entry, layout) {
+  if (!DashboardRender.canOverlayOnPhoto(entry.card_type)) return null;
+  const rectsOverlap = (x1, y1, w1, h1, x2, y2, w2, h2) => x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+  return layout.find(o =>
+    o.card_type === 'photo' && o.entity_id !== entry.entity_id &&
+    rectsOverlap(entry.x || 0, entry.y || 0, entry.cols || 1, entry.rows || 1, o.x || 0, o.y || 0, o.cols || 1, o.rows || 1)
+  ) || null;
+}
+let subDashboardCache = {}; // id -> { name, layout }
+let dashboardOrder = [{ id: 'main', name: '' }]; // wird beim Laden um Unterdashboards ergaenzt
+
+const $ = id => document.getElementById(id);
+
+function updateClock() {
+  const now = new Date();
+  $('clock').textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  $('dateline').textContent = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' });
+}
+
+async function loadConfig() {
+  const r = await fetch(`${API}/api/config`);
+  config = await r.json();
+  if (currentDashboardId === 'main') $('title').textContent = config.title || 'Wall Display';
+  applyScreensaverBackground();
+  MOTION_THRESHOLD = config.motionThreshold || 34;
+  applyMotionWakeSetting();
+  DashboardRender.applyCustomTheme(config.customTheme);
+  await loadDashboardOrder();
+}
+
+// Reihenfolge aller Dashboards (Haupt + Unterdashboards) fuers Wischen und den Punkte-Indikator.
+async function loadDashboardOrder() {
+  try {
+    const r = await fetch(`${API}/api/dashboards`);
+    const data = await r.json();
+    const subs = data.ok ? data.dashboards : [];
+    dashboardOrder = [{ id: 'main', name: config.title || 'Wall Display' }, ...subs];
+  } catch (e) {
+    dashboardOrder = [{ id: 'main', name: config.title || 'Wall Display' }];
+  }
+  renderRoomTabs();
+}
+
+// Reiter-Leiste fuer den Wechsel zwischen Haupt- und Unterdashboards -- Namen kommen
+// automatisch aus den bestehenden Unterdashboards, kein separates "Raum"-Konzept noetig.
+function renderRoomTabs() {
+  const el = $('roomTabs');
+  if (dashboardOrder.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  el.innerHTML = dashboardOrder.map(d =>
+    `<button class="room-tab ${d.id === currentDashboardId ? 'active' : ''}" data-id="${d.id}">${d.name}</button>`).join('');
+  el.querySelectorAll('.room-tab').forEach(btn => {
+    btn.addEventListener('click', () => navigateTo(btn.dataset.id));
+  });
+}
+
+// Screensaver-Hintergrundbild: eigenes Foto statt der neutralen Theme-Farbe. Karten
+// bekommen ueber "has-bg-image" (siehe CSS) automatisch einen Dimm-Schleier fuer Lesbarkeit.
+let lastBgVersion = null;
+function applyScreensaverBackground() {
+  const el = $('screensaver');
+  if (!config || !config.screensaverBackground) {
+    el.style.backgroundImage = '';
+    el.classList.remove('has-bg-image');
+    lastBgVersion = null;
+    return;
+  }
+  if (config.screensaverBgVersion !== lastBgVersion) {
+    el.style.backgroundImage = `url(${API}/api/screensaver/background?v=${config.screensaverBgVersion})`;
+    lastBgVersion = config.screensaverBgVersion;
+  }
+  el.classList.add('has-bg-image');
+}
+
+async function loadStatus() {
+  const r = await fetch(`${API}/api/status`);
+  const data = await r.json();
+  $('modalIps').textContent = 'IP: ' + (data.ips || []).map(ip => `${ip}:${data.port}`).join('  /  ');
+}
+
+function currentLayout() {
+  if ((config.layout || []).length) return config.layout;
+  return (config.entities || []).map((id, i) => ({ entity_id: id, order: i }));
+}
+
+async function activeLayout() {
+  if (currentDashboardId === 'main') return currentLayout();
+  const r = await fetch(`${API}/api/dashboards/${currentDashboardId}`);
+  const data = await r.json();
+  if (!data.ok) return [];
+  subDashboardCache[currentDashboardId] = data.dashboard;
+  $('title').textContent = data.dashboard.name || 'Dashboard';
+  return data.dashboard.layout || [];
+}
+
+async function navigateTo(targetId) {
+  currentDashboardId = targetId || 'main';
+  $('backBtn').style.display = currentDashboardId === 'main' ? 'none' : 'flex';
+  if (currentDashboardId === 'main') $('title').textContent = config.title || 'Wall Display';
+  renderRoomTabs();
+  const dashInfo = dashboardOrder.find(d => d.id === currentDashboardId);
+  if (dashInfo && dashInfo.type === 'tracker') {
+    $('grid').style.display = 'none';
+    $('trackerView').style.display = 'flex';
+    await renderTrackerView(currentDashboardId);
+  } else {
+    $('trackerView').style.display = 'none';
+    $('grid').style.display = 'grid';
+    await render();
+  }
+}
+
+// --- Tracker-Unterdashboard: Standort + Verlauf auf einer OpenStreetMap-Karte (z.B. fuer
+// ein GPS-Halsband). Karte wird einmal erzeugt und bei erneutem Aufruf wiederverwendet
+// (Leaflet mag kein wiederholtes Neu-Initialisieren desselben Containers).
+let trackerMapInstance = null;
+let trackerMarker = null;
+let trackerPolyline = null;
+let trackerActiveRangeBtn = null;
+let trackerZoneLayers = [];
+
+function ensureTrackerMap() {
+  if (trackerMapInstance) return trackerMapInstance;
+  trackerMapInstance = L.map('trackerMap', { zoomControl: true, attributionControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap Mitwirkende', maxZoom: 19
+  }).addTo(trackerMapInstance);
+  return trackerMapInstance;
+}
+
+async function renderTrackerView(dashId) {
+  const r = await fetch(`${API}/api/dashboards/${dashId}`);
+  const data = await r.json();
+  if (!data.ok) return;
+  const dash = data.dashboard;
+  const entityId = dash.trackerEntity;
+  const map = ensureTrackerMap();
+  setTimeout(() => map.invalidateSize(), 50); // Container war ggf. unsichtbar (Groesse 0) beim Erzeugen
+
+  // Home-Assistant-Zonen (z.B. "Zuhause") als Kreis mit Namen einzeichnen -- einmalig pro
+  // Aufruf neu gezeichnet, da sich Zonen selten aendern.
+  trackerZoneLayers.forEach(l => map.removeLayer(l));
+  trackerZoneLayers = [];
+  if (dash.trackerShowZones) {
+    Object.keys(statesById).filter(id => id.startsWith('zone.')).forEach(id => {
+      const z = statesById[id];
+      const lat = parseFloat(z.attributes.latitude), lon = parseFloat(z.attributes.longitude);
+      const radius = parseFloat(z.attributes.radius) || 100;
+      if (isNaN(lat) || isNaN(lon)) return;
+      const circle = L.circle([lat, lon], { radius, color: '#4f7cff', weight: 1, fillOpacity: 0.08 }).addTo(map);
+      circle.bindTooltip(z.attributes.friendly_name || id, { permanent: false });
+      trackerZoneLayers.push(circle);
+    });
+  }
+
+  const st = entityId ? statesById[entityId] : null;
+  const battEl = $('trackerBattery');
+  const zoom = dash.trackerDefaultZoom || 16;
+  if (!entityId) {
+    battEl.textContent = 'Keine Tracker-Entität eingerichtet – siehe Unterdashboards im Setup.';
+  } else if (st && st.attributes) {
+    const batt = st.attributes.battery_level ?? st.attributes.battery;
+    battEl.textContent = batt !== undefined ? `🔋 ${batt}%` : '';
+    battEl.classList.toggle('low', typeof batt === 'number' && batt <= 20);
+    const lat = parseFloat(st.attributes.latitude), lon = parseFloat(st.attributes.longitude);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      const markerIcon = dash.trackerIconDataUrl
+        ? L.icon({ iconUrl: dash.trackerIconDataUrl, iconSize: [40, 40], iconAnchor: [20, 20], className: 'tracker-custom-icon' })
+        : undefined;
+      if (trackerMarker) {
+        trackerMarker.setLatLng([lat, lon]);
+        if (markerIcon) trackerMarker.setIcon(markerIcon);
+      } else {
+        trackerMarker = markerIcon ? L.marker([lat, lon], { icon: markerIcon }).addTo(map) : L.marker([lat, lon]).addTo(map);
+      }
+      // Nur automatisch zentrieren, wenn gewuenscht (Standard an) -- sonst darf der Nutzer
+      // frei auf der Karte navigieren, ohne dass sie bei jedem Refresh zurueckspringt.
+      if (dash.trackerAutoCenter !== false) {
+        map.setView([lat, lon], map.getZoom() > 1 ? map.getZoom() : zoom);
+      } else if (map.getZoom() <= 1) {
+        map.setView([lat, lon], zoom); // beim allerersten Anzeigen trotzdem einmal sinnvoll positionieren
+      }
+    }
+  }
+
+  // Voreinstellungen fuer den Verlaufs-Zeitraum -- einmalig verdrahten (Buttons bleiben ueber
+  // mehrere Aufrufe hinweg dieselben DOM-Elemente).
+  if (!trackerActiveRangeBtn) {
+    document.querySelectorAll('#trackerRangeBtns button').forEach(btn => {
+      btn.addEventListener('click', () => loadTrackerHistory(entityId, btn.dataset.range, btn));
+    });
+    $('trackerLoadCustom').addEventListener('click', () => {
+      const from = $('trackerFrom').value, to = $('trackerTo').value;
+      if (!from || !to) return;
+      loadTrackerHistory(entityId, null, null, new Date(from).toISOString(), new Date(to).toISOString());
+    });
+  }
+}
+
+function rangeToStartEnd(range) {
+  const now = new Date();
+  const end = now.toISOString();
+  if (range === '6h') return { start: new Date(now - 6 * 3600000).toISOString(), end };
+  if (range === '24h') return { start: new Date(now - 24 * 3600000).toISOString(), end };
+  if (range === '7d') return { start: new Date(now - 7 * 86400000).toISOString(), end };
+  if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); return { start: s.toISOString(), end }; }
+  if (range === 'yesterday') {
+    const s = new Date(now); s.setDate(s.getDate() - 1); s.setHours(0, 0, 0, 0);
+    const e = new Date(now); e.setHours(0, 0, 0, 0);
+    return { start: s.toISOString(), end: e.toISOString() };
+  }
+  return { start: new Date(now - 24 * 3600000).toISOString(), end };
+}
+
+async function loadTrackerHistory(entityId, range, btnEl, customStart, customEnd) {
+  if (!entityId) return;
+  if (btnEl) {
+    document.querySelectorAll('#trackerRangeBtns button').forEach(b => b.classList.remove('active'));
+    btnEl.classList.add('active');
+    trackerActiveRangeBtn = btnEl;
+  }
+  const { start, end } = customStart ? { start: customStart, end: customEnd } : rangeToStartEnd(range);
+  const r = await fetch(`${API}/api/ha/tracker-history?entity_id=${encodeURIComponent(entityId)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
+  const data = await r.json();
+  const map = ensureTrackerMap();
+  if (trackerPolyline) { map.removeLayer(trackerPolyline); trackerPolyline = null; }
+  if (!data.ok || !data.points || !data.points.length) return;
+  const latlngs = data.points.map(p => [p.lat, p.lon]);
+  trackerPolyline = L.polyline(latlngs, { color: '#4f7cff', weight: 3 }).addTo(map);
+  map.fitBounds(trackerPolyline.getBounds(), { padding: [30, 30] });
+}
+
+async function ensureHistory(entityId) {
+  if (historyCache[entityId]) return historyCache[entityId];
+  try {
+    const r = await fetch(`${API}/api/ha/history?entity_id=${encodeURIComponent(entityId)}&hours=24`);
+    const data = await r.json();
+    historyCache[entityId] = data.ok ? data.series : [];
+  } catch (e) {
+    historyCache[entityId] = [];
+  }
+  return historyCache[entityId];
+}
+
+async function ensureForecast(entityId, forecastType) {
+  const cacheKey = `${entityId}:${forecastType || 'auto'}`;
+  if (forecastCache[cacheKey]) return forecastCache[cacheKey];
+  try {
+    const typeParam = forecastType ? `&type=${encodeURIComponent(forecastType)}` : '';
+    const r = await fetch(`${API}/api/ha/forecast?entity_id=${encodeURIComponent(entityId)}${typeParam}`);
+    const data = await r.json();
+    if (data.ok && Array.isArray(data.forecast) && data.forecast.length) {
+      forecastCache[cacheKey] = { forecast: data.forecast, error: '' };
+      return forecastCache[cacheKey];
+    }
+    return { forecast: [], error: data.error || 'Keine Vorhersagedaten' }; // NICHT cachen -> naechster Refresh versucht erneut
+  } catch (e) {
+    return { forecast: [], error: String(e.message || e) }; // NICHT cachen
+  }
+}
+
+let wasteCache = {};
+async function ensureWasteEvents(entityId) {
+  if (wasteCache[entityId]) return wasteCache[entityId];
+  try {
+    const r = await fetch(`${API}/api/ha/calendar-events?entity_id=${encodeURIComponent(entityId)}&days=60`);
+    const data = await r.json();
+    if (data.ok && Array.isArray(data.events) && data.events.length) {
+      wasteCache[entityId] = { events: data.events, error: '' };
+      return wasteCache[entityId];
+    }
+    return { events: [], error: data.error || 'Keine Termine gefunden' }; // NICHT cachen -> Retry
+  } catch (e) {
+    return { events: [], error: String(e.message || e) }; // NICHT cachen
+  }
+}
+
+async function render() {
+  const layout = await activeLayout();
+  const grid = $('grid');
+  grid.innerHTML = '';
+  if (!layout.length) {
+    grid.innerHTML = '<div class="empty">Keine Karten eingerichtet. /setup/editor.html auf einem anderen Gerät öffnen.</div>';
+    return;
+  }
+  for (const entry of layout) {
+    const type = entry.card_type || defaultCardType(entry.entity_id, statesById[entry.entity_id]);
+    const s = (type === 'clock' || type === 'navigate' || type === 'energy' || type === 'photo' || type === 'quicktiles') ? null : statesById[entry.entity_id];
+    if (type !== 'clock' && type !== 'navigate' && type !== 'energy' && type !== 'photo' && type !== 'quicktiles' && !s) continue;
+    const span = resolveSpan(entry, type);
+    let history, forecast, forecastError, energy, waste, wasteError;
+    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id);
+    if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
+    if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
+    if (type === 'energy') {
+      const es = entry.settings || {};
+      energy = {
+        grid: statesById[es.gridEntity], gridReturn: statesById[es.gridReturnEntity],
+        solar: statesById[es.solarEntity], battery: statesById[es.batteryEntity],
+        batterySoc: statesById[es.batterySocEntity]
+      };
+    }
+    grid.appendChild(buildCard(entry.entity_id, s, type, span, {
+      editable: false,
+      history,
+      forecast,
+      forecastError,
+      energy,
+      waste,
+      wasteError,
+      apiBase: API,
+      photoVersion: type === 'photo' ? (entry.settings || {}).photoVersion : null,
+      onPhoto: !!findOverlappingPhotoInLayout(entry, layout),
+      statesById,
+      settings: entry.settings || {},
+      callbacks: {
+        onToggle: (domain, entityId, state) => callService(domain, state === 'on' ? 'turn_off' : 'turn_on', entityId),
+        onPress: (domain, entityId) => callService(domain, DashboardRender.PRESS_DOMAINS[domain] || 'turn_on', entityId),
+        onSetBrightness: (entityId, pct) => callService('light', 'turn_on', entityId, { brightness_pct: pct }),
+        onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
+        onCover: (entityId, service) => callService('cover', service, entityId),
+        onSelectOption: (domain, entityId, option) => callService(domain, 'select_option', entityId, { option }),
+        onMediaControl: (entityId, service, serviceData) => callService('media_player', service, entityId, serviceData),
+        onLockToggle: (entityId, curState) => callService('lock', curState === 'locked' ? 'unlock' : 'lock', entityId),
+        onFanSpeed: (entityId, pct) => callService('fan', 'set_percentage', entityId, { percentage: pct }),
+        onVacuumControl: (entityId, service) => callService('vacuum', service, entityId),
+        onAlarmControl: (entityId, service) => callService('alarm_control_panel', service, entityId),
+        onQuickTile: (mediaPlayerEntity, source) => callService('media_player', 'select_source', mediaPlayerEntity, { source }),
+        onNavigate: (targetId) => navigateTo(targetId)
+      }
+    }));
+  }
+}
+
+async function refresh() {
+  const r = await fetch(`${API}/api/ha/states`);
+  const data = await r.json();
+  if (!data.ok) return;
+  statesById = Object.fromEntries(data.states.map(s => [s.entity_id, s]));
+  applyTheme();
+  applyNotify();
+  if (!nightActive) {
+    const dashInfo = dashboardOrder.find(d => d.id === currentDashboardId);
+    if (dashInfo && dashInfo.type === 'tracker') {
+      await renderTrackerView(currentDashboardId); // aktualisiert Position/Akku/Zonen, nicht das (versteckte) Karten-Raster
+    } else {
+      await render();
+    }
+    if (screensaverActive) renderScreensaver();
+  }
+  $('footer').textContent = 'Zuletzt aktualisiert ' + new Date().toLocaleTimeString('de-DE');
+}
+
+function applyTheme() {
+  if (!config || !config.sunEntity) { document.body.classList.remove('light-theme'); return; }
+  const s = statesById[config.sunEntity];
+  if (!s) return;
+  const isDay = s.state === 'above_horizon' || s.state === 'on';
+  document.body.classList.toggle('light-theme', isDay);
+}
+
+// --- Ankuendigungs-Box: bei Inhalt in der konfigurierten input_text-Entitaet wird alles
+// abgedunkelt und der Text in einer Box angezeigt, die sich schnell "zeichnet". Leer/unknown
+// -> Box verschwindet wieder. ---
+let notifyVisible = false;
+function applyNotify() {
+  if (!config || !config.notifyEntity) return;
+  const s = statesById[config.notifyEntity];
+  const text = s ? String(s.state || '').trim() : '';
+  const hasText = text && text.toLowerCase() !== 'unknown' && text.toLowerCase() !== 'unavailable';
+  if (hasText && !notifyVisible) {
+    $('notifyText').textContent = text;
+    $('notifyOverlay').classList.add('show');
+    const rect = $('notifyBoxRect');
+    rect.classList.remove('draw');
+    requestAnimationFrame(() => rect.classList.add('draw'));
+    notifyVisible = true;
+  } else if (hasText && notifyVisible) {
+    $('notifyText').textContent = text;
+  } else if (!hasText && notifyVisible) {
+    $('notifyOverlay').classList.remove('show');
+    notifyVisible = false;
+  }
+}
+
+// --- Geräte-Akkuwarnung: Akkustand des Windows-Geräts selbst (Tablet/Notebook), auf
+// dem diese App laeuft -- NICHT ueber HA, sondern die Battery-Status-API des Browsers. ---
+let batteryObj = null;
+async function initDeviceBattery() {
+  if (!navigator.getBattery) return; // Geraet ohne Akku (z.B. Desktop-PC) oder nicht unterstuetzt
+  try {
+    batteryObj = await navigator.getBattery();
+    batteryObj.addEventListener('levelchange', checkDeviceBattery);
+    batteryObj.addEventListener('chargingchange', checkDeviceBattery);
+    checkDeviceBattery();
+  } catch (e) { /* keine Akku-Info verfuegbar -- Icon bleibt einfach versteckt */ }
+}
+
+function checkDeviceBattery() {
+  const btn = $('batteryWarnBtn');
+  const banner = $('ssBatteryBanner');
+  if (!batteryObj) { btn.style.display = 'none'; banner.classList.remove('show'); return; }
+  const pct = Math.round(batteryObj.level * 100);
+  const threshold = (config && config.batteryThreshold) || 20;
+  const low = !batteryObj.charging && pct <= threshold;
+  if (low) {
+    btn.style.display = 'flex';
+    btn.dataset.pct = pct;
+    banner.textContent = `🔋 Akku niedrig: ${pct}% – bitte Netzteil anschließen`;
+    banner.classList.add('show');
+  } else {
+    btn.style.display = 'none';
+    banner.classList.remove('show');
+  }
+}
+
+function showBatteryModal() {
+  const pct = $('batteryWarnBtn').dataset.pct || '?';
+  $('batteryList').innerHTML = `<p>Akkustand des Geräts: <b>${pct}%</b></p><p>Bitte Netzteil anschließen.</p>`;
+  $('batteryModal').classList.add('show');
+}
+
+// --- Screensaver: bei Inaktivitaet werden die grossen Wetterkarten (Temperatur/Wind/Regen)
+// bzw. die gezielt ausgewaehlten Karten gross angezeigt; jede Beruehrung beendet ihn sofort. ---
+let idleTimer = null;
+let screensaverActive = false;
+
+function updateScreensaverClock() {
+  document.querySelectorAll('#ssGrid .card.type-clock').forEach(DashboardRender.renderClockNow);
+}
+
+async function renderScreensaver() {
+  const grid = $('ssGrid');
+  grid.innerHTML = '';
+  const layout = (config && config.screensaverLayout) || [];
+  if (!layout.length) {
+    grid.innerHTML = '<div class="empty">Kein Screensaver-Layout eingerichtet. /setup/screensaver.html auf einem anderen Gerät öffnen.</div>';
+    return;
+  }
+  for (const entry of layout) {
+    const type = entry.card_type || 'sensor';
+    const s = (type === 'clock' || type === 'energy') ? null : statesById[entry.entity_id];
+    if (type !== 'clock' && type !== 'energy' && !s) continue;
+    const span = resolveSpan(entry, type);
+    let history, forecast, forecastError, energy, waste, wasteError;
+    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id);
+    if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
+    if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
+    if (type === 'energy') {
+      const es = entry.settings || {};
+      energy = {
+        grid: statesById[es.gridEntity], gridReturn: statesById[es.gridReturnEntity],
+        solar: statesById[es.solarEntity], battery: statesById[es.batteryEntity],
+        batterySoc: statesById[es.batterySocEntity]
+      };
+    }
+    grid.appendChild(buildCard(entry.entity_id, s, type, span, {
+      editable: false, history, forecast, forecastError, energy, waste, wasteError, apiBase: API, settings: entry.settings || {}
+    }));
+  }
+}
+
+async function enterScreensaver() {
+  if (screensaverActive) return;
+  screensaverActive = true;
+  await renderScreensaver();
+  updateScreensaverClock();
+  $('screensaver').classList.add('show');
+  stopMotionWake(); // Kamera laeuft nur, waehrend der Bildschirm wach ist
+}
+
+function exitScreensaver() {
+  if (!screensaverActive) return;
+  hideScreensaverOnly();
+  startMotionWakeIfEnabled();
+}
+
+// Blendet den Screensaver rein visuell aus, OHNE die Kamera zu starten -- fuer Faelle wie
+// showNightBlack(), wo wir defensiv sicherstellen wollen, dass der Screensaver nicht sichtbar
+// bleibt, aber gerade NICHT aufwachen (die Kamera darf hier nicht anspringen). exitScreensaver()
+// selbst bleibt fuer echtes Aufwecken per Beruehrung reserviert.
+function hideScreensaverOnly() {
+  screensaverActive = false;
+  $('screensaver').classList.remove('show');
+}
+
+function resetIdleTimer() {
+  exitScreensaver();
+  clearTimeout(idleTimer);
+  const seconds = config ? (config.screensaverSeconds || 0) : 0;
+  if (seconds > 0) idleTimer = setTimeout(enterScreensaver, seconds * 1000);
+}
+
+// --- Nachtmodus: in einem konfigurierten Zeitfenster (z.B. 23:00-06:30) rein schwarzer,
+// inhaltsloser Bildschirm zum Energiesparen (kein Kartenrefresh waehrend dieser Zeit).
+// Beruehrung zeigt sofort das normale Dashboard (NICHT den Screensaver), nach kurzer
+// Inaktivitaet geht es automatisch zurueck ins Schwarz, solange die Nachtzeit andauert. ---
+let nightActive = false;
+let nightWakeTimer = null;
+
+function parseHM(str) {
+  const parts = String(str || '').split(':').map(Number);
+  if (isNaN(parts[0])) return null;
+  return parts[0] * 60 + (parts[1] || 0);
+}
+
+function isNightTime() {
+  // Sobald die Kalendersteuerung aktiv ist, liegt die Nachtsperre im Hauptprozess: sie schaltet
+  // das Panel wirklich ab, statt nur ein schwarzes Overlay darueberzulegen. Beides gleichzeitig
+  // laufen zu lassen wuerde sich gegenseitig ins Gehege kommen.
+  if (panelControlActive) return false;
+  if (!config || !config.nightModeEnabled) return false;
+  if (config.nightModeForceOn) return true; // Test-Schalter: ignoriert die Uhrzeit komplett
+  const start = parseHM(config.nightStart || '23:00');
+  const end = parseHM(config.nightEnd || '06:30');
+  if (start === null || end === null) return false;
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  return start > end ? (cur >= start || cur < end) : (cur >= start && cur < end);
+}
+
+function setBrightnessSafe(pct) {
+  try {
+    if (window.wallApi && window.wallApi.setBrightness) window.wallApi.setBrightness(pct).catch(() => {});
+  } catch (e) { /* Geraet/Plattform unterstuetzt das evtl. nicht -- unkritisch, Overlay bleibt */ }
+}
+
+function showNightBlack() {
+  hideScreensaverOnly(); // nur die Anzeige wegnehmen -- wir gehen schlafen, nicht aufwachen, die Kamera darf hier nicht anspringen
+  $('nightOverlay').classList.add('show');
+  setBrightnessSafe(5);
+  stopMotionWake(); // Kamera laeuft nur, waehrend der Bildschirm wach ist
+}
+
+async function wakeFromNight() {
+  if (!nightActive) return;
+  exitScreensaver(); // defensiv: der Screensaver darf beim Aufwecken nie sichtbar sein
+  $('nightOverlay').classList.remove('show');
+  setBrightnessSafe(100);
+  clearTimeout(nightWakeTimer);
+  // render() war waehrend der Nacht pausiert -- kurz "Tag" simulieren, damit refresh()
+  // wirklich das echte, aktuelle Dashboard zeichnet statt der letzten alten Anzeige.
+  nightActive = false;
+  await refresh();
+  nightActive = true;
+  nightWakeTimer = setTimeout(showNightBlack, 10000); // 10s beruehrt -> danach wieder schwarz
+  startMotionWakeIfEnabled(); // ab jetzt wach -- Kamera darf wieder mitschauen
+}
+
+function enterNightMode() {
+  if (nightActive) return;
+  nightActive = true;
+  clearTimeout(idleTimer); // regulaerer Screensaver-Timer pausiert waehrend der Nacht
+  showNightBlack();
+}
+
+function leaveNightMode() {
+  if (!nightActive) return;
+  nightActive = false;
+  clearTimeout(nightWakeTimer);
+  $('nightOverlay').classList.remove('show');
+  setBrightnessSafe(100);
+  resetIdleTimer(); // normaler Screensaver-Ablauf greift wieder
+  refresh(); // Refresh war waehrend der Nacht pausiert -- sofort aktuell holen
+  startMotionWakeIfEnabled();
+}
+
+function checkNightMode() {
+  const night = isNightTime();
+  if (night && !nightActive) enterNightMode();
+  else if (!night && nightActive) leaveNightMode();
+}
+
+function onActivity() {
+  if (nightActive) wakeFromNight();
+  else resetIdleTimer();
+}
+
+// --- Neues Verhalten der Praesenzerkennung (auf Wunsch): die Kamera weckt den Bildschirm
+// NIE von sich aus auf -- das macht ausschliesslich eine Beruehrung. Die Kamera laeuft nur,
+// waehrend der Bildschirm bereits wach ist (siehe stopMotionWake()/startMotionWakeIfEnabled()
+// in enterScreensaver/exitScreensaver/showNightBlack/wakeFromNight), und hat dort zwei Aufgaben:
+// 1) solange jemand erkannt wird, den normalen Screensaver-/Nacht-Timer immer wieder verlaengern
+//    (er kommt also nicht an, solange jemand da ist), 2) sobald "besetzt" zu "nicht besetzt"
+//    wechselt, SOFORT den Screensaver/die Nacht auslösen, statt auf den Timer zu warten.
+function isCurrentlyAsleep() {
+  return screensaverActive || ($('nightOverlay') && $('nightOverlay').classList.contains('show'));
+}
+
+function onPresenceContinues() {
+  if (isCurrentlyAsleep()) return; // Kamera sollte hier ohnehin nicht laufen -- defensiv
+  if (nightActive) {
+    clearTimeout(nightWakeTimer);
+    nightWakeTimer = setTimeout(showNightBlack, 10000);
+  } else {
+    clearTimeout(idleTimer);
+    const seconds = config ? (config.screensaverSeconds || 0) : 0;
+    if (seconds > 0) idleTimer = setTimeout(enterScreensaver, seconds * 1000);
+  }
+}
+
+function onPresenceLost() {
+  if (isCurrentlyAsleep()) return;
+  if (nightActive) showNightBlack();
+  else enterScreensaver();
+}
+
+['pointerdown', 'pointermove', 'touchstart', 'mousedown', 'keydown', 'wheel'].forEach(evt => {
+  document.addEventListener(evt, onActivity, { passive: true });
+});
+
+// --- Annaeherungserkennung: einfache Bild-Differenz ueber die Frontkamera. Weckt den
+// Bildschirm NICHT von sich aus auf (das macht nur eine Beruehrung) -- haelt ihn aber wach,
+// solange jemand erkannt wird, und legt ihn sofort schlafen, sobald niemand mehr da ist
+// (siehe onPresenceContinues()/onPresenceLost() weiter oben). Komplett lokal (Frame-Vergleich
+// im Speicher), es wird nichts gespeichert oder uebertragen. Standardmaessig aus, siehe
+// /setup/theme.html. ---
+let motionStream = null;
+let motionInterval = null;
+let motionVideo = null;
+let motionCtx = null;
+let motionBaseline = null; // langsam nachgefuehrter "leerer Raum"-Hintergrund
+let motionHitCount = 0;
+let motionMissCount = 0;
+let motionOccupied = false;
+const MOTION_W = 32, MOTION_H = 24;
+let MOTION_THRESHOLD = 34; // durchschnittliche Helligkeitsdifferenz pro Pixel (0-255) -- per Einstellung anpassbar (siehe /setup/theme.html)
+
+async function startMotionWake() {
+  if (motionStream) return; // laeuft schon
+  try {
+    motionStream = await navigator.mediaDevices.getUserMedia({ video: { width: 160, height: 120 }, audio: false });
+    motionVideo = document.createElement('video');
+    motionVideo.srcObject = motionStream;
+    motionVideo.muted = true;
+    motionVideo.playsInline = true;
+    await motionVideo.play();
+    const canvas = document.createElement('canvas');
+    canvas.width = MOTION_W;
+    canvas.height = MOTION_H;
+    motionCtx = canvas.getContext('2d', { willReadFrequently: true });
+    motionBaseline = null;
+    motionHitCount = 0;
+    motionMissCount = 0;
+    motionOccupied = false;
+    motionInterval = setInterval(sampleMotion, 400);
+  } catch (e) {
+    console.warn('Annäherungserkennung nicht verfügbar:', e.message);
+    stopMotionWake();
+  }
+}
+
+function stopMotionWake() {
+  if (motionInterval) { clearInterval(motionInterval); motionInterval = null; }
+  if (motionStream) { motionStream.getTracks().forEach(t => t.stop()); motionStream = null; }
+  motionVideo = null; motionCtx = null; motionBaseline = null; motionOccupied = false;
+  motionHitCount = 0; motionMissCount = 0;
+  $('motionIndicator').classList.remove('occupied');
+}
+
+// Echte Anwesenheitserkennung statt reiner Bewegungserkennung: das aktuelle Bild wird
+// gegen einen langsam nachgefuehrten "leerer Raum"-Hintergrund verglichen (nicht nur gegen
+// das letzte Bild) -- so bleibt eine ruhig stehende Person weiterhin erkannt, statt nach
+// ein paar Sekunden Stillstand wieder als "niemand da" zu gelten. Der Hintergrund wird nur
+// nachgefuehrt, WAEHREND niemand erkannt wird, damit eine stehende Person nicht selbst zum
+// Hintergrund verschmilzt.
+// Bereichsbasierte Erkennung statt eines einzelnen globalen Durchschnittswerts: das Bild wird
+// in ein Raster aus Zonen aufgeteilt, und eine Person zaehlt nur, wenn MEHRERE Zonen gleichzeitig
+// eine deutliche Abweichung zeigen. Das macht die Erkennung robuster gegen einzelne Stoerquellen
+// (Kamera-Rauschen in einer Bildecke, Lichtreflexion an einer Stelle) und gegen "verwaschene"
+// Ergebnisse, wenn eine Person nur einen Teil des Bilds einnimmt (ein globaler Durchschnitt
+// verwaesserte das bisher, je nach Abstand/Position schwankte die Erkennung stark).
+const MOTION_GRID_COLS = 4, MOTION_GRID_ROWS = 3;
+const MOTION_MIN_ACTIVE_ZONES = 2; // mind. 2 von 12 Zonen muessen "aktiv" sein
+
+function sampleMotion() {
+  if (!motionVideo || motionVideo.readyState < 2) return;
+  motionCtx.drawImage(motionVideo, 0, 0, MOTION_W, MOTION_H);
+  const frame = motionCtx.getImageData(0, 0, MOTION_W, MOTION_H).data;
+  if (!motionBaseline) { motionBaseline = Float64Array.from(frame); return; }
+
+  const zoneW = Math.ceil(MOTION_W / MOTION_GRID_COLS), zoneH = Math.ceil(MOTION_H / MOTION_GRID_ROWS);
+  const zoneSum = new Array(MOTION_GRID_COLS * MOTION_GRID_ROWS).fill(0);
+  const zoneCount = new Array(MOTION_GRID_COLS * MOTION_GRID_ROWS).fill(0);
+  for (let y = 0; y < MOTION_H; y++) {
+    for (let x = 0; x < MOTION_W; x++) {
+      const i = (y * MOTION_W + x) * 4;
+      const zone = Math.floor(y / zoneH) * MOTION_GRID_COLS + Math.floor(x / zoneW);
+      zoneSum[zone] += Math.abs(frame[i] - motionBaseline[i]);
+      zoneCount[zone]++;
+    }
+  }
+  let activeZones = 0;
+  for (let z = 0; z < zoneSum.length; z++) {
+    if (zoneSum[z] / zoneCount[z] > MOTION_THRESHOLD) activeZones++;
+  }
+
+  if (activeZones >= MOTION_MIN_ACTIVE_ZONES) {
+    motionHitCount++;
+    motionMissCount = 0;
+    if (motionHitCount >= 3) {
+      motionOccupied = true;
+      $('motionIndicator').classList.add('occupied');
+      onPresenceContinues(); // haelt den Bildschirm wach, solange die Anwesenheit anhaelt
+    }
+  } else {
+    motionHitCount = 0;
+    motionMissCount++;
+    // Symmetrische Traegheit: erst nach 3 aufeinanderfolgenden "niemand da"-Messungen wirklich
+    // als weg werten (vorher reichte EINE einzelne schwache Messung -- dadurch verschwand die
+    // Erkennung manchmal kurz, obwohl noch jemand da war).
+    if (motionMissCount >= 3) {
+      const wasOccupied = motionOccupied;
+      motionOccupied = false;
+      $('motionIndicator').classList.remove('occupied');
+      if (wasOccupied) onPresenceLost(); // Uebergang besetzt -> nicht besetzt -- sofort schlafen legen
+      for (let i = 0; i < frame.length; i += 4) {
+        motionBaseline[i] = motionBaseline[i] * 0.9 + frame[i] * 0.1; // Hintergrund langsam nachfuehren
+      }
+    }
+  }
+}
+
+// Startet die Kamera nur, wenn die Einstellung an ist UND der Bildschirm gerade wach ist --
+// die Kamera soll (auf Wunsch) nicht laufen, waehrend geschlafen wird.
+function startMotionWakeIfEnabled() {
+  if (config && config.motionWakeEnabled && !isCurrentlyAsleep()) startMotionWake();
+}
+
+function applyMotionWakeSetting() {
+  if (!config || !config.motionWakeEnabled || isCurrentlyAsleep()) stopMotionWake();
+  else startMotionWake();
+  $('motionIndicator').classList.toggle('relevant', !!(config && config.motionWakeEnabled));
+}
+
+async function callService(domain, service, entity_id, service_data = {}) {
+  await fetch(`${API}/api/ha/service`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domain, service, service_data: { entity_id, ...service_data } })
+  });
+  setTimeout(refresh, 400);
+}
+
+$('refreshBtn').addEventListener('click', refresh);
+$('settingsBtn').addEventListener('click', () => { loadStatus(); $('modal').classList.add('show'); });
+$('backBtn').addEventListener('click', () => navigateTo('main'));
+$('modalClose').addEventListener('click', () => $('modal').classList.remove('show'));
+$('batteryWarnBtn').addEventListener('click', showBatteryModal);
+$('batteryModalClose').addEventListener('click', () => $('batteryModal').classList.remove('show'));
+$('refreshBtn').innerHTML = ICONS.refresh;
+$('settingsBtn').innerHTML = ICONS.settings;
+$('backBtn').innerHTML = ICONS.back;
+$('batteryWarnBtn').innerHTML = ICONS.battery2;
+
+// --- Kalendersteuerung: Anzeigeseite der im Hauptprozess laufenden Logik --------------------
+//
+// Der Renderer entscheidet hier nichts. Er zeigt nur, was der Controller meldet, und bietet
+// einen von drei Wegen in die Pause an.
+
+let panelControlActive = false;
+
+function applyControlState(state) {
+  if (!state) return;
+  panelControlActive = !!state.configured;
+
+  const overlay = $('haErrorOverlay');
+  if (state.showError && state.error) {
+    $('haErrorDetail').textContent = state.error.message || '';
+    $('haErrorSince').textContent = state.error.since
+      ? 'Seit ' + new Date(state.error.since).toLocaleString('de-DE')
+      : '';
+    overlay.style.display = 'flex';
+  } else {
+    overlay.style.display = 'none';
+  }
+}
+
+// Dritter Weg in die Pause: fuenfmal schnell in die obere linke Ecke tippen. Das ist der
+// einzige, der auch ohne Tastatur und ohne Netzwerk funktioniert -- also genau dann, wenn man
+// vor einem Panel steht, das sich alle fuenf Sekunden selbst abschaltet.
+function initCornerEscapeGesture() {
+  const CORNER_PX = 80;
+  const NEEDED_TAPS = 5;
+  const WINDOW_MS = 3000;
+  let taps = [];
+
+  document.addEventListener('pointerdown', (ev) => {
+    if (ev.clientX > CORNER_PX || ev.clientY > CORNER_PX) return;
+    const now = Date.now();
+    taps = taps.filter(t => now - t < WINDOW_MS);
+    taps.push(now);
+    if (taps.length < NEEDED_TAPS) return;
+    taps = [];
+    if (window.wallApi && window.wallApi.pausePanelControl) {
+      window.wallApi.pausePanelControl().then(() => showPauseToast()).catch(() => {});
+    }
+  }, { passive: true });
+}
+
+function showPauseToast() {
+  let el = document.getElementById('pauseToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pauseToast';
+    el.style.cssText = 'position:fixed;left:50%;top:8vh;transform:translateX(-50%);z-index:9999;' +
+      'background:#1f6feb;color:#fff;padding:14px 22px;border-radius:10px;font-size:2.2vw;' +
+      'font-family:Segoe UI,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45)';
+    document.body.appendChild(el);
+  }
+  el.textContent = 'Bildschirmsteuerung für 30 Minuten pausiert';
+  el.style.display = 'block';
+  clearTimeout(showPauseToast._t);
+  showPauseToast._t = setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+(async () => {
+  updateClock();
+  setInterval(updateClock, 1000 * 30);
+  setInterval(() => { if (screensaverActive) updateScreensaverClock(); }, 1000 * 20);
+  await loadConfig();
+
+  // Steuerungszustand einmal holen und danach auf Aenderungen lauschen.
+  if (window.wallApi && window.wallApi.getControlState) {
+    try { applyControlState(await window.wallApi.getControlState()); } catch (e) { /* Steuerung noch nicht bereit */ }
+    if (window.wallApi.onControlState) window.wallApi.onControlState(applyControlState);
+  }
+  initCornerEscapeGesture();
+
+  checkNightMode();
+  initDeviceBattery();
+  await refresh(); // immer, auch nachts -- fuer Batteriewarnung/Ankuendigungs-Box; Karten-Rendering pausiert intern
+  resetIdleTimer();
+
+  // Adaptives Intervall statt festem setInterval: 15s tagsueber, 60s nachts (Energiesparen)
+  function scheduleRefresh() {
+    setTimeout(async () => { await refresh(); scheduleRefresh(); }, nightActive ? 60000 : 15000);
+  }
+  scheduleRefresh();
+
+  setInterval(checkNightMode, 20000);
+  setInterval(() => { historyCache = {}; }, 5 * 60000); // Verlaufsdaten alle 5 Min neu laden
+  setInterval(loadConfig, 10000); // Config kann sich extern aendern (Editor)
+})();
+</script>
+</body>
+</html>

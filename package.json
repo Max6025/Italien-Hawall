@@ -1,0 +1,59 @@
+{
+  "name": "italien-wall-display",
+  "productName": "Italien Wall Display",
+  "version": "1.0.0",
+  "description": "Wall Display fuer Home Assistant, dessen Anzeige ueber Kalendereintraege gesteuert wird: laeuft ein passender Termin, zeigt das Geraet das Dashboard, sonst ist das Panel wirklich aus",
+  "main": "main.js",
+  "author": "Max",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "electron-store": "^8.2.0",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.5",
+    "electron-builder": "^26.15.7"
+  },
+  "build": {
+    "appId": "de.max.italienwalldisplay",
+    "productName": "Italien Wall Display",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "control/**/*",
+      "server/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64", "arm64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "differentialPackage": false,
+      "artifactName": "Italien-Wall-Display-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Max6025",
+        "repo": "Italien-Hawall"
+      }
+    ]
+  }
+}
