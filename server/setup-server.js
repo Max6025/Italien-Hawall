@@ -865,7 +865,9 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     res.json({ ok: true });
   });
 
-  app.listen(port, '0.0.0.0', () => {
+  // Der HTTP-Server haengt am app-Objekt, damit Tests ihn wieder schliessen koennen -- ohne das
+  // bleibt der Node-Prozess nach einem Test ewig offen.
+  app.server = app.listen(port, '0.0.0.0', () => {
     console.log(`Setup-Server laeuft auf Port ${port}`);
   });
 
