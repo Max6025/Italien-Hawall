@@ -24,7 +24,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Node 20 ist bewusst zu alt: sein Test-Laeufer loest Platzhalter nicht auf
+          # und liess den ersten Release-Versuch scheitern.
+          node-version: '22'
           cache: npm
 
       # npm ci statt npm install: installiert exakt die Fassungen aus package-lock.json.

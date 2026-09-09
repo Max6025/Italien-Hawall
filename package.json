@@ -10,7 +10,7 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
