@@ -15,6 +15,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # Bei einem Push die Markierung, beim Knopf im Actions-Reiter die Version aus package.json.
+  TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+
 jobs:
   build:
     runs-on: windows-latest
@@ -48,7 +52,6 @@ jobs:
             echo "Manuell ausgeloest -- Versionsabgleich uebersprungen."
             exit 0
           fi
-          TAG="${GITHUB_REF#refs/tags/}"
           PKG=$(node -p "require('./package.json').version")
           if [ "$TAG" != "$PKG" ]; then
             echo "Markierung ($TAG) und package.json ($PKG) stimmen nicht ueberein."
@@ -56,6 +59,23 @@ jobs:
             exit 1
           fi
           echo "Markierung und Version stimmen ueberein: $TAG"
+
+      # Das Release VOR dem Build anlegen. electron-builder laedt jede Datei einzeln hoch und
+      # erzeugt das Release nebenbei mit -- existiert es noch nicht, koennen dabei zwei Releases
+      # zur selben Markierung entstehen, auf die sich die Dateien dann verteilen. Genau das ist
+      # beim ersten Versuch passiert. Gibt es das Release schon, laedt electron-builder nur hoch.
+      - name: Release anlegen
+        shell: bash
+        run: |
+          [ -n "$TAG" ] || TAG=$(node -p "require('./package.json').version")
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG existiert bereits."
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bauen und veroeffentlichen
         run: npx electron-builder --win --publish always
@@ -68,8 +88,6 @@ jobs:
       - name: Quellcode-Archiv anhaengen
         shell: bash
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          [ "${{ github.event_name }}" = "push" ] || TAG=$(node -p "require('./package.json').version")
           git archive --format=zip --prefix=italien-wall-exe/ HEAD -o italien-wall-exe.zip
           gh release upload "$TAG" italien-wall-exe.zip --clobber
         env:

@@ -57,7 +57,9 @@
       {
         "provider": "github",
         "owner": "Max6025",
-        "repo": "Italien-Hawall"
+        "repo": "Italien-Hawall",
+        "vPrefixedTagName": false,
+        "releaseType": "release"
       }
     ]
   }
