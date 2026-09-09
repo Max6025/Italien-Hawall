@@ -36,6 +36,13 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
 - **Zeitzonen**: `{ date: ... }` muss als *lokale* Mitternacht gelesen werden, nicht als UTC.
 - **Panel einschalten**: `SC_MONITORPOWER` mit `-1` ist auf aktuellem Windows unzuverlässig.
   Zuverlässig weckt nur echte Eingabe — deshalb der Mauszeiger-Wackler in `panel.js`.
+- **Kein Here-String im PowerShell-Vorspann.** Über die Standardeingabe erkennt PowerShell das
+  Ende von `@'...'@` nicht: Es puffert alles Folgende als Text, führt nie etwas aus und beendet
+  sich am Dateiende mit Code 0 — ohne Ausgabe, ohne Fehlermeldung. Das Panel wird dann nie
+  abgeschaltet, und man sieht nur ein Display, das anbleibt. Genau das ist in 1.0.0 passiert.
+  Alle Deklarationen in `panel.js` stehen deshalb einzeilig, der Prozess meldet seine
+  Bereitschaft zurück, und bleibt die Meldung aus, fällt die App auf Einzelaufrufe zurück.
+  `test/panel.test.js` prüft das gegen einen echten PowerShell-Prozess.
 - **Zugangscode und Loopback**: Das Wall Display selbst ruft über `http://localhost` auf und ist
   vom Code ausgenommen. Diese Grenze nicht aufweichen, sonst sperrt sich das Gerät selbst aus.
 - **Doppelte Nachtlogik**: Der alte Nachtmodus im Renderer ist deaktiviert, solange die
@@ -48,8 +55,13 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
 npm test
 ```
 
-24 Tests über Kalenderauswertung und Zustandslogik, ohne Electron. Neue Regeln in `decide()`
-gehören durch einen Test abgedeckt — dort steckt die gesamte Fehleranfälligkeit des Projekts.
+37 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz und den PowerShell-Vorspann.
+Electron wird dafür nicht gebraucht.
+
+Neue Regeln in `decide()` gehören durch einen Test abgedeckt — dort steckt die Logik. Aber die
+Lehre aus 1.0.0 ist eine andere: Der einzige Fehler, der es bis aufs Gerät geschafft hat, lag in
+dem Pfad, den **kein** Test betreten hat. Wo die App den Rechner anfasst — PowerShell, Registry,
+Netzwerkgrenzen — reicht Logikprüfung nicht; dort muss ein Test den echten Weg gehen.
 
 ## Veröffentlichen
 

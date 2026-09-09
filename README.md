@@ -113,7 +113,7 @@ und **Dateien eines veröffentlichten Releases nie austauschen**.
 
 ```bash
 npm install
-npm test      # 31 Tests: Kalenderauswertung, Zustandslogik, Zugangsschutz
+npm test      # 37 Tests: Kalender, Zustandslogik, Zugangsschutz, Panel-Steuerung
 npm start     # lokal starten
 npm run dist  # Installer bauen
 ```
