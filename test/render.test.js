@@ -54,3 +54,40 @@ test('Das eingebaute Standarddesign ist vollstaendig', () => {
   assert.ok(t.pageBgGradient.includes('radial-gradient'), 'Hintergrundverlauf fehlt');
   assert.ok(t.cardBlur, 'Glas-Effekt fehlt');
 });
+
+// --- Tor-Card ---------------------------------------------------------------------------------
+
+test('Die Tor-Card ist als Kartentyp angemeldet', () => {
+  assert.ok(D.CARD_TYPES.gate, 'Kartentyp "gate" fehlt');
+  assert.strictEqual(D.CARD_TYPES.gate.label, 'Tor öffnen');
+});
+
+test('Die Karten-Entitaet der Tor-Card ist die Melde-Entitaet', () => {
+  // Nicht die Knoepfe -- die stehen in den Einstellungen und duerfen aus jeder Domain kommen.
+  const domains = D.domainsForType('gate');
+  assert.ok(domains.includes('input_boolean'), 'input_boolean muss zulaessig sein');
+  assert.ok(domains.includes('binary_sensor'), 'binary_sensor muss zulaessig sein');
+  assert.ok(!domains.includes('input_button'), 'ein Taster ist keine Melde-Entitaet');
+});
+
+test('Der Dienst wird aus der Entitaet abgeleitet -- Taster, Rollladen und Skript gemischt', () => {
+  const f = D.serviceFuerEntitaet;
+  assert.deepStrictEqual(f('input_button.tor_vorne'), { domain: 'input_button', service: 'press' });
+  assert.deepStrictEqual(f('button.tor'), { domain: 'button', service: 'press' });
+  assert.deepStrictEqual(f('cover.garagentor'), { domain: 'cover', service: 'open_cover' });
+  assert.deepStrictEqual(f('script.tor_auf'), { domain: 'script', service: 'turn_on' });
+  assert.deepStrictEqual(f('scene.ankunft'), { domain: 'scene', service: 'turn_on' });
+  assert.deepStrictEqual(f('automation.tor'), { domain: 'automation', service: 'trigger' });
+  assert.deepStrictEqual(f('switch.tor'), { domain: 'switch', service: 'turn_on' });
+});
+
+test('Unbekannte Domains liefern keinen Dienst, statt einen falschen zu raten', () => {
+  assert.strictEqual(D.serviceFuerEntitaet('sensor.temperatur'), null);
+  assert.strictEqual(D.serviceFuerEntitaet(''), null);
+  assert.strictEqual(D.serviceFuerEntitaet(null), null);
+});
+
+test('Die Tor-Card taucht bei einer passenden Entitaet in der Typauswahl auf', () => {
+  assert.ok(D.typesForEntity('input_boolean.tor_dauerhaft_offen').includes('gate'));
+  assert.ok(!D.typesForEntity('sensor.temperatur').includes('gate'));
+});

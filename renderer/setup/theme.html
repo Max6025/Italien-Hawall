@@ -109,6 +109,39 @@
       drücken, falls eine Tastatur angeschlossen ist.</p>
     <div id="calPreview" class="result"></div>
 
+    <h1 style="margin-top:2rem;">Ankunftsschirm</h1>
+    <p class="note">Eine Vollbildseite, die zu Beginn jedes Termins <strong>vor</strong> dem
+      Dashboard erscheint und ankommende Gäste begrüßt – mit bewegtem Hintergrund, Text und
+      einem Bild aus Home Assistant, typischerweise dem QR-Code fürs Gast-WLAN.</p>
+    <p class="note">Sie verschwindet, sobald jemand sie antippt, spätestens nach der eingestellten
+      Dauer. Einmal weggetippt bleibt sie für diesen Termin weg – auch wenn die App zwischendurch
+      neu startet. Beim nächsten Termin erscheint sie wieder.</p>
+
+    <label><input type="checkbox" id="welcomeEnabled" style="width:auto; margin-right:0.5rem;">Ankunftsschirm verwenden</label>
+
+    <label style="margin-top:1rem;">Überschrift</label>
+    <input type="text" id="welcomeHeading" placeholder="Herzlich willkommen">
+
+    <label style="margin-top:1rem;">Text</label>
+    <textarea id="welcomeText" rows="3" placeholder="Schön, dass Sie da sind. Alles Wichtige zu Ihrem Aufenthalt finden Sie auf dem Ankunftszettel."></textarea>
+    <p class="hint-text">Zeilenumbrüche werden übernommen.</p>
+
+    <label style="margin-top:1rem;">Bild</label>
+    <select id="welcomeImageEntity"><option value="">– kein Bild –</option></select>
+    <p class="hint-text">Auswahl aus deinen <code>image</code>-Entitäten. Liefert Home Assistant
+      das Bild gerade nicht, verschwindet der Bildbereich und der Text nimmt die ganze Fläche –
+      es erscheint kein Platzhalter.</p>
+
+    <label style="margin-top:1rem;">Bildunterschrift</label>
+    <input type="text" id="welcomeCaption" placeholder="Gast-WLAN">
+
+    <label style="margin-top:1rem;">Anzeigedauer (Stunden)</label>
+    <input type="number" id="welcomeHours" min="0" step="1" value="5" style="max-width:140px;">
+    <p class="hint-text">0 bedeutet: bleibt stehen, bis jemand sie antippt.</p>
+
+    <button id="saveWelcomeBtn">Speichern</button>
+    <div id="saveWelcomeResult" class="result"></div>
+
     <h1 style="margin-top:2rem;">Zugangscode</h1>
     <p class="note">Schützt diese Einrichtungsseite. Ohne Code kann jeder in deinem WLAN hier
       Home-Assistant-Geräte schalten und die Konfiguration löschen. Das Display selbst fragt nie

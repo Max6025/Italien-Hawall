@@ -56,6 +56,28 @@ async function load() {
     calSelect.innerHTML = '<option value="">– keine Kalender in Home Assistant gefunden –</option>';
   }
 
+  // Ankunftsschirm
+  $('welcomeEnabled').checked = !!configRes.welcomeEnabled;
+  $('welcomeHeading').value = configRes.welcomeHeading || '';
+  $('welcomeText').value = configRes.welcomeText || '';
+  $('welcomeCaption').value = configRes.welcomeCaption || '';
+  $('welcomeHours').value = configRes.welcomeHours === undefined ? 5 : configRes.welcomeHours;
+
+  const bildSelect = $('welcomeImageEntity');
+  bildSelect.innerHTML = '<option value="">– kein Bild –</option>';
+  const bildRes = await fetch('/api/entities?domain=image').then(r => r.json()).catch(() => ({ ok: false }));
+  if (bildRes.ok && bildRes.entities.length) {
+    bildRes.entities.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.entity_id;
+      opt.textContent = `${e.name} (${e.entity_id})`;
+      if (e.entity_id === configRes.welcomeImageEntity) opt.selected = true;
+      bildSelect.appendChild(opt);
+    });
+  } else {
+    bildSelect.innerHTML = '<option value="">– keine Bild-Entitäten in Home Assistant gefunden –</option>';
+  }
+
   $('codeState').textContent = configRes.hasSetupCode
     ? 'Es ist ein Zugangscode gesetzt. Leer lassen, um ihn nicht zu ändern.'
     : 'Es ist noch KEIN Zugangscode gesetzt – diese Seite ist derzeit für jeden im Netzwerk offen.';
@@ -125,6 +147,25 @@ async function saveCalendar() {
 }
 
 $('saveCalBtn').addEventListener('click', saveCalendar);
+
+$('saveWelcomeBtn').addEventListener('click', async () => {
+  const resultEl = $('saveWelcomeResult');
+  const r = await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      welcomeEnabled: $('welcomeEnabled').checked,
+      welcomeHeading: $('welcomeHeading').value,
+      welcomeText: $('welcomeText').value,
+      welcomeImageEntity: $('welcomeImageEntity').value,
+      welcomeCaption: $('welcomeCaption').value,
+      welcomeHours: parseInt($('welcomeHours').value, 10) || 0
+    })
+  });
+  const data = await r.json();
+  resultEl.textContent = data.ok ? 'Gespeichert.' : 'Fehler: ' + data.error;
+  resultEl.className = data.ok ? 'result ok' : 'result err';
+});
 
 $('calPauseBtn').addEventListener('click', async () => {
   await fetch('/api/calendar/pause', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

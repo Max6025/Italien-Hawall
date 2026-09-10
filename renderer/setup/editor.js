@@ -366,7 +366,8 @@ function settingsFieldsForType(type) {
     energyEntities: type === 'energy',
     mediaPlayerOpts: type === 'media_player',
     photoUpload: type === 'photo',
-    quickTiles: type === 'quicktiles'
+    quickTiles: type === 'quicktiles',
+    gateOpts: type === 'gate'
   };
 }
 
@@ -491,6 +492,21 @@ function openSettings(entityId) {
       </datalist>
     `;
   }
+  if (fields.gateOpts) {
+    html += `
+      <label>Meldetext</label>
+      <input type="text" id="gateMessage" placeholder="Tor dauerhaft offen" value="${(settings.gateMessage || '').replace(/"/g, '&quot;')}">
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Erscheint oben auf der Karte, solange die gewählte Karten-Entität an ist.</p>
+      <label>Knöpfe</label>
+      <div id="gateBtnList"></div>
+      <button type="button" id="gateAddBtn" style="margin-top:0.6rem;">+ Knopf hinzufügen</button>
+      <datalist id="gateEntityList">
+        ${allEntities.map(e => `<option value="${e.entity_id}">${e.name}</option>`).join('')}
+      </datalist>
+    `;
+  }
+
   $('settingsBody').innerHTML = html;
 
   if (fields.gaugeExtras) {
@@ -576,6 +592,45 @@ function openSettings(entityId) {
       $('photoNoneText').style.display = 'inline';
       $('photoRemoveBtn').style.display = 'none';
       $('photoResult').textContent = '';
+    });
+  }
+
+  if (fields.gateOpts) {
+    if (!Array.isArray(settings.gateButtons)) settings.gateButtons = [];
+    $('gateMessage').addEventListener('input', () => { settings.gateMessage = $('gateMessage').value; markDirty(); });
+
+    function renderGateRows() {
+      const list = $('gateBtnList');
+      list.innerHTML = settings.gateButtons.map((b, i) => `
+        <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.6vh;">
+          <input type="text" class="gate-label-input" data-idx="${i}" placeholder="Beschriftung, z.B. Tor vorne" value="${(b.label || '').replace(/"/g, '&quot;')}" style="flex:1;">
+          <input type="text" class="gate-entity-input" data-idx="${i}" list="gateEntityList" placeholder="input_button.xxx" value="${(b.entity || '').replace(/"/g, '&quot;')}" style="flex:1.4;">
+          <button type="button" class="gate-up-btn" data-idx="${i}" style="width:auto; padding:0 1vh; margin:0; flex-shrink:0;" title="nach oben">↑</button>
+          <button type="button" class="gate-remove-btn" data-idx="${i}" style="width:auto; padding:0 1.2vh; margin:0; background:#dc3545; flex-shrink:0;">×</button>
+        </div>
+      `).join('') || `<p style="font-size:1.1vh; color:var(--muted);">Noch keine Knöpfe.</p>`;
+
+      list.querySelectorAll('.gate-label-input').forEach(el => el.addEventListener('input', () => {
+        settings.gateButtons[+el.dataset.idx].label = el.value; markDirty();
+      }));
+      list.querySelectorAll('.gate-entity-input').forEach(el => el.addEventListener('input', () => {
+        settings.gateButtons[+el.dataset.idx].entity = el.value; markDirty();
+      }));
+      list.querySelectorAll('.gate-remove-btn').forEach(el => el.addEventListener('click', () => {
+        settings.gateButtons.splice(+el.dataset.idx, 1); markDirty(); renderGateRows();
+      }));
+      list.querySelectorAll('.gate-up-btn').forEach(el => el.addEventListener('click', () => {
+        const i = +el.dataset.idx;
+        if (i === 0) return;
+        const [w] = settings.gateButtons.splice(i, 1);
+        settings.gateButtons.splice(i - 1, 0, w);
+        markDirty(); renderGateRows();
+      }));
+    }
+    renderGateRows();
+    $('gateAddBtn').addEventListener('click', () => {
+      settings.gateButtons.push({ label: '', entity: '' });
+      markDirty(); renderGateRows();
     });
   }
 

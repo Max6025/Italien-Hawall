@@ -242,6 +242,14 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       calendarKeywords: store.get('calendarKeywords') || '',
       calendarLeadMinutes: store.get('calendarLeadMinutes') || 0,
       calendarTrailMinutes: store.get('calendarTrailMinutes') || 0,
+      // Ankunftsschirm
+      welcomeEnabled: store.get('welcomeEnabled') || false,
+      welcomeHeading: store.get('welcomeHeading') || 'Herzlich willkommen',
+      welcomeText: store.get('welcomeText') || '',
+      welcomeImageEntity: store.get('welcomeImageEntity') || '',
+      welcomeCaption: store.get('welcomeCaption') || 'Gast-WLAN',
+      welcomeHours: store.get('welcomeHours') === undefined ? 5 : store.get('welcomeHours'),
+      welcomeDismissedFor: store.get('welcomeDismissedFor') || '',
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
       hasSetupCode: !!store.get('setupCode')
       // Token bewusst NICHT an den Dashboard-Client zurueckgeben; HA-Aufrufe laufen ueber /api/ha/*
@@ -256,7 +264,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       screensaverLayout, notifyEntity, batteryThreshold, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
       motionWakeEnabled, motionThreshold,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
-      setupCode
+      setupCode,
+      welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeHours
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -285,6 +294,13 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (calendarLeadMinutes !== undefined) store.set('calendarLeadMinutes', Math.max(0, Number(calendarLeadMinutes) || 0));
     if (calendarTrailMinutes !== undefined) store.set('calendarTrailMinutes', Math.max(0, Number(calendarTrailMinutes) || 0));
 
+    if (welcomeEnabled !== undefined) store.set('welcomeEnabled', !!welcomeEnabled);
+    if (welcomeHeading !== undefined) store.set('welcomeHeading', String(welcomeHeading || ''));
+    if (welcomeText !== undefined) store.set('welcomeText', String(welcomeText || ''));
+    if (welcomeImageEntity !== undefined) store.set('welcomeImageEntity', String(welcomeImageEntity || ''));
+    if (welcomeCaption !== undefined) store.set('welcomeCaption', String(welcomeCaption || ''));
+    if (welcomeHours !== undefined) store.set('welcomeHours', Math.max(0, Number(welcomeHours) || 0));
+
     // Mindestlaenge, damit das Feld nicht versehentlich leer bleibt und der Schutz still ausfaellt.
     if (setupCode !== undefined && String(setupCode).length > 0) {
       const code = String(setupCode);
@@ -303,6 +319,17 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     store.clear();
     res.json({ ok: true });
     if (onConfigSaved) onConfigSaved();
+  });
+
+  // Der Ankunftsschirm wurde weggetippt. Gespeichert wird der Beginn des Anzeigefensters, zu dem
+  // er gehoerte -- damit ueberdauert das Wegtippen einen Neustart, und beim naechsten Termin
+  // erscheint der Schirm wieder. Bewusst eine eigene Route: ueber /api/config wuerde das daran
+  // haengende onConfigSaved() die Ansicht neu laden.
+  app.post('/api/welcome/dismiss', (req, res) => {
+    const start = String((req.body && req.body.windowStart) || '');
+    if (!start) return res.status(400).json({ ok: false, error: 'windowStart fehlt' });
+    store.set('welcomeDismissedFor', start);
+    res.json({ ok: true });
   });
 
   // --- Kalendersteuerung ----------------------------------------------------------------------

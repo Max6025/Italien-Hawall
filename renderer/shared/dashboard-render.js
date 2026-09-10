@@ -83,6 +83,7 @@
     humidity: { label: 'Luftfeuchtigkeit', defaultSize: 'lg' },
     alarm: { label: 'Alarmanlage', defaultSize: 'md' },
     waste: { label: 'Mülltermine', defaultSize: 'lg' },
+    gate: { label: 'Tor öffnen', defaultSize: 'md' },
     photo: { label: 'Foto-Bereich', defaultSize: 'xl' },
     quicktiles: { label: 'Schnellzugriff', defaultSize: 'lg' }
   };
@@ -109,6 +110,9 @@
       case 'vacuum': return ['vacuum'];
       case 'alarm': return ['alarm_control_panel'];
       case 'waste': return ['calendar'];
+      // Die Karten-Entitaet ist hier die Melde-Entitaet ("Tor dauerhaft offen"). Die Knoepfe
+      // haengen in den Einstellungen und koennen aus jeder Domain kommen.
+      case 'gate': return ['input_boolean', 'switch', 'light', 'binary_sensor'];
       case 'clock': case 'navigate': case 'energy': case 'photo': case 'quicktiles': return [];
       default: return null;
     }
@@ -729,6 +733,29 @@
           sourceSelect.addEventListener('change', () => cb.onMediaControl(entity_id, 'select_source', { source: sourceSelect.value }));
         }
       }
+    } else if (type === 'gate') {
+      // Oben ein einblendbarer Meldeblock, darunter die frei zusammengestellte Knopfliste.
+      // Der Block schiebt die Knoepfe nach unten, wenn er erscheint -- so gewuenscht; die
+      // Hoehe zieht dafuer weich auf, damit es nicht ruckartig unter dem Finger verrutscht.
+      const meldungAn = !!(state && (state.state === 'on' || state.state === 'open' || state.state === 'unlocked'));
+      const meldetext = settings.gateMessage || 'Tor dauerhaft offen';
+      const knoepfe = Array.isArray(settings.gateButtons) ? settings.gateButtons : [];
+      card.innerHTML = `
+        <div class="gate-message${meldungAn ? ' gate-message-an' : ''}">
+          <span class="gate-message-inner">${esc(meldetext)}</span>
+        </div>
+        ${settings.name ? `<div class="gate-title">${name}</div>` : ''}
+        <div class="gate-buttons">
+          ${knoepfe.length
+            ? knoepfe.map((b, i) => `<button class="gate-btn" data-gate="${i}" ${dis}>${esc(b.label || b.entity || '?')}</button>`).join('')
+            : '<div class="graph-empty">Noch keine Knöpfe – in den Karten-Einstellungen hinzufügen</div>'}
+        </div>`;
+      if (!editable && cb.onGatePress) {
+        knoepfe.forEach((b, i) => {
+          const el = card.querySelector(`[data-gate="${i}"]`);
+          if (el && b.entity) el.addEventListener('click', (e) => { e.stopPropagation(); cb.onGatePress(b.entity); });
+        });
+      }
     } else if (type === 'lock') {
       const s = state ? state.state : '';
       const isLocked = s === 'locked';
@@ -1063,6 +1090,23 @@
     ].join(' ')
   };
 
+  // Welcher Dienst gehoert zu welcher Entitaet? Damit laesst sich in der Tor-Card ein
+  // input_button neben einem cover und einem script verwenden, ohne dass der Nutzer wissen
+  // muss, was HA dahinter aufruft.
+  function serviceFuerEntitaet(entity_id) {
+    const domain = String(entity_id || '').split('.')[0];
+    switch (domain) {
+      case 'input_button': case 'button': return { domain, service: 'press' };
+      case 'script': return { domain: 'script', service: 'turn_on' };
+      case 'scene': return { domain: 'scene', service: 'turn_on' };
+      case 'automation': return { domain: 'automation', service: 'trigger' };
+      case 'cover': return { domain: 'cover', service: 'open_cover' };
+      case 'lock': return { domain: 'lock', service: 'unlock' };
+      case 'switch': case 'input_boolean': case 'light': return { domain, service: 'turn_on' };
+      default: return null;
+    }
+  }
+
   // Alles, was aus Home Assistant oder aus den Einstellungen kommt, muss hier durch, bevor es
   // in innerHTML landet. Ein Kalendertitel mit "<" hat sonst gereicht, um eine Karte zu
   // zerlegen -- und Kalendertitel sind seit der Kalendersteuerung Alltag.
@@ -1117,6 +1161,7 @@
     defaultCardType, allowedCardTypes, defaultSize, buildCard,
     sizeToSpan, minSpanFor, clampSpan, resolveSpan, thresholdColor,
     domainsForType, typesForEntity, renderClockNow, canOverlayOnPhoto, applyCustomTheme, esc,
+    serviceFuerEntitaet,
     DEFAULT_THEME
   };
   // Auch ausserhalb eines Browsers ladbar machen. Ohne das konnte kein einziger Test dieses

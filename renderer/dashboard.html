@@ -91,6 +91,10 @@
     </div>
   </div>
 
+  <!-- Ankunftsschirm: Vollbild vor dem Dashboard zu Beginn eines Anzeigefensters.
+       Inhalt und Animation baut shared/ankunftsschirm.js selbst auf. -->
+  <div class="ankunftsschirm" id="ankunftsschirm"></div>
+
   <div class="notify-overlay" id="notifyOverlay">
     <svg class="notify-box-svg" viewBox="0 0 100 60" preserveAspectRatio="none">
       <rect id="notifyBoxRect" x="2" y="2" width="96" height="56" rx="4" fill="none" stroke="#fff" stroke-width="1.2"/>
@@ -99,6 +103,7 @@
   </div>
 
 <script src="shared/dashboard-render.js"></script>
+<script src="shared/ankunftsschirm.js"></script>
 <script>
 const { ICONS, defaultCardType, buildCard, resolveSpan } = DashboardRender;
 const params = new URLSearchParams(location.search);
@@ -143,6 +148,7 @@ async function loadConfig() {
   // ein importiertes Design gewinnt, und "Design zuruecksetzen" landet wieder hier.
   DashboardRender.applyCustomTheme(config.customTheme || DashboardRender.DEFAULT_THEME);
   await loadDashboardOrder();
+  ankunftsschirmPruefen();
 }
 
 // Reihenfolge aller Dashboards (Haupt + Unterdashboards) fuers Wischen und den Punkte-Indikator.
@@ -434,6 +440,13 @@ async function render() {
         onToggle: (domain, entityId, state) => callService(domain, state === 'on' ? 'turn_off' : 'turn_on', entityId),
         onPress: (domain, entityId) => callService(domain, DashboardRender.PRESS_DOMAINS[domain] || 'turn_on', entityId),
         onSetBrightness: (entityId, pct) => callService('light', 'turn_on', entityId, { brightness_pct: pct }),
+        // Tor-Card: Der passende Dienst wird aus der Entitaet abgeleitet, damit Taster,
+        // Rollladen und Skripte in derselben Knopfliste stehen duerfen.
+        onGatePress: (entityId) => {
+          const dienst = DashboardRender.serviceFuerEntitaet(entityId);
+          if (!dienst) return;
+          callService(dienst.domain, dienst.service, entityId);
+        },
         onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
         onCover: (entityId, service) => callService('cover', service, entityId),
         onSelectOption: (domain, entityId, option) => callService(domain, 'select_option', entityId, { option }),
@@ -876,8 +889,58 @@ $('batteryWarnBtn').innerHTML = ICONS.battery2;
 
 let panelControlActive = false;
 
+// --- Ankunftsschirm --------------------------------------------------------------------------
+let ankunftsschirm = null;
+let letzterSteuerungszustand = null;
+
+function ankunftsschirmPruefen() {
+  if (!ankunftsschirm || !config) return;
+  const zustand = letzterSteuerungszustand;
+  const zeigen = AnkunftsschirmModul.sollAnzeigen({
+    aktiviert: !!config.welcomeEnabled,
+    anzeigefenster: zustand ? zustand.activeWindow : null,
+    verworfenFuer: config.welcomeDismissedFor || '',
+    stunden: config.welcomeHours,
+    jetzt: new Date()
+  });
+  if (!zeigen) return ankunftsschirm.verbergen();
+
+  ankunftsschirm.inhaltSetzen({
+    ueberschrift: config.welcomeHeading || '',
+    text: config.welcomeText || '',
+    bildtext: config.welcomeCaption || '',
+    // Der Bildweg existiert bereits: /api/ha/media bedient auch image.*-Entitaeten.
+    bildUrl: config.welcomeImageEntity
+      ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity)}`
+      : ''
+  });
+  ankunftsschirm.zeigen(zustand.activeWindow.start);
+}
+
+function ankunftsschirmAufbauen() {
+  if (ankunftsschirm) return;
+  ankunftsschirm = new AnkunftsschirmModul.Ankunftsschirm($('ankunftsschirm'), {
+    beimWegtippen: async (fensterStart) => {
+      // Sofort verbergen -- der Gast soll nicht auf das Netz warten. Scheitert das Speichern,
+      // erscheint der Schirm beim naechsten Neustart erneut; das ist der harmlosere Fehler.
+      ankunftsschirm.verbergen();
+      if (!fensterStart) return;
+      config.welcomeDismissedFor = fensterStart;
+      try {
+        await fetch(`${API}/api/welcome/dismiss`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ windowStart: fensterStart })
+        });
+      } catch (e) { /* siehe oben */ }
+    }
+  });
+}
+
 function applyControlState(state) {
   if (!state) return;
+  letzterSteuerungszustand = state;
+  ankunftsschirmPruefen();
   panelControlActive = !!state.configured;
 
   const overlay = $('haErrorOverlay');
@@ -942,6 +1005,10 @@ function showPauseToast() {
     if (window.wallApi.onControlState) window.wallApi.onControlState(applyControlState);
   }
   initCornerEscapeGesture();
+  ankunftsschirmAufbauen();
+  // Der Steuerungszustand wird nur bei Aenderungen geschickt -- das Ablaufen der Anzeigedauer
+  // ist aber keine Aenderung. Deshalb zusaetzlich ein eigener Takt.
+  setInterval(ankunftsschirmPruefen, 60000);
 
   checkNightMode();
   initDeviceBattery();

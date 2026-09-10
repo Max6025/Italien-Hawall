@@ -25,6 +25,8 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `control/controller.js` | Zustandsautomat; die Rangfolge steht vollständig in `decide()` |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
 | `renderer/dashboard.html` | Anzeige; empfängt den Steuerungszustand per IPC, entscheidet nichts selbst |
+| `renderer/shared/ankunftsschirm.js` | Ankunftsschirm: `sollAnzeigen()` ist reine Entscheidung ohne DOM und ohne Uhr, der Rest ist Anzeige |
+| `renderer/shared/dashboard-render.js` | Kartenkatalog und Rendering; enthält auch das eingebaute Design `DEFAULT_THEME` |
 
 Die Rangfolge in `decide()` ist die einzige Stelle, an der entschieden wird, ob das Panel an
 sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
@@ -70,6 +72,17 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
 - **Doppelte Nachtlogik**: Der alte Nachtmodus im Renderer ist deaktiviert, solange die
   Kalendersteuerung aktiv ist (`panelControlActive` in `dashboard.html`). Beide gleichzeitig
   laufen zu lassen führt zu Flackern.
+
+## Design
+
+Das eingebaute Design `DEFAULT_THEME` in `dashboard-render.js` ist ab Werk aktiv; ein
+importiertes Design gewinnt. Der Seitenhintergrund ist dort bewusst ein **Standbild** aus
+denselben Farbwolken, die der Ankunftsschirm bewegt zeigt: Hinter Zahlen und Diagrammen
+konkurriert eine laufende Animation mit dem Inhalt, und ein Dashboard schaut man tagelang an.
+
+Bei der Animation im Ankunftsschirm läuft der Zufall **nur bei der Geburt einer Form**, alle
+zehn bis zwanzig Sekunden. Dazwischen bewegt der Browser auf der Grafikeinheit, nicht
+JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate.
 
 ## Tests
 
