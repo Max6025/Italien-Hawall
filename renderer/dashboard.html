@@ -94,6 +94,10 @@
   <!-- Ankunftsschirm: Vollbild vor dem Dashboard zu Beginn eines Anzeigefensters.
        Inhalt und Animation baut shared/ankunftsschirm.js selbst auf. -->
   <div class="ankunftsschirm" id="ankunftsschirm"></div>
+  <!-- Steht dauerhaft am Rand, solange ein mehrtaegiger Termin laeuft. Nicht als Meldung,
+       die man wegtippt: Wer sie weggetippt hat, sieht am naechsten Morgen nicht mehr,
+       dass heute abgereist wird. -->
+  <div class="terminverlauf" id="terminverlauf" hidden></div>
   <div class="terminankuendigung" id="terminankuendigung"></div>
 
   <div class="notify-overlay" id="notifyOverlay">
@@ -1012,6 +1016,27 @@ function ankunftsschirmAufbauen() {
   });
 }
 
+// Zeigt bei einem mehrtaegigen Termin, der wievielte Tag laeuft -- und hebt den letzten
+// hervor. Bei eintaegigen Terminen erscheint nichts: Da waere "Tag 1 von 1" kein Hinweis,
+// sondern Rauschen auf einer Wand, die man den ganzen Tag ansieht.
+function verlaufAnzeigen(verlauf) {
+  const el = $('terminverlauf');
+  if (!el) return;
+  if (!verlauf || !verlauf.mehrtaegig) { el.hidden = true; return; }
+
+  const bis = new Date(verlauf.endet);
+  // Endet der Termin um Mitternacht, ist das die Grenze zum Folgetag -- "bis 00:00" liesse
+  // sich als "bis heute Nacht" missverstehen. Dann lieber gar keine Uhrzeit.
+  const umMitternacht = bis.getHours() === 0 && bis.getMinutes() === 0;
+  const uhrzeit = umMitternacht ? '' : bis.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+  el.classList.toggle('ist-letzter-tag', !!verlauf.letzterTag);
+  el.innerHTML = verlauf.letzterTag
+    ? `<span class="tv-stark">Letzter Tag</span>${uhrzeit ? `<span class="tv-klein">bis ${uhrzeit}</span>` : ''}`
+    : `<span class="tv-stark">Tag ${verlauf.tag} von ${verlauf.gesamt}</span>`;
+  el.hidden = false;
+}
+
 function applyControlState(state) {
   if (!state) return;
   letzterSteuerungszustand = state;
@@ -1041,6 +1066,7 @@ function applyControlState(state) {
     }
   }
 
+  verlaufAnzeigen(state.verlauf);
   ankunftsschirmPruefen();
   panelControlActive = !!state.configured;
 

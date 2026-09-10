@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Karten-Vorschau</title>
+<!--
+  Nur zum Ansehen waehrend der Arbeit am Karten-Design. Laedt dieselbe CSS-Datei und dasselbe
+  Render-Modul wie das echte Dashboard, aber mit erfundenen Zustaenden -- so laesst sich das
+  Aussehen pruefen, ohne Home Assistant, ohne Electron und ohne aufs Geraet zu muessen.
+
+  Oeffnen: direkt im Browser. Sie ist bewusst NICHT Teil der App.
+-->
+<link rel="stylesheet" href="../../renderer/shared/dashboard.css">
+<style>
+  body { margin: 0; min-height: 100vh; }
+  #grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4vh;
+    padding: 2vh; height: auto; min-height: 100vh; box-sizing: border-box;
+    grid-auto-rows: 26vh;
+  }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script src="../../renderer/shared/dashboard-render.js"></script>
+<script>
+const Z = (state, attributes = {}) => ({ state, attributes });
+
+// Ein Querschnitt: bunte Typen, neutrale Typen, an und aus, mit und ohne Bedienelemente.
+const KARTEN = [
+  ['light.wohnzimmer',    'light',       Z('on',  { friendly_name: 'Wohnzimmer', brightness: 180, supported_color_modes: ['color_temp'], min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, color_temp_kelvin: 2900 }), 1, 1],
+  ['light.flur',          'light',       Z('off', { friendly_name: 'Flur' }), 1, 1],
+  ['switch.kaffee',       'switch',      Z('on',  { friendly_name: 'Kaffeemaschine' }), 1, 1],
+  ['switch.aussen',       'switch',      Z('off', { friendly_name: 'Außenlicht' }), 1, 1],
+  ['sensor.temp_aussen',  'temperature', Z('27.4', { friendly_name: 'Außen', unit_of_measurement: '°C' }), 1, 1],
+  ['sensor.temp_keller',  'temperature', Z('6.2',  { friendly_name: 'Keller', unit_of_measurement: '°C' }), 1, 1],
+  ['sensor.wind',         'wind',        Z('14',   { friendly_name: 'Wind', unit_of_measurement: 'km/h' }), 1, 1],
+  ['sensor.regen',        'rain',        Z('0.4',  { friendly_name: 'Regen', unit_of_measurement: 'mm' }), 1, 1],
+  ['climate.bad',         'climate',     Z('heat', { friendly_name: 'Bad', current_temperature: 21.5, temperature: 23, hvac_modes: ['off','heat'], min_temp: 5, max_temp: 30, target_temp_step: 0.5 }), 1, 1],
+  ['cover.rollladen',     'cover',       Z('open', { friendly_name: 'Rollladen', current_position: 60, supported_features: 15 }), 1, 1],
+  ['sensor.feuchte',      'humidity',    Z('54',   { friendly_name: 'Luftfeuchte' }), 1, 1],
+  ['sensor.druck',        'pressure',    Z('1013', { friendly_name: 'Luftdruck', unit_of_measurement: 'hPa' }), 1, 1],
+  ['sensor.batterie',     'gauge',       Z('72',   { friendly_name: 'Batterie', unit_of_measurement: '%', device_class: 'battery' }), 1, 1],
+  ['fan.schlafzimmer',    'fan',         Z('on',   { friendly_name: 'Ventilator', percentage: 40, percentage_step: 10 }), 1, 1],
+  ['lock.haustuer',       'lock',        Z('locked', { friendly_name: 'Haustür' }), 1, 1],
+  ['sensor.zaehler',      'sensor',      Z('4231.7', { friendly_name: 'Zählerstand', unit_of_measurement: 'kWh' }), 1, 1]
+];
+
+const grid = document.getElementById('grid');
+DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
+
+KARTEN.forEach(([id, typ, zustand, c, r]) => {
+  const el = DashboardRender.buildCard(id, zustand, typ, { cols: c, rows: r }, {
+    editable: false, settings: {}, apiBase: '', statesById: {}
+  }, {});
+  grid.appendChild(el);
+});
+</script>
+</body>
+</html>

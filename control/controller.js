@@ -133,6 +133,9 @@ class Controller {
       activeWindow: aktiv
         ? { title: aktiv.title, start: aktiv.start.toISOString(), end: aktiv.end.toISOString() }
         : null,
+      // Wie weit ein mehrtaegiger Termin ist -- das Dashboard blendet daraus den Hinweis
+      // "Letzter Tag" ein. Bei eintaegigen Terminen bleibt es null.
+      verlauf: aktiv ? calendar.verlauf({ start: aktiv.start, end: aktiv.end }, now) : null,
       nextWindow: next
         ? { title: next.title, start: next.start.toISOString(), end: next.end.toISOString() }
         : null,

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hawall – Design</title>
+<title>Italien Wall Display – Einstellungen</title>
 <link rel="stylesheet" href="/shared/nav.css">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -14,7 +14,7 @@
       <a href="index.html">Verbindung</a>
       <a href="editor.html">Karten</a>
       <a href="screensaver.html">Screensaver</a>
-      <a href="theme.html">Design</a>
+      <a href="theme.html">Einstellungen</a>
       <a href="design-import.html">Design-Import</a>
       <a href="dashboards.html">Unterdashboards</a>
       <a href="update.html">Update</a>
@@ -23,36 +23,60 @@
   </nav>
   <div class="page-content">
   <div class="wizard">
-    <h1>Hell/Dunkel-Design</h1>
+    <h1>Einstellungen</h1>
+    <p class="note">Alle Bereiche sind eingeklappt. Aufklappen, ändern, und unten einmal
+      speichern – der Knopf sichert die ganze Seite auf einmal.</p>
+
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Hell/Dunkel-Design</span>
+        <span class="eb-unter">Automatischer Wechsel nach Sonnenstand</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Wähle eine Sonnenstand-Entität aus Home Assistant (z.B.
       <code>sun.sun</code>). Das Wall Display wechselt dann automatisch auf
       ein helles Design, sobald die Sonne über dem Horizont steht, und auf
       dunkel danach.</p>
     <label>Sonnenstand-Entität</label>
     <select id="sunEntity"><option value="">Kein Wechsel (immer dunkel)</option></select>
-    <button id="saveBtn">Speichern</button>
-    <div id="saveResult" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Ankündigungs-Box</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Ankündigungs-Box</span>
+        <span class="eb-unter">Text aus Home Assistant gross einblenden</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Wähle eine <code>input_text</code>-Entität. Steht dort ein Text drin,
       wird der Bildschirm abgedunkelt und der Text in einer Box angezeigt (mit kurzer
       Zeichen-Animation). Ist der Text leer oder "unknown", verschwindet die Box wieder.</p>
     <label>input_text-Entität</label>
     <select id="notifyEntity"><option value="">Keine Ankündigungs-Box</option></select>
-    <button id="saveNotifyBtn">Speichern</button>
-    <div id="saveNotifyResult" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Akkuwarnung (Gerät)</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Akkuwarnung (Gerät)</span>
+        <span class="eb-unter">Warnung bei schwachem Geräte-Akku</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Zeigt im Dashboard oben ein rotes Warn-Symbol, sobald der Akku
       dieses Windows-Geräts (Tablet/Notebook) unter diesen Wert fällt und gerade
       nicht am Ladegerät hängt. Betrifft nicht HA-Sensoren, sondern nur das Gerät,
       auf dem diese App läuft.</p>
     <label>Warnen ab wieviel % Geräte-Akku</label>
     <input type="number" id="batteryThreshold" min="1" max="100" value="20">
-    <button id="saveBatteryBtn">Speichern</button>
-    <div id="saveBatteryResult" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Nachtsperre</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Nachtsperre</span>
+        <span class="eb-unter">Zeitfenster, in dem der Bildschirm aus bleibt</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Zeitfenster, in dem der Bildschirm aus bleibt. <strong>Die Nachtsperre hat
       Vorrang vor der Kalendersteuerung</strong>: läuft ein Termin, der Bildschirm wäre also an,
       bleibt er in diesem Fenster trotzdem aus.</p>
@@ -65,10 +89,15 @@
       <div><label>Ende</label><input type="time" id="nightEnd" value="06:30"></div>
     </div>
     <label style="margin-top:1rem;"><input type="checkbox" id="nightForceOn" style="width:auto; margin-right:0.5rem;">Dauerhaft aktiv (zum Testen, ignoriert die Uhrzeit)</label>
-    <button id="saveNightBtn">Speichern</button>
-    <div id="saveNightResult" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Kalendersteuerung</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Kalendersteuerung</span>
+        <span class="eb-unter">Termine und Stichworte, die das Panel schalten</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Verbindet das Display mit einem Kalender aus Home Assistant. Steht dort ein
       Termin, dessen <strong>Titel</strong> eines deiner Keywords enthält, ist der Bildschirm an –
       genau so lange, wie der Termin dauert. Ein Ganztages-Termin über mehrere Tage hält den
@@ -93,8 +122,6 @@
     <p class="hint-text">Schaltet den Bildschirm entsprechend früher ein bzw. später aus. 0 heißt:
       exakt die Zeiten des Termins.</p>
 
-    <button id="saveCalBtn">Speichern</button>
-    <div id="saveCalResult" class="result"></div>
 
     <h2 style="margin-top:1.6rem; font-size:1rem;">Status</h2>
     <div id="calStatus" class="note" style="line-height:1.7;">– wird geladen –</div>
@@ -108,8 +135,15 @@
       <strong>obere linke Ecke</strong> des Displays tippen, oder <strong>Strg+Alt+W</strong>
       drücken, falls eine Tastatur angeschlossen ist.</p>
     <div id="calPreview" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Ankunftsschirm</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Ankunftsschirm</span>
+        <span class="eb-unter">Begrüssung zu Terminbeginn</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Eine Vollbildseite, die zu Beginn jedes Termins <strong>vor</strong> dem
       Dashboard erscheint und ankommende Gäste begrüßt – mit bewegtem Hintergrund, Text und
       einem Bild aus Home Assistant, typischerweise dem QR-Code fürs Gast-WLAN.</p>
@@ -177,26 +211,36 @@
     <input type="number" id="welcomeHours" min="0" step="1" value="5" style="max-width:140px;">
     <p class="hint-text">0 bedeutet: bleibt stehen, bis jemand sie antippt.</p>
 
-    <button id="saveWelcomeBtn">Speichern</button>
-    <div id="saveWelcomeResult" class="result"></div>
 
     <button id="showWelcomeBtn" style="margin-top:0.6rem; background:#6c757d;">Ankunftsschirm jetzt wieder anzeigen</button>
     <p class="hint-text">Hebt das Wegtippen auf. Läuft gerade ein Termin und ist der Schirm
       eingeschaltet, erscheint er innerhalb weniger Sekunden auf dem Display – zum Ausprobieren,
       ohne auf den nächsten Termin zu warten.</p>
     <div id="showWelcomeResult" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Zugangscode</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Zugangscode</span>
+        <span class="eb-unter">Schutz dieser Oberfläche im Netzwerk</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Schützt diese Einrichtungsseite. Ohne Code kann jeder in deinem WLAN hier
       Home-Assistant-Geräte schalten und die Konfiguration löschen. Das Display selbst fragt nie
       nach dem Code – nur Zugriffe aus dem Netz.</p>
     <p class="hint-text" id="codeState"></p>
     <label>Neuer Code (mindestens 4 Zeichen)</label>
     <input type="password" id="setupCode" autocomplete="new-password" placeholder="leer lassen = unverändert">
-    <button id="saveCodeBtn">Code speichern</button>
-    <div id="saveCodeResult" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Screensaver</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Screensaver</span>
+        <span class="eb-unter">Nach welcher Ruhezeit</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Nach wie viel Zeit ohne Berührung der Screensaver erscheint. Das eigentliche
       Aussehen richtest du auf der separaten <a href="screensaver.html">Screensaver-Seite</a> ein.</p>
     <label>Erscheint nach</label>
@@ -204,10 +248,15 @@
       <input type="number" id="screensaverSeconds" min="0" step="5" value="0" style="max-width:140px;">
       <span style="color:var(--muted); font-size:0.85rem;">Sek. (0 = aus)</span>
     </div>
-    <button id="saveScreensaverBtn">Speichern</button>
-    <div id="saveScreensaverResult" class="result"></div>
+      </div>
+    </details>
 
-    <h1 style="margin-top:2rem;">Annäherungserkennung</h1>
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Annäherungserkennung</span>
+        <span class="eb-unter">Aufwecken, wenn jemand davorsteht</span>
+      </summary>
+      <div class="eb-inhalt">
     <p class="note">Nutzt die Frontkamera des Geräts, um zu erkennen, ob noch jemand vor dem
       Bildschirm steht (per einfacher Bild-Differenz, keine Gesichtserkennung o.ä.). Läuft nur,
       während der Bildschirm ohnehin schon wach ist – erkennt sie, dass niemand mehr da ist,
@@ -226,8 +275,13 @@
       den Regler nach rechts stellen. Erkennt sie eine Person zu spät/gar nicht, nach links.</p>
     <p class="hint-text">Solange die Erkennung aktiv ist, zeigt ein kleiner grüner Punkt oben links auf dem
       Wall Display an, ob gerade "jemand da" erkannt wird – praktisch zum Einstellen der Empfindlichkeit.</p>
-    <button id="saveMotionBtn">Speichern</button>
-    <div id="saveMotionResult" class="result"></div>
+      </div>
+    </details>
+
+    <div class="speicherleiste">
+      <button id="saveAllBtn">Alle Einstellungen speichern</button>
+      <div id="saveAllResult" class="result"></div>
+    </div>
   </div>
   </div>
   <script src="/shared/nav.js"></script>

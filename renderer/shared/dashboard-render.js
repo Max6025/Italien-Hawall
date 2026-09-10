@@ -456,14 +456,23 @@
   }
 
   // Farbverlauf blau (kalt) -> rot (warm) je nach Temperaturwert, fuer die Temperatur-Karte
-  function tempGradient(value, unit) {
-    if (value === null || value === undefined || isNaN(value)) return 'linear-gradient(155deg, #4a4d57, #2a2d34)';
+  /**
+   * Temperaturfarbe: blau (kalt) bis rot (warm).
+   *
+   * Frueher war das ein Verlauf, mit dem die ganze Kachel geflutet wurde. Genau daher kam
+   * der Eindruck von Bastelei -- eine deckend rote Kachel neben einer deckend blauen, auf
+   * einem Hintergrund, der von Zurueckhaltung lebt. Jetzt kommt eine einzelne Farbe heraus,
+   * die Symbol, Regler und Schein einfaerbt.
+   */
+  function tempAkzent(value, unit) {
+    if (value === null || value === undefined || isNaN(value)) return 'rgba(255,255,255,0.6)';
     let celsius = value;
     if (unit === '°F') celsius = (value - 32) * 5 / 9;
     const clamped = Math.max(-10, Math.min(35, celsius));
     const t = (clamped + 10) / 45;
     const hue = 210 - t * 210;
-    return `linear-gradient(155deg, hsl(${hue.toFixed(0)},70%,55%), hsl(${hue.toFixed(0)},65%,30%))`;
+    // Hell und nur mittel gesaettigt: Die Farbe steht auf Glas, nicht auf Weiss.
+    return `hsl(${hue.toFixed(0)},72%,68%)`;
   }
 
   // Ermittelt Wertebereich [min,max] fuer den Gauge-Ring, falls in den Karten-Einstellungen
@@ -639,8 +648,8 @@
 
       card.innerHTML = `
         <div class="row"><span class="icon">${ICONS.climate}</span><span class="badge">${esc(HVAC_LABEL[modus] || modus || '–')}</span></div>
-        <div class="name">${name}</div>
         <div class="value">${target !== undefined ? target + einheit : (cur !== undefined ? cur + einheit : esc(modus))}</div>
+        <div class="name">${name}</div>
         ${cur !== undefined && target !== undefined ? `<div class="caption">gemessen ${cur}${einheit}</div>` : ''}
         <div class="controls">
           <button data-act="temp-down" ${dis}>−</button>
@@ -681,11 +690,11 @@
       const hexFarbe = '#' + rgb.map(v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
 
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.light}</span><span class="badge">${isOn ? 'ON' : 'OFF'}</span></div>
-        <div class="name">${name}</div>
+        <div class="row"><span class="icon">${ICONS.light}</span><span class="badge">${isOn ? 'An' : 'Aus'}</span></div>
         <div class="value">${pct}%</div>
+        <div class="name">${name}</div>
         <div class="controls slider-row">
-          <button data-act="toggle" ${dis}>⏻</button>
+          <button data-act="toggle" ${dis} aria-label="Ein/Aus">${ICONS.power}</button>
           <input type="range" min="0" max="100" step="5" value="${pct}" data-act="slider" ${dis}>
         </div>
         ${kannTemperatur ? `<div class="controls slider-row light-temp">
@@ -735,8 +744,8 @@
       const zeigeNeigung = !!settings.coverTilt && attrs.current_tilt_position !== undefined && (faehig & 128);
       card.innerHTML = `
         <div class="row"><span class="icon">${ICONS.cover}</span><span class="badge">${state ? state.state : '–'}</span></div>
-        <div class="name">${name}</div>
         <div class="value">${pos !== undefined ? pos + '%' : ''}</div>
+        <div class="name">${name}</div>
         <div class="controls">
           <button data-act="open" ${dis}>▲</button>
           <button data-act="stop" ${dis}>⏸</button>
@@ -770,6 +779,7 @@
       const isOn = state && state.state === 'on';
       const isReadOnly = domain === 'binary_sensor';
       card.classList.add(isOn ? 'on' : 'off');
+      card.classList.toggle('ist-aktiv', !!isOn);
       card.innerHTML = `<span class="icon">${ICONS[domain] || ICONS.switch}</span><span class="name">${name}</span><span class="badge">${isOn ? 'An' : 'Aus'}</span>`;
       if (!editable && !isReadOnly && cb.onToggle) {
         card.style.cursor = 'pointer';
@@ -789,32 +799,32 @@
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || '°C');
       const rawVal = state ? state.state : null;
       const numVal = rawVal !== null ? parseFloat(rawVal) : NaN;
-      card.style.background = tempGradient(isNaN(numVal) ? null : numVal, attrs.unit_of_measurement);
+      card.style.setProperty('--kachel-akzent', tempAkzent(isNaN(numVal) ? null : numVal, attrs.unit_of_measurement));
       card.innerHTML = `
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS.temperature)}</span></div>
-        <div class="name">${name}</div>
-        <div class="value">${fmt(zahlFormatieren(isNaN(numVal) ? (rawVal ?? '–') : numVal, settings.decimals), unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(isNaN(numVal) ? (rawVal ?? '–') : numVal, settings.decimals), unit)}</div>
+        <div class="name">${name}</div>`;
     } else if (type === 'wind') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'km/h');
       const val = state ? state.state : '–';
       card.innerHTML = `
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS.wind)}</span></div>
-        <div class="name">${name}</div>
-        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
+        <div class="name">${name}</div>`;
     } else if (type === 'rain') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'mm');
       const val = state ? state.state : '–';
       card.innerHTML = `
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS.rain)}</span></div>
-        <div class="name">${name}</div>
-        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
+        <div class="name">${name}</div>`;
     } else if (type === 'pressure') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'hPa');
       const val = state ? state.state : '–';
       card.innerHTML = `
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS.pressure)}</span></div>
-        <div class="name">${name}</div>
-        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
+        <div class="name">${name}</div>`;
     } else if (type === 'radar') {
       const base = opts.apiBase || '';
       // Fest fuenf Minuten passte zu Regenradar-Bildern, die genau so oft erneuert werden.
@@ -1068,13 +1078,14 @@
       }
     } else if (type === 'fan') {
       const isOn = state && state.state === 'on';
+      card.classList.toggle('ist-aktiv', !!isOn);
       const pct = attrs.percentage !== undefined && attrs.percentage !== null ? attrs.percentage : (isOn ? 100 : 0);
       card.innerHTML = `
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.fan)}</span><span class="badge">${isOn ? 'AN' : 'AUS'}</span></div>
-        <div class="name">${name}</div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.fan)}</span><span class="badge">${isOn ? 'An' : 'Aus'}</span></div>
         <div class="value">${isOn ? pct + '%' : '–'}</div>
+        <div class="name">${name}</div>
         <div class="controls slider-row">
-          <button data-act="toggle" ${dis}>⏻</button>
+          <button data-act="toggle" ${dis} aria-label="Ein/Aus">${ICONS.power}</button>
           <input type="range" min="0" max="100" step="${Number(attrs.percentage_step) || 10}" value="${pct}" data-act="slider" ${dis}>
         </div>`;
       if (!editable) {
@@ -1106,8 +1117,8 @@
       const val = state ? state.state : '–';
       card.innerHTML = `
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS.humidity)}</span></div>
-        <div class="name">${name}</div>
-        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
+        <div class="name">${name}</div>`;
     } else if (type === 'alarm') {
       const s = state ? state.state : 'disarmed';
       const isArmed = s.startsWith('armed');
@@ -1318,8 +1329,8 @@
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : attrs.unit_of_measurement;
       card.innerHTML = `
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS[domain] || ICONS.sensor)}</span></div>
-        <div class="name">${name}</div>
-        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
+        <div class="name">${name}</div>`;
     }
 
     if (editable) {

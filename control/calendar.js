@@ -114,4 +114,55 @@ function nextWindow(windows, now = new Date()) {
   return (windows || []).find(w => w.start > now) || null;
 }
 
-module.exports = { fetchWindows, activeWindow, nextWindow, parseKeywords, isMatch, toDate, toWindow };
+// --- Wie weit ist ein mehrtaegiger Termin? ---------------------------------------------------
+//
+// Ein Termin ueber mehrere Tage sieht am Panel an jedem Tag gleich aus. Wer Gaeste hat, will
+// aber sehen, dass heute der letzte Tag ist -- das aendert, was man plant.
+//
+// Bewusst KALENDERTAGE, nicht 24-Stunden-Bloecke: "Letzter Tag" heisst umgangssprachlich
+// "heute geht es zu Ende", nicht "in den naechsten 24 Stunden". Ein Termin, der morgen um
+// 09:00 endet, ist heute Abend nicht der letzte Tag, auch wenn es weniger als 24 Stunden sind.
+
+/** Mitternacht des Tages, auf den der Zeitpunkt faellt -- lokal, nicht UTC. */
+function tagesBeginn(d) {
+  const t = new Date(d);
+  t.setHours(0, 0, 0, 0);
+  return t;
+}
+
+/** Wie viele Kalendertage liegen zwischen zwei Zeitpunkten (0 = derselbe Tag). */
+function tagesAbstand(von, bis) {
+  return Math.round((tagesBeginn(bis) - tagesBeginn(von)) / 86400000);
+}
+
+/**
+ * Auskunft ueber ein laufendes Anzeigefenster, oder null.
+ *
+ * `mehrtaegig` ist die Bedingung fuer alles Weitere: Bei einem Termin, der ohnehin nur heute
+ * laeuft, waere "Letzter Tag" keine Information, sondern Rauschen.
+ */
+function verlauf(fenster, jetzt = new Date()) {
+  if (!fenster || !fenster.start || !fenster.end) return null;
+  const start = new Date(fenster.start);
+  const ende = new Date(fenster.end);
+  if (isNaN(start) || isNaN(ende)) return null;
+
+  const gesamtTage = tagesAbstand(start, ende) + 1;
+  const tagNummer = tagesAbstand(start, jetzt) + 1;
+  // Das Fensterende ist ausschliessend (siehe toWindow): Ein Ganztages-Termin endet um
+  // Mitternacht des Folgetags. Dieser Tag zaehlt nicht mit.
+  const endetUmMitternacht = ende.getHours() === 0 && ende.getMinutes() === 0 && ende.getSeconds() === 0;
+  const letzterTagDatum = endetUmMitternacht ? new Date(ende.getTime() - 1) : ende;
+  const gesamt = tagesAbstand(start, letzterTagDatum) + 1;
+
+  return {
+    tag: Math.max(1, Math.min(gesamt, tagNummer)),
+    gesamt,
+    mehrtaegig: gesamt > 1,
+    letzterTag: gesamt > 1 && tagesAbstand(jetzt, letzterTagDatum) === 0,
+    ersterTag: gesamt > 1 && tagesAbstand(start, jetzt) === 0,
+    endet: ende.toISOString()
+  };
+}
+
+module.exports = { fetchWindows, activeWindow, nextWindow, parseKeywords, isMatch, toDate, toWindow, verlauf };

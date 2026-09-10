@@ -85,37 +85,95 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
   border-top: 1px solid var(--card-highlight, transparent); border-left: 1px solid var(--card-highlight-side, transparent);
   opacity: 0.6; }
 body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
-/* Farbige Kacheln bleiben in beiden Themes gleich (immer gesaettigter Farbverlauf) --
-   Text/Overlays bleiben dafuer bewusst immer "weiss auf Farbe", unabhaengig vom Theme. */
-.card.type-climate, .card.type-light, .card.type-cover, .card.type-wind, .card.type-rain, .card.type-temperature, .card.type-pressure {
-  color: #fff;
-  --on-card-soft: rgba(255,255,255,0.18);
-  --on-card-med: rgba(255,255,255,0.3);
-  --on-card-strong: #ffffff;
-  --on-card-faint: rgba(255,255,255,0.7);
-  --on-card-track: rgba(255,255,255,0.15);
+/* --- Farbe als Akzent, nicht als Flutung ---------------------------------------------------
+   Vorher waren sieben Kartentypen deckend eingefaerbte Kacheln -- Blau, Orange, Gruen,
+   Tuerkis -- die sich durch die Glasflaeche stanzten, auf der alles andere sitzt. Bunte
+   Kacheln auf einem Hintergrund, der von Zurueckhaltung lebt: genau der Bruch, der eine
+   sonst ruhige Wand nach Bastelei aussehen laesst.
+
+   Jetzt ist jede Karte dieselbe Glasflaeche. Die Farbe des Geraets erscheint am Symbol, am
+   Regler und -- wenn das Geraet an ist -- als weicher Schein. Das Geraet bleibt auf einen
+   Blick erkennbar, ohne dass die Wand nach Legosteinen aussieht. */
+.card { --kachel-akzent: rgba(255,255,255,0.72); }
+.card.type-climate     { --kachel-akzent: #7ba4ff; }
+.card.type-light       { --kachel-akzent: #ffc061; }
+.card.type-cover       { --kachel-akzent: #6fd6a0; }
+.card.type-wind        { --kachel-akzent: #8fdccd; }
+.card.type-rain        { --kachel-akzent: #7fa2e6; }
+.card.type-pressure    { --kachel-akzent: #bd9cf5; }
+.card.type-temperature { --kachel-akzent: #ff9d7a; }
+.card.type-humidity    { --kachel-akzent: #7fc7e6; }
+.card.type-graph       { --kachel-akzent: #9db4d8; }
+.card.type-gate        { --kachel-akzent: #9db4d8; }
+.card.type-alarm       { --kachel-akzent: #ff8f8f; }
+.card.type-lock        { --kachel-akzent: #ffc061; }
+.card.type-waste       { --kachel-akzent: #a7b09a; }
+.card.type-fan         { --kachel-akzent: #8fdccd; }
+
+/* Der Aktiv-Schein sitzt HINTER dem Inhalt und faerbt die Karte nur an, statt sie zu
+   fluten. Ein Verlauf von oben, weil das Symbol oben sitzt -- das Licht kommt von dort,
+   wo das Geraet ist. */
+.card::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(120% 78% at 50% -12%, var(--kachel-akzent) 0%, transparent 62%);
+  opacity: 0; transition: opacity 0.45s ease;
 }
-.card.type-climate { background: var(--accent-blue); }
-.card.type-light { background: var(--accent-orange); }
-.card.type-cover { background: var(--accent-green); }
-.card.type-wind { background: var(--accent-teal); }
-.card.type-rain { background: var(--accent-rain); }
-.card.type-pressure { background: var(--accent-pressure); }
-.card.type-wind, .card.type-rain, .card.type-pressure { justify-content: center; align-items: center; gap: 0.6vh; text-align: center; }
-.card .row { display: flex; justify-content: space-between; align-items: center; }
+.card.ist-aktiv::after { opacity: 0.17; }
+.card.ist-aktiv { border-color: color-mix(in srgb, var(--kachel-akzent) 34%, var(--card-border)); }
+.card > * { position: relative; z-index: 1; }
+
+
+.card .row { display: flex; justify-content: space-between; align-items: center; gap: 0.8vh; }
 
 /* Fluid-Typografie: skaliert automatisch mit der TATSAECHLICHEN Kartengroesse
    (Container Query Units) statt mit festen Groessenklassen -- funktioniert dadurch
    bei jeder frei gezogenen Groesse (auch hochkant), ohne dass etwas ueberlappt. */
-.card .name { font-size: clamp(1.1vh, 7cqmin, 2.6vh); opacity: 0.9; }
-.card .icon { width: clamp(2vh, 16cqmin, 6vh); height: clamp(2vh, 16cqmin, 6vh); opacity: 0.9; flex-shrink: 0; }
-.card .badge { font-size: clamp(0.9vh, 8cqmin, 4vh); padding: 0.3vh 1.2vh; border-radius: 20px;
-  background: var(--on-card-soft); color: inherit; white-space: nowrap; }
-.card .value { font-size: clamp(1.8vh, 22cqmin, 12vh); font-weight: 600; line-height: 1.1; }
+/* Eine Anatomie fuer alle Karten: Symbol oben, Wert gross, Name klein darunter.
+   Vorher hatte praktisch jeder Kartentyp seine eigene Gewichtung -- mal war der Name
+   gross und der Wert klein, mal umgekehrt, mal alles gleich grau. Nebeneinander an einer
+   Wand liest sich das wie zusammengesammelt, nicht wie entworfen. */
+.card .name {
+  font-size: clamp(1.15vh, 8cqmin, 2.4vh);
+  font-weight: 500; letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--muted) 55%, var(--text));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card .icon {
+  width: clamp(1.8vh, 14cqmin, 4.6vh); height: clamp(1.8vh, 14cqmin, 4.6vh);
+  color: var(--kachel-akzent); opacity: 0.92; flex-shrink: 0;
+}
+/* Der Zustands-Chip war eine gefuellte Pille und sah aus wie eine Fehlermeldung im
+   Entwicklerwerkzeug. Als feine Kontur tritt er zurueck, wo er hingehoert. */
+.card .badge {
+  font-size: clamp(0.85vh, 5.4cqmin, 1.6vh);
+  font-weight: 500; letter-spacing: 0.04em;
+  padding: 0.25vh 0.9vh; border-radius: 999px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--kachel-akzent) 38%, transparent);
+  color: color-mix(in srgb, var(--kachel-akzent) 78%, var(--fg, #fff));
+  white-space: nowrap;
+}
+/* Leichte Schrift statt halbfett: Das ist derselbe Zug wie bei der Ueberschrift des
+   Ankunftsschirms -- grosse Zahlen wirken dadurch ruhig statt marktschreierisch. */
+.card .value {
+  font-size: clamp(1.8vh, 23cqmin, 11vh);
+  font-weight: 300; line-height: 1.05; letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
 
-.card .controls { display: flex; gap: 0.8vh; margin-top: 0.6vh; align-items: center; }
-.card .controls button { flex: 1; border: none; border-radius: 8px; background: var(--on-card-soft);
-  color: inherit; font-size: clamp(1.4vh, 12cqmin, 3vh); padding: 0.6vh 0; cursor: pointer; }
+.card .controls { display: flex; gap: 0.8vh; margin-top: 0.8vh; align-items: center; }
+/* Mindesthoehe statt reiner Innenabstand: Auf einem Wandpanel wird mit dem Daumen
+   getippt, nicht mit der Maus gezielt. */
+.card .controls button {
+  flex: 1; border: 1px solid var(--card-border); border-radius: 11px;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  color: inherit; font-size: clamp(1.4vh, 12cqmin, 3vh);
+  min-height: 4.4vh; padding: 0.5vh 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.card .controls button:active { background: color-mix(in srgb, var(--kachel-akzent) 26%, transparent); }
+.card .controls button svg { width: clamp(1.6vh, 11cqmin, 2.6vh); height: clamp(1.6vh, 11cqmin, 2.6vh); }
 .card .controls button:disabled { opacity: 0.4; cursor: default; }
 .card .controls.slider-row button { flex: 0 0 auto; width: 4vh; }
 .card .controls.slider-row input[type="range"] {
@@ -123,28 +181,37 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   background: var(--on-card-med); outline: none; cursor: pointer;
 }
 .card .controls.slider-row input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 2.4vh; height: 2.4vh; border-radius: 50%;
-  background: var(--on-card-strong); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  -webkit-appearance: none; width: 2.6vh; height: 2.6vh; border-radius: 50%;
+  background: var(--kachel-akzent); cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45), 0 0 0 0.5vh color-mix(in srgb, var(--kachel-akzent) 18%, transparent);
 }
 .card .controls.slider-row input[type="range"]::-moz-range-thumb {
-  width: 2.4vh; height: 2.4vh; border-radius: 50%; background: var(--on-card-strong); border: none; cursor: pointer;
+  width: 2.6vh; height: 2.6vh; border-radius: 50%; background: var(--kachel-akzent); border: none; cursor: pointer;
 }
 .card .controls.slider-row input[type="range"]:disabled { opacity: 0.4; cursor: default; }
 
-.card.type-switch, .card.type-button, .card.type-sensor { justify-content: center; align-items: center;
-  gap: 0.8vh; text-align: center; }
-.card.type-switch.on { background: var(--switch-on-bg); }
+/* Schalter und Taster haben keinen Zahlenwert -- bei ihnen fuellt das Symbol die Mitte.
+   Die Kante bleibt trotzdem links, damit sie sich in die Reihe einfuegen. */
+.card.type-switch, .card.type-button { justify-content: space-between; gap: 0.6vh; }
+.card.type-switch .icon, .card.type-button .icon {
+  width: clamp(2.4vh, 26cqmin, 7vh); height: clamp(2.4vh, 26cqmin, 7vh);
+  margin: auto 0;
+}
+.card.type-switch .badge, .card.type-button .badge { align-self: flex-start; }
+/* Ein eingeschalteter Schalter faerbte bisher die ganze Kachel um -- an einer Wand mit
+   zwanzig Karten flackerte das den ganzen Tag. Der Schein und das farbige Symbol
+   genuegen; siehe .ist-aktiv oben. */
+.card.type-switch.on { --kachel-akzent: #ffc061; }
 .card.type-switch .name, .card.type-button .name, .card.type-sensor .name { color: var(--muted); }
-.card.type-switch.on .name { color: var(--switch-on-text); }
 .card.type-button { cursor: pointer; }
-.card.type-button.pressed { background: #4f7cff; color: #fff; }
-.card.type-button.pressed .name { color: #fff; }
+.card.type-button.pressed::after { opacity: 0.3; }
+.card.type-button.pressed { border-color: color-mix(in srgb, var(--kachel-akzent) 50%, var(--card-border)); }
 
 .card.type-gauge { align-items: center; justify-content: center; padding: 0.8vh; position: relative; }
 .card.type-gauge .gauge-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .card.type-gauge .gauge-content { position: relative; text-align: center; width: 80%; margin-top: 12%; }
-.card.type-gauge .gauge-title { font-size: clamp(0.8vh, 6cqmin, 1.6vh); letter-spacing: 0.15vh;
-  color: var(--muted); }
+.card.type-gauge .gauge-title { font-size: clamp(1vh, 6.2cqmin, 2.1vh); font-weight: 500;
+  letter-spacing: 0.035em; color: var(--muted); }
 .card.type-gauge .gauge-value { font-size: clamp(1.6vh, 20cqmin, 8vh); font-weight: 300; line-height: 1;
   margin-top: 0.3vh; color: inherit; white-space: nowrap; }
 .card.type-gauge .gauge-unit { font-size: 0.4em; font-weight: 400; color: var(--muted); margin-left: 0.15em; }
@@ -160,7 +227,7 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   display: flex; align-items: center; justify-content: center; margin-top: 0.6vh; min-height: 0; }
 .card.type-radar .radar-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-.card.type-temperature { justify-content: center; align-items: center; gap: 0.6vh; text-align: center; }
+.card.type-temperature { justify-content: space-between; gap: 0.6vh; }
 
 .card.type-clock { align-items: center; justify-content: center; text-align: center; }
 .card.type-clock .clock-time { font-size: clamp(2vh, 26cqmin, 14vh); font-weight: 200; line-height: 1; }
@@ -701,10 +768,15 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   flex: 1 1 auto; min-width: 22%; min-height: 4.4vh;
   padding: .7vh 1vh; border-radius: 11px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--card-border); background: var(--panel2); color: var(--muted);
+  border: 1px solid var(--card-border); background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted);
   font-family: inherit; font-size: clamp(.68rem, 2.4cqmin, 1.05rem); line-height: 1.1;
 }
-.climate-mode.aktiv { background: var(--text); color: var(--bg); border-color: transparent; font-weight: 600; }
+.climate-mode.aktiv {
+  background: color-mix(in srgb, var(--kachel-akzent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--kachel-akzent) 55%, transparent);
+  color: color-mix(in srgb, var(--kachel-akzent) 85%, var(--text));
+  font-weight: 600;
+}
 .climate-presets { margin-top: .5vh; display: flex; justify-content: center; }
 .climate-presets select {
   border-radius: 9px; padding: .4vh .8vh; border: 1px solid var(--card-border);
@@ -759,3 +831,33 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 @media (prefers-reduced-motion: reduce) {
   .card.type-photo .foto-ebene { transition: none; }
 }
+
+
+/* --- Laufender mehrtaegiger Termin ---------------------------------------------------------
+   Sitzt oben rechts, wo die alte Kopfzeile war -- der Platz ist ohnehin frei, seit sie
+   ausgeblendet ist. Bewusst zurueckhaltend: Das Ding steht tagelang da. */
+.terminverlauf {
+  position: fixed; top: 1.6vh; right: 1.6vh; z-index: 40;
+  display: flex; flex-direction: column; align-items: flex-end;
+  padding: 0.7vh 1.2vh;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 13%, transparent);
+  backdrop-filter: blur(14px);
+  pointer-events: none;   /* darf keine Karte darunter blockieren */
+}
+.terminverlauf .tv-stark {
+  font-size: clamp(1vh, 1.5vh, 2vh); font-weight: 600; letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--muted) 40%, var(--text));
+}
+.terminverlauf .tv-klein {
+  font-size: clamp(0.8vh, 1.15vh, 1.5vh); color: var(--muted); margin-top: 0.1vh;
+}
+
+/* Der letzte Tag ist die eigentliche Information -- der Rest ist nur Zaehlerei. */
+.terminverlauf.ist-letzter-tag {
+  background: rgba(240, 180, 41, 0.16);
+  border-color: rgba(240, 180, 41, 0.38);
+}
+.terminverlauf.ist-letzter-tag .tv-stark { color: #f6c85a; }
+.terminverlauf.ist-letzter-tag .tv-klein { color: rgba(246, 200, 90, 0.72); }

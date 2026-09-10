@@ -166,30 +166,6 @@ async function refreshCalStatus() {
   el.innerHTML = lines.join('<br>');
 }
 
-async function saveCalendar() {
-  const resultEl = $('saveCalResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      calendarEnabled: $('calEnabled').checked,
-      calendarEntity: $('calEntity').value,
-      calendarKeywords: $('calKeywords').value,
-      calendarLeadMinutes: parseInt($('calLead').value, 10) || 0,
-      calendarTrailMinutes: parseInt($('calTrail').value, 10) || 0
-    })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Gespeichert.';
-    resultEl.className = 'result ok';
-    setTimeout(refreshCalStatus, 1200); // dem sofortigen Neuabruf kurz Zeit geben
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
-  }
-}
-
 $('welcomeImage2Quelle').addEventListener('change', zweiteBildQuelleAnzeigen);
 $('welcomeImage2Btn').addEventListener('click', () => $('welcomeImage2File').click());
 $('welcomeImage2File').addEventListener('change', async () => {
@@ -227,30 +203,6 @@ $('welcomeImage2Remove').addEventListener('click', async () => {
   $('welcomeImage2Result').textContent = 'Entfernt.';
 });
 
-$('saveCalBtn').addEventListener('click', saveCalendar);
-
-$('saveWelcomeBtn').addEventListener('click', async () => {
-  const resultEl = $('saveWelcomeResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      welcomeEnabled: $('welcomeEnabled').checked,
-      welcomeHeading: $('welcomeHeading').value,
-      welcomeText: $('welcomeText').value,
-      welcomeImageEntity: $('welcomeImageEntity').value,
-      welcomeCaption: $('welcomeCaption').value,
-      welcomeCaption2: $('welcomeCaption2').value,
-      welcomeHours: parseInt($('welcomeHours').value, 10) || 0,
-      welcomeImage2Quelle: $('welcomeImage2Quelle').value,
-      welcomeImageEntity2: $('welcomeImage2Quelle').value === 'entity' ? $('welcomeImageEntity2').value : '',
-      welcomeImageSeconds: parseInt($('welcomeImageSeconds').value, 10) || 8
-    })
-  });
-  const data = await r.json();
-  resultEl.textContent = data.ok ? 'Gespeichert.' : 'Fehler: ' + data.error;
-  resultEl.className = data.ok ? 'result ok' : 'result err';
-});
 
 $('showWelcomeBtn').addEventListener('click', async () => {
   const resultEl = $('showWelcomeResult');
@@ -291,131 +243,103 @@ $('calPreviewBtn').addEventListener('click', async () => {
   el.innerHTML = res.windows.map(w => `„${w.title}“: ${fmt(w.start)} – ${fmt(w.end)}`).join('<br>');
 });
 
-$('saveCodeBtn').addEventListener('click', async () => {
-  const resultEl = $('saveCodeResult');
+// --- Speichern -------------------------------------------------------------------------------
+//
+// Vorher hatte jeder der neun Abschnitte einen eigenen Speicherknopf. Wer zwei Bereiche
+// anfasste und nur einen Knopf traf, verlor die andere Haelfte -- ohne dass irgendetwas
+// darauf hinwies. Jetzt sammelt ein Knopf die ganze Seite ein und schickt sie in EINER
+// Anfrage; entweder wird alles gespeichert oder nichts.
+
+function alleFelder() {
+  const zahl = (id, ersatz) => {
+    const v = parseInt($(id).value, 10);
+    return Number.isFinite(v) ? v : ersatz;
+  };
+  const felder = {
+    sunEntity: $('sunEntity').value,
+    notifyEntity: $('notifyEntity').value,
+    batteryThreshold: zahl('batteryThreshold', 20),
+
+    nightModeEnabled: $('nightEnabled').checked,
+    nightStart: $('nightStart').value || '23:00',
+    nightEnd: $('nightEnd').value || '06:30',
+    nightModeForceOn: $('nightForceOn').checked,
+
+    calendarEnabled: $('calEnabled').checked,
+    calendarEntity: $('calEntity').value,
+    calendarKeywords: $('calKeywords').value,
+    calendarLeadMinutes: zahl('calLead', 0),
+    calendarTrailMinutes: zahl('calTrail', 0),
+
+    welcomeEnabled: $('welcomeEnabled').checked,
+    welcomeHeading: $('welcomeHeading').value,
+    welcomeText: $('welcomeText').value,
+    welcomeImageEntity: $('welcomeImageEntity').value,
+    welcomeCaption: $('welcomeCaption').value,
+    welcomeCaption2: $('welcomeCaption2').value,
+    welcomeHours: zahl('welcomeHours', 0),
+    welcomeImage2Quelle: $('welcomeImage2Quelle').value,
+    welcomeImageEntity2: $('welcomeImage2Quelle').value === 'entity' ? $('welcomeImageEntity2').value : '',
+    welcomeImageSeconds: zahl('welcomeImageSeconds', 8),
+
+    motionWakeEnabled: $('motionEnabled').checked,
+    motionThreshold: zahl('motionThreshold', 0),
+    screensaverSeconds: zahl('screensaverSeconds', 0)
+  };
+
+  // Der Zugangscode NUR, wenn wirklich etwas eingegeben wurde. Ein leeres Feld heisst
+  // "nicht aendern", nicht "Code loeschen" -- sonst haette jedes Speichern der Seite den
+  // Schutz stillschweigend aufgehoben, und niemand haette es gemerkt, bis das Geraet
+  // offen im Netz stand.
   const code = $('setupCode').value;
-  if (!code) { resultEl.className = 'result'; resultEl.textContent = 'Kein Code eingegeben – unverändert.'; return; }
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ setupCode: code })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Code gespeichert. Alle angemeldeten Geräte müssen ihn neu eingeben.';
-    resultEl.className = 'result ok';
-    $('setupCode').value = '';
-    $('codeState').textContent = 'Es ist ein Zugangscode gesetzt. Leer lassen, um ihn nicht zu ändern.';
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
-  }
-});
+  if (code) felder.setupCode = code;
 
-$('saveBtn').addEventListener('click', async () => {
-  const resultEl = $('saveResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sunEntity: $('sunEntity').value })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Gespeichert.';
-    resultEl.className = 'result ok';
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
-  }
-});
+  return felder;
+}
 
-$('saveNotifyBtn').addEventListener('click', async () => {
-  const resultEl = $('saveNotifyResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ notifyEntity: $('notifyEntity').value })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Gespeichert.';
-    resultEl.className = 'result ok';
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
+async function speichereAlles() {
+  const el = $('saveAllResult');
+  const knopf = $('saveAllBtn');
+  const hatteCode = !!$('setupCode').value;
+  el.className = 'result';
+  el.textContent = 'Speichere...';
+  knopf.disabled = true;
+  try {
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(alleFelder())
+    });
+    const data = await r.json();
+    if (data.ok) {
+      el.className = 'result ok';
+      el.textContent = hatteCode
+        ? 'Gespeichert. Der Zugangscode wurde geändert – alle angemeldeten Geräte müssen ihn neu eingeben.'
+        : 'Gespeichert.';
+      if (hatteCode) {
+        $('setupCode').value = '';
+        $('codeState').textContent = 'Es ist ein Zugangscode gesetzt. Leer lassen, um ihn nicht zu ändern.';
+      }
+      setTimeout(refreshCalStatus, 1200); // dem sofortigen Neuabruf kurz Zeit geben
+    } else {
+      el.className = 'result err';
+      el.textContent = 'Fehler: ' + data.error;
+    }
+  } catch (e) {
+    el.className = 'result err';
+    el.textContent = 'Fehler: ' + (e.message || e);
   }
-});
+  knopf.disabled = false;
+}
 
-$('saveBatteryBtn').addEventListener('click', async () => {
-  const resultEl = $('saveBatteryResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ batteryThreshold: parseInt($('batteryThreshold').value, 10) || 20 })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Gespeichert.';
-    resultEl.className = 'result ok';
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
-  }
-});
+$('saveAllBtn').addEventListener('click', speichereAlles);
 
-$('saveNightBtn').addEventListener('click', async () => {
-  const resultEl = $('saveNightResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      nightModeEnabled: $('nightEnabled').checked,
-      nightStart: $('nightStart').value || '23:00',
-      nightEnd: $('nightEnd').value || '06:30',
-      nightModeForceOn: $('nightForceOn').checked
-    })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Gespeichert.';
-    resultEl.className = 'result ok';
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
-  }
-});
-
-$('saveMotionBtn').addEventListener('click', async () => {
-  const resultEl = $('saveMotionResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ motionWakeEnabled: $('motionEnabled').checked, motionThreshold: parseInt($('motionThreshold').value, 10) })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Gespeichert.';
-    resultEl.className = 'result ok';
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
-  }
-});
-
-$('saveScreensaverBtn').addEventListener('click', async () => {
-  const resultEl = $('saveScreensaverResult');
-  const r = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ screensaverSeconds: parseInt($('screensaverSeconds').value, 10) || 0 })
-  });
-  const data = await r.json();
-  if (data.ok) {
-    resultEl.textContent = 'Gespeichert.';
-    resultEl.className = 'result ok';
-  } else {
-    resultEl.textContent = 'Fehler: ' + data.error;
-    resultEl.className = 'result err';
+// Strg+S ist an dieser Stelle keine Spielerei: Die Seite ist lang, der Knopf steht unten,
+// und wer oben in der Kalendersteuerung tippt, sieht ihn nicht.
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    speichereAlles();
   }
 });
 

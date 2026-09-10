@@ -11,7 +11,7 @@ Projekt, siehe [ADR 0001](docs/adr/0001-eigenes-projekt-statt-einstellung-in-haw
 - [CONTEXT.md](CONTEXT.md) — das Glossar. **Panel** ist das Gerät, **Wall Display** die Anzeige;
   **Panel aus** ist echtes Abschalten, **Nachtschwarz** nur ein Overlay. Diese Unterscheidungen
   ernst nehmen, sie waren die Ursache der meisten Missverständnisse beim Entwurf.
-- [docs/adr/](docs/adr/) — drei Entscheidungen, die im Code wie Versehen aussehen und keine sind.
+- [docs/adr/](docs/adr/) — vier Entscheidungen, die im Code wie Versehen aussehen und keine sind.
 
 ## Architektur
 
@@ -96,6 +96,22 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
 
 ## Design
 
+**Farbe ist Akzent, nicht Fläche.** Eine Karte bekommt Farbe ausschließlich über
+`--kachel-akzent`; daraus speisen sich Symbol, Regler und der Aktiv-Schein. Wer statt dessen
+`background` auf einer Karte setzt, stanzt sich durch die Glasfläche und bricht den ganzen
+Entwurf — genau das war bis 1.7.0 der Fall, siehe
+[ADR 0004](docs/adr/0004-farbe-als-akzent-statt-als-kachelfarbe.md).
+
+**Ein Aufbau für alle Karten:** Symbolzeile (Symbol links, Zustand rechts), Wert, Name als
+Bildunterschrift, Bedienelemente. Linksbündig, ausnahmslos. Abweichungen fallen einzeln nicht
+auf und in der Summe sofort.
+
+Ein Design nicht ohne Hinsehen ändern: `.scratch/karten-design/vorschau.html` lädt dieselbe
+CSS-Datei und dasselbe Render-Modul mit erfundenen Zuständen und lässt sich im Browser öffnen —
+ohne Home Assistant, ohne Electron, ohne Gerät. **Beide Themes prüfen.** Weiße Auflagen
+(`rgba(255,255,255,…)`) sind auf hellem Glas unsichtbar; themenabhängige Flächen gehören als
+`color-mix(in srgb, var(--text) …%, transparent)` geschrieben.
+
 Das eingebaute Design `DEFAULT_THEME` in `dashboard-render.js` ist ab Werk aktiv; ein
 importiertes Design gewinnt. Der Seitenhintergrund ist dort bewusst ein **Standbild** aus
 denselben Farbwolken, die der Ankunftsschirm bewegt zeigt: Hinter Zahlen und Diagrammen
@@ -111,7 +127,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-123 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+131 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

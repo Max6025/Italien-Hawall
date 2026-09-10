@@ -57,3 +57,65 @@ button:disabled { background: rgba(79,124,255,0.35); cursor: not-allowed; }
 .room-item:last-child { border-bottom: none; }
 .room-item .ename { flex: 1; font-size: 0.9rem; }
 .room-item input { width: 160px; padding: 0.35rem 0.5rem; font-size: 0.9rem; }
+
+
+/* --- Einstellungsseite: ausklappbare Bereiche ---------------------------------------------
+   Neun Bereiche untereinander ergaben eine Seite, auf der man scrollte, um etwas zu suchen.
+   Eingeklappt passt die ganze Seite auf einen Blick. */
+
+.einstellungsblock {
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 14px;
+  background: var(--surface2);
+  margin-bottom: 0.7rem;
+  overflow: hidden;
+}
+.einstellungsblock > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.95rem 1.1rem 0.95rem 2.4rem;
+  position: relative;
+  user-select: none;
+  transition: background 0.15s;
+}
+.einstellungsblock > summary::-webkit-details-marker { display: none; }
+.einstellungsblock > summary:hover { background: rgba(255,255,255,0.03); }
+
+/* Eigener Pfeil statt des Standard-Dreiecks: Das Standarddreieck sitzt je nach Browser
+   anders und laesst sich nicht mittig zur zweizeiligen Ueberschrift ausrichten. */
+.einstellungsblock > summary::before {
+  content: '';
+  position: absolute;
+  left: 1.05rem; top: 1.35rem;
+  width: 7px; height: 7px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+.einstellungsblock[open] > summary::before { transform: rotate(45deg); top: 1.2rem; }
+.einstellungsblock[open] > summary { border-bottom: 1px solid var(--border, rgba(255,255,255,0.08)); }
+
+.eb-titel { display: block; font-size: 1rem; font-weight: 600; color: var(--text); letter-spacing: -0.1px; }
+.eb-unter { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+.eb-inhalt { padding: 0.2rem 1.1rem 1.1rem; }
+/* Die erste Beschreibung im Block braucht keinen Abstand nach oben -- die Ueberschrift
+   steht ja direkt darueber. */
+.eb-inhalt > .note:first-child { margin-top: 0.8rem; }
+
+/* --- Ein Speicherknopf fuer die ganze Seite ----------------------------------------------- */
+
+.speicherleiste {
+  position: sticky; bottom: 0;
+  margin: 1.4rem -1.6rem -1.6rem;
+  padding: 1rem 1.6rem;
+  background: linear-gradient(to top, var(--surface) 65%, rgba(23,24,27,0));
+  border-top: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+.speicherleiste button { margin: 0; width: 100%; font-weight: 600; }
+.speicherleiste .result:empty { display: none; }
+.speicherleiste .result { margin-top: 0.7rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .einstellungsblock > summary::before { transition: none; }
+}
