@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Unterleiste-Probe</title>
+<link rel="stylesheet" href="../../renderer/shared/dashboard.css">
+</head><body>
+<!-- Baut dieselbe Hoehenstruktur wie dashboard.html: app > main > grid + unterleiste.
+     So laesst sich pruefen, ob der Streifen unten wirklich uebrig bleibt und wie hoch er ist. -->
+<div class="app"><div class="main">
+  <div class="grid" id="grid"></div>
+  <div class="unterleiste" id="unterleiste"></div>
+</div></div>
+<script src="../../renderer/shared/dashboard-render.js"></script>
+<script>
+const Z = (s, a = {}) => ({ state: s, attributes: a });
+DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
+const grid = document.getElementById('grid');
+
+// Raster randvoll: 4 Spalten x 6 Zeilen
+for (let i = 0; i < 24; i++) {
+  const c = DashboardRender.buildCard('sensor.s' + i, Z((18 + i) + '', { friendly_name: 'Sensor ' + i, unit_of_measurement: '°C' }),
+    'temperature', { cols: 1, rows: 1 }, { editable: false, settings: {}, apiBase: '' });
+  grid.appendChild(c);
+}
+
+const unten = DashboardRender.buildCard('clock:1', null, 'clock', { cols: 1, rows: 1 },
+  { editable: false, settings: {}, apiBase: '' });
+document.getElementById('unterleiste').appendChild(unten);
+
+setTimeout(() => {
+  const g = document.getElementById('grid').getBoundingClientRect();
+  const u = document.getElementById('unterleiste').getBoundingClientRect();
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);background:#000c;color:#fff;padding:.4rem .8rem;font:12px system-ui;z-index:99';
+  d.textContent = `Raster ${Math.round(g.height)}px · Unterleiste ${Math.round(u.height)}px · Fenster ${window.innerHeight}px`;
+  document.body.appendChild(d);
+  document.title = 'fertig';
+}, 300);
+</script></body></html>

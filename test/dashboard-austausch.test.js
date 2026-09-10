@@ -225,3 +225,62 @@ test('Ein Tracker-Dashboard ueberlebt den Weg', () => {
   assert.strictEqual(e.dashboard.type, 'tracker');
   assert.strictEqual(e.dashboard.trackerEntity, 'device_tracker.katze');
 });
+
+// --- Die Karte der unteren Leiste --------------------------------------------------------------
+//
+// Sie sitzt nicht im Raster. Ohne eigene Kennzeichnung ginge das beim Export verloren, und
+// beim Einspielen laege sie ploetzlich im Raster -- an einem Platz, den sie jemandem wegnimmt.
+
+test('Die Leisten-Karte wird als solche exportiert', () => {
+  const { datei } = a.exportieren(dash([
+    { entity_id: 'clock:1', card_type: 'clock', unterleiste: true }
+  ]), CARD_TYPES);
+  assert.strictEqual(datei.karten[0].unten, true);
+  assert.strictEqual(datei.karten[0].x, undefined, 'sie hat keinen Platz im Raster');
+});
+
+test('Sie kommt auch als Leisten-Karte zurueck', () => {
+  const e = a.importieren(rein([{ entitaet: 'clock:1', art: 'clock', unten: true }]), CARD_TYPES);
+  assert.strictEqual(e.ok, true, JSON.stringify(e.fehler));
+  assert.strictEqual(e.dashboard.layout[0].unterleiste, true);
+});
+
+test('In die Leiste passt nur eine Karte', () => {
+  const e = a.importieren(rein([
+    { entitaet: 'clock:1', art: 'clock', unten: true },
+    { entitaet: 'sensor.x', art: 'sensor', unten: true }
+  ]), CARD_TYPES);
+  assert.strictEqual(e.dashboard.layout.filter(k => k.unterleiste).length, 1);
+  assert.ok(e.warnungen.some(w => w.includes('untere Leiste')), JSON.stringify(e.warnungen));
+});
+
+test('Die Leisten-Karte belegt keinen Rasterplatz', () => {
+  // Sonst waere 0,0 fuer die naechste Karte blockiert.
+  const e = a.importieren(rein([
+    { entitaet: 'clock:1', art: 'clock', unten: true },
+    { entitaet: 'light.a', art: 'light', x: 0, y: 0 }
+  ]), CARD_TYPES);
+  const imRaster = e.dashboard.layout.find(k => !k.unterleiste);
+  assert.deepStrictEqual({ x: imRaster.x, y: imRaster.y }, { x: 0, y: 0 });
+  assert.deepStrictEqual(e.warnungen, []);
+});
+
+test('Hin und zurueck bleibt sie unten', () => {
+  const original = dash([
+    { entity_id: 'light.a', card_type: 'light', x: 0, y: 0, cols: 1, rows: 1 },
+    { entity_id: 'clock:1', card_type: 'clock', unterleiste: true, settings: { clockSeconds: true } }
+  ]);
+  const { datei } = a.exportieren(original, CARD_TYPES);
+  const e = a.importieren(datei, CARD_TYPES);
+  const unten = e.dashboard.layout.find(k => k.unterleiste);
+  assert.ok(unten, 'die Leisten-Karte fehlt');
+  assert.strictEqual(unten.card_type, 'clock');
+  assert.strictEqual(unten.settings.clockSeconds, true);
+});
+
+test('Die Anleitung erwaehnt die untere Leiste', () => {
+  // Sonst kaeme ein Sprachmodell nie darauf, dass es sie gibt.
+  const { datei } = a.exportieren(dash([]), CARD_TYPES);
+  assert.ok(datei._anleitung.untereLeiste, 'kein Hinweis auf die untere Leiste');
+  assert.ok(datei._anleitung.untereLeiste.includes('unten'), datei._anleitung.untereLeiste);
+});

@@ -72,14 +72,19 @@ function exportieren(dashboard, kartenArten) {
       }
     }
 
-    const karte = {
-      entitaet: e.entity_id,
-      art: e.card_type || 'sensor',
-      x: istZahl(e.x) ? e.x : 0,
-      y: istZahl(e.y) ? e.y : 0,
-      spalten: istZahl(e.cols) ? e.cols : 1,
-      zeilen: istZahl(e.rows) ? e.rows : 1
-    };
+    // Die Karte der unteren Leiste sitzt nicht im Raster. Ohne dieses Feld ginge die
+    // Zuordnung beim Export verloren, und beim Einspielen laege sie ploetzlich im Raster --
+    // an einem Platz, den sie jemandem wegnimmt.
+    const karte = e.unterleiste
+      ? { entitaet: e.entity_id, art: e.card_type || 'sensor', unten: true }
+      : {
+        entitaet: e.entity_id,
+        art: e.card_type || 'sensor',
+        x: istZahl(e.x) ? e.x : 0,
+        y: istZahl(e.y) ? e.y : 0,
+        spalten: istZahl(e.cols) ? e.cols : 1,
+        zeilen: istZahl(e.rows) ? e.rows : 1
+      };
     if (Object.keys(einstellungen).length) karte.einstellungen = einstellungen;
     return karte;
   });
@@ -117,6 +122,9 @@ function anleitung(kartenArten) {
       + '"Unterdashboards" wieder einspielen.',
     raster: `${SPALTEN} Spalten mal ${ZEILEN} Zeilen. x zählt von links ab 0, y von oben ab 0. `
       + 'Karten dürfen sich nicht überlappen und nicht über den Rand hinausragen.',
+    untereLeiste: 'Eine Karte darf statt x/y/spalten/zeilen das Feld "unten": true tragen. Sie '
+      + 'sitzt dann in dem schmalen Streifen unter dem Raster, über die ganze Breite. Dort '
+      + 'passt genau eine Karte – typisch die Uhr.',
     entitaet: 'Die entity_id aus Home Assistant, z.B. "light.kueche". Muss es dort wirklich '
       + 'geben – erfundene Entitäten erscheinen als leere Karte.',
     einstellungen: 'Optional, je Kartenart verschieden. "name" gibt es überall und ersetzt den '
@@ -182,6 +190,27 @@ function importieren(roh, kartenArten) {
     const brauchtEntitaet = !['clock', 'energy', 'photo', 'quicktiles', 'navigate'].includes(art);
     if (brauchtEntitaet && (typeof entitaet !== 'string' || !entitaet.trim())) {
       fehler.push(`Karte ${nr} (${art}): es fehlt "entitaet".`);
+      return;
+    }
+
+    // "unten" heisst: nicht ins Raster, sondern in den Streifen darunter. Dort passt genau
+    // eine Karte -- eine zweite wird abgelehnt statt still verschluckt.
+    if (k.unten || k.unterleiste) {
+      if (layout.some(x => x.unterleiste)) {
+        warnungen.push(`Karte ${nr}: es passt nur eine Karte in die untere Leiste – ausgelassen.`);
+        return;
+      }
+      const eintragUnten = {
+        entity_id: (typeof entitaet === 'string' && entitaet.trim()) ? entitaet.trim() : eigeneKennung(art),
+        card_type: art, order: layout.length, unterleiste: true
+      };
+      const eu = k.einstellungen || k.settings;
+      if (eu && typeof eu === 'object' && !Array.isArray(eu)) {
+        const kopie = Object.assign({}, eu);
+        Object.keys(NICHT_UEBERTRAGBAR).forEach((f) => delete kopie[f]);
+        if (Object.keys(kopie).length) eintragUnten.settings = kopie;
+      }
+      layout.push(eintragUnten);
       return;
     }
 

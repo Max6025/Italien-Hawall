@@ -22,6 +22,9 @@
         </div>
       </header>
       <div class="grid" id="grid"></div>
+      <!-- Der Streifen, den das 6-Zeilen-Raster unten uebrig laesst. Er war bisher einfach
+           leer; jetzt kann dort eine Karte stehen -- gedacht fuer Uhrzeit und Datum. -->
+      <div class="unterleiste" id="unterleiste"></div>
       <div class="tracker-view" id="trackerView" style="display:none;">
         <div class="tracker-toolbar">
           <div class="tracker-battery" id="trackerBattery"></div>
@@ -425,6 +428,72 @@ async function ensureWasteEvents(entityId) {
   }
 }
 
+// Alles, was eine Karte auf dem Dashboard ausloesen kann. Einmal benannt, weil sowohl das
+// Raster als auch die Unterleiste dieselben Rueckrufe brauchen -- zweimal geschrieben waere
+// zweimal zu pflegen.
+function dashboardRueckrufe() {
+  return {
+    onToggle: (domain, entityId, state) => callService(domain, state === 'on' ? 'turn_off' : 'turn_on', entityId),
+    onPress: (domain, entityId) => callService(domain, DashboardRender.PRESS_DOMAINS[domain] || 'turn_on', entityId),
+    onSetBrightness: (entityId, pct) => callService('light', 'turn_on', entityId, { brightness_pct: pct }),
+    // Tor-Card: Der passende Dienst wird aus der Entitaet abgeleitet, damit Taster,
+    // Rollladen und Skripte in derselben Knopfliste stehen duerfen.
+    onSetColorTemp: (entityId, kelvin) => callService('light', 'turn_on', entityId, { color_temp_kelvin: kelvin }),
+    onSetColor: (entityId, rgb) => callService('light', 'turn_on', entityId, { rgb_color: rgb }),
+    onSetHvacMode: (entityId, modus) => callService('climate', 'set_hvac_mode', entityId, { hvac_mode: modus }),
+    onSetPreset: (entityId, preset) => callService('climate', 'set_preset_mode', entityId, { preset_mode: preset }),
+    onGatePress: (entityId, alsSchalter) => {
+      const dienst = DashboardRender.serviceFuerEntitaet(entityId);
+      if (!dienst) return;
+      callService(dienst.domain, dienst.service, entityId);
+      // Ein Torantrieb haengt an einem Relais: Ein reines Einschalten laesst es eingeschaltet.
+      // Deshalb kurz halten und wieder ausschalten -- Taster statt Schalter. Wer die Entitaet
+      // wirklich als Schalter will, setzt das je Knopf in den Karten-Einstellungen.
+      if (dienst.impuls && !alsSchalter) {
+    setTimeout(() => callService(dienst.domain, dienst.aus, entityId), 800);
+      }
+    },
+    onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
+    onCover: (entityId, service) => callService('cover', service, entityId),
+    onCoverPosition: (entityId, pos) => callService('cover', 'set_cover_position', entityId, { position: pos }),
+    onCoverTilt: (entityId, pos) => callService('cover', 'set_cover_tilt_position', entityId, { tilt_position: pos }),
+    onSelectOption: (domain, entityId, option) => callService(domain, 'select_option', entityId, { option }),
+    onMediaControl: (entityId, service, serviceData) => callService('media_player', service, entityId, serviceData),
+    onLockToggle: (entityId, curState) => callService('lock', curState === 'locked' ? 'unlock' : 'lock', entityId),
+    onFanSpeed: (entityId, pct) => callService('fan', 'set_percentage', entityId, { percentage: pct }),
+    onVacuumControl: (entityId, service) => callService('vacuum', service, entityId),
+    // Der Code wird nur mitgeschickt, wenn die Anlage einen verlangt -- sonst bleibt das
+    // Feld weg, statt ein leeres mitzusenden.
+    onAlarmControl: (entityId, service, code) =>
+      callService('alarm_control_panel', service, entityId, code ? { code } : undefined),
+    onQuickTile: (a) => callService(a.domain, a.service, a.entity_id, a.daten),
+    onNavigate: (targetId) => navigateTo(targetId)
+  };
+}
+
+// Baut die Karte in der Unterleiste. Getrennt vom Raster, weil sie nicht im Raster sitzt --
+// sie fuellt genau den Streifen, den die sechs Zeilen unten uebrig lassen.
+async function unterleisteAufbauen(entry) {
+  const el = $('unterleiste');
+  if (!el) return;
+  if (!entry) { el.hidden = true; el.innerHTML = ''; return; }
+
+  const type = entry.card_type || defaultCardType(entry.entity_id, statesById[entry.entity_id]);
+  const brauchtZustand = !['clock', 'navigate', 'energy', 'photo', 'quicktiles'].includes(type);
+  const s = brauchtZustand ? statesById[entry.entity_id] : null;
+  if (brauchtZustand && !s) { el.hidden = true; el.innerHTML = ''; return; }
+
+  let history;
+  if (MIT_VERLAUF.includes(type)) history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
+
+  el.hidden = false;
+  el.innerHTML = '';
+  el.appendChild(buildCard(entry.entity_id, s, type, { cols: 1, rows: 1 }, {
+    editable: false, history, apiBase: API, settings: entry.settings || {}, statesById,
+    callbacks: dashboardRueckrufe()
+  }));
+}
+
 async function render() {
   const layout = await activeLayout();
   const grid = $('grid');
@@ -441,7 +510,11 @@ async function render() {
     grid.innerHTML = '<div class="empty">Keine Karten eingerichtet. /setup/editor.html auf einem anderen Gerät öffnen.</div>';
     return;
   }
-  for (const entry of layout) {
+  // Die Karte der Unterleiste wird getrennt behandelt -- sie sitzt nicht im Raster.
+  const unterEintrag = layout.find(e => e.unterleiste);
+  await unterleisteAufbauen(unterEintrag);
+
+  for (const entry of layout.filter(e => !e.unterleiste)) {
     const type = entry.card_type || defaultCardType(entry.entity_id, statesById[entry.entity_id]);
     const s = (type === 'clock' || type === 'navigate' || type === 'energy' || type === 'photo' || type === 'quicktiles') ? null : statesById[entry.entity_id];
     if (type !== 'clock' && type !== 'navigate' && type !== 'energy' && type !== 'photo' && type !== 'quicktiles' && !s) continue;
@@ -471,43 +544,7 @@ async function render() {
       onPhoto: !!findOverlappingPhotoInLayout(entry, layout),
       statesById,
       settings: entry.settings || {},
-      callbacks: {
-        onToggle: (domain, entityId, state) => callService(domain, state === 'on' ? 'turn_off' : 'turn_on', entityId),
-        onPress: (domain, entityId) => callService(domain, DashboardRender.PRESS_DOMAINS[domain] || 'turn_on', entityId),
-        onSetBrightness: (entityId, pct) => callService('light', 'turn_on', entityId, { brightness_pct: pct }),
-        // Tor-Card: Der passende Dienst wird aus der Entitaet abgeleitet, damit Taster,
-        // Rollladen und Skripte in derselben Knopfliste stehen duerfen.
-        onSetColorTemp: (entityId, kelvin) => callService('light', 'turn_on', entityId, { color_temp_kelvin: kelvin }),
-        onSetColor: (entityId, rgb) => callService('light', 'turn_on', entityId, { rgb_color: rgb }),
-        onSetHvacMode: (entityId, modus) => callService('climate', 'set_hvac_mode', entityId, { hvac_mode: modus }),
-        onSetPreset: (entityId, preset) => callService('climate', 'set_preset_mode', entityId, { preset_mode: preset }),
-        onGatePress: (entityId, alsSchalter) => {
-          const dienst = DashboardRender.serviceFuerEntitaet(entityId);
-          if (!dienst) return;
-          callService(dienst.domain, dienst.service, entityId);
-          // Ein Torantrieb haengt an einem Relais: Ein reines Einschalten laesst es eingeschaltet.
-          // Deshalb kurz halten und wieder ausschalten -- Taster statt Schalter. Wer die Entitaet
-          // wirklich als Schalter will, setzt das je Knopf in den Karten-Einstellungen.
-          if (dienst.impuls && !alsSchalter) {
-            setTimeout(() => callService(dienst.domain, dienst.aus, entityId), 800);
-          }
-        },
-        onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
-        onCover: (entityId, service) => callService('cover', service, entityId),
-        onCoverPosition: (entityId, pos) => callService('cover', 'set_cover_position', entityId, { position: pos }),
-        onCoverTilt: (entityId, pos) => callService('cover', 'set_cover_tilt_position', entityId, { tilt_position: pos }),
-        onSelectOption: (domain, entityId, option) => callService(domain, 'select_option', entityId, { option }),
-        onMediaControl: (entityId, service, serviceData) => callService('media_player', service, entityId, serviceData),
-        onLockToggle: (entityId, curState) => callService('lock', curState === 'locked' ? 'unlock' : 'lock', entityId),
-        onFanSpeed: (entityId, pct) => callService('fan', 'set_percentage', entityId, { percentage: pct }),
-        onVacuumControl: (entityId, service) => callService('vacuum', service, entityId),
-        // Der Code wird nur mitgeschickt, wenn die Anlage einen verlangt -- sonst bleibt das
-        // Feld weg, statt ein leeres mitzusenden.
-        onAlarmControl: (entityId, service, code) =>
-          callService('alarm_control_panel', service, entityId, code ? { code } : undefined),
-        onQuickTile: (a) => callService(a.domain, a.service, a.entity_id, a.daten),
-        onNavigate: (targetId) => navigateTo(targetId)
-      }
+      callbacks: dashboardRueckrufe()
     }));
   }
 }

@@ -102,6 +102,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   rechts, obwohl beide auf `hidden` standen. Deshalb steht ganz oben in `dashboard.css` ein
   `[hidden] { display: none !important; }`. Wer diese Zeile entfernt, bricht jede
   Sichtbarkeitssteuerung, die über `hidden` läuft — und zwar lautlos.
+- **Das Raster hat feste sechs Zeilen, kein `flex: 1`.** Nur so ist der Streifen darunter
+  (`.unterleiste`) vorhersagbar groß: Was das Raster übrig lässt, bekommt er. Mit `flex: 1`
+  nähme das Raster die ganze Höhe und der Streifen wäre mal da, mal nicht. Die Karte dort
+  trägt `unterleiste: true` im Layout — sie hat **kein** x/y, und jede Rasterlogik
+  (Kollisionsprüfung, freier Platz, Rendern) muss sie deshalb ausfiltern, sonst gilt sie als
+  Hindernis bei 0,0.
 - **Der Weg zurück darf nie verschwinden.** Der Zurück-Knopf in der Kopfzeile ist seit dem
   Redesign ausgeblendet (`.statusbar { display: none }`), und die Reiter-Leiste am unteren Rand
   ist entfallen. Übrig bleibt `#zurueckKnopf` — er ist die **einzige** Rückkehr von einem
@@ -181,7 +187,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-181 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+187 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

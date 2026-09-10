@@ -146,10 +146,54 @@ function findOverlappingPhoto(entry) {
   ) || null;
 }
 
+// Die Unterleiste ist genau eine Karte und sitzt nicht im Raster -- sie laesst sich weder
+// ziehen noch in der Groesse aendern, sie fuellt immer den ganzen Streifen. Deshalb hier ein
+// eigener kleiner Aufbau statt der Rasterlogik.
+let unterleisteWahl = false;   // gesetzt, solange die Auswahl fuer die Unterleiste offen ist
+
+async function unterleisteRendern() {
+  const el = $('unterleisteCanvas');
+  if (!el) return;
+  const entry = currentLayout.find(e => e.unterleiste);
+  el.innerHTML = '';
+
+  if (!entry) {
+    el.innerHTML = `<button type="button" id="unterleisteAdd"
+      style="width:auto; margin:auto; padding:0.6vh 1.6vh;">+ Karte für die untere Leiste</button>`;
+    $('unterleisteAdd').addEventListener('click', () => { unterleisteWahl = true; openPicker(); });
+    return;
+  }
+
+  const state = statesById[entry.entity_id];
+  const type = entry.card_type || defaultCardType(entry.entity_id, state);
+  let history;
+  if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
+
+  const card = buildCard(entry.entity_id, state, type, { cols: 1, rows: 1 }, {
+    editable: true, freeMove: false, history, apiBase: '', settings: entry.settings || {}, statesById
+  });
+  card.style.flex = '1';
+  el.appendChild(card);
+
+  const leiste = document.createElement('div');
+  leiste.style.cssText = 'display:flex; flex-direction:column; gap:0.4vh; justify-content:center; margin-left:0.6vh;';
+  leiste.innerHTML = `
+    <button type="button" id="unterleisteSet" style="width:auto; padding:0 1vh; margin:0;" title="Einstellungen">⚙</button>
+    <button type="button" id="unterleisteDel" style="width:auto; padding:0 1vh; margin:0; background:#dc3545;" title="Entfernen">×</button>`;
+  el.appendChild(leiste);
+  $('unterleisteSet').addEventListener('click', () => openSettings(entry.entity_id));
+  $('unterleisteDel').addEventListener('click', () => {
+    currentLayout = currentLayout.filter(e => e !== entry);
+    markDirty();
+    render();
+  });
+}
+
 async function render() {
   const grid = $('grid');
   grid.innerHTML = '';
-  for (const entry of currentLayout) {
+  await unterleisteRendern();
+  for (const entry of currentLayout.filter(e => !e.unterleiste)) {
     const state = statesById[entry.entity_id];
     const type = entry.card_type || defaultCardType(entry.entity_id, state);
     const span = resolveSpan(entry, type);
@@ -202,7 +246,9 @@ function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
 }
 
 function collidesAt(entityId, x, y, cols, rows, type) {
-  const others = currentLayout.filter(l => l.entity_id !== entityId);
+  // Die Karte der Unterleiste sitzt nicht im Raster -- sie hat kein x/y und wuerde sonst
+  // bei 0,0 als Hindernis gelten.
+  const others = currentLayout.filter(l => l.entity_id !== entityId && !l.unterleiste);
   return others.some(o => {
     if (!rectsOverlap(x, y, cols, rows, o.x || 0, o.y || 0, o.cols || 1, o.rows || 1)) return false;
     // Erlaubte Ueberlappung: eine Foto-Bereich-Karte mit einer dafuer zugelassenen Karte
@@ -1243,64 +1289,73 @@ function showTypeStep() {
       else if (t === 'energy') addEnergyCard();
       else if (t === 'photo') addPhotoCard();
       else if (t === 'quicktiles') addQuickTilesCard();
+      // Die Uhr braucht keine Entitaet. Sie stand seit 1.5.0 in der Auswahl, fuehrte aber in
+      // den Entitaetsschritt -- und der zeigt fuer sie eine LEERE Liste, weil domainsForType
+      // ein leeres Feld liefert. Die Karte liess sich also anwaehlen und nie anlegen.
+      else if ((domainsForType(t) || []).length === 0) {
+        kartenEintragAnlegen(eigeneKartenKennung(t), t, {});
+      }
       else showEntityStep(t);
     });
     grid.appendChild(tile);
   });
 }
 
-function addNavigateCard() {
-  const span = clampSpan(sizeToSpan(defaultSize('navigate')), 'navigate');
-  const pos = findFreeSpot(span.cols, span.rows, 'navigate');
-  currentLayout.push({
-    entity_id: 'navigate:' + Date.now(), order: currentLayout.length, card_type: 'navigate',
-    cols: span.cols, rows: span.rows, x: pos.x, y: pos.y,
-    settings: { targetDashboardId: 'main', targetDashboardName: 'Hauptdashboard' }
-  });
+/**
+ * Legt eine neue Karte an -- entweder im Raster oder in der unteren Leiste.
+ *
+ * Vorher stand dieselbe Push-Logik fuenfmal im Code: viermal fuer Karten ohne Entitaet und
+ * einmal in der Entitaetsauswahl. Fuer die Unterleiste haette sie ein sechstes Mal
+ * dazugemusst -- und beim naechsten Kartentyp ein siebtes.
+ */
+function kartenEintragAnlegen(entity_id, type, settings) {
+  if (unterleisteWahl) {
+    unterleisteWahl = false;
+    // In die Leiste passt genau eine Karte. Eine vorhandene wird ersetzt, statt still eine
+    // zweite anzulegen, die niemand zu sehen bekaeme.
+    currentLayout = currentLayout.filter(e => !e.unterleiste);
+    currentLayout.push({
+      entity_id, order: currentLayout.length, card_type: type,
+      unterleiste: true, settings: settings || {}
+    });
+  } else {
+    const span = clampSpan(sizeToSpan(defaultSize(type)), type);
+    const pos = findFreeSpot(span.cols, span.rows, type);
+    currentLayout.push({
+      entity_id, order: currentLayout.length, card_type: type,
+      cols: span.cols, rows: span.rows, x: pos.x, y: pos.y, settings: settings || {}
+    });
+  }
   markDirty();
   $('picker').classList.remove('show');
   render();
 }
 
+/** Eine eindeutige Kennung fuer Karten, die keine Home-Assistant-Entitaet haben. */
+function eigeneKartenKennung(type) {
+  return type + ':' + Date.now();
+}
+
+function addNavigateCard() {
+  kartenEintragAnlegen(eigeneKartenKennung('navigate'), 'navigate',
+    { targetDashboardId: 'main', targetDashboardName: 'Hauptdashboard' });
+}
+
 function addEnergyCard() {
-  const span = clampSpan(sizeToSpan(defaultSize('energy')), 'energy');
-  const pos = findFreeSpot(span.cols, span.rows, 'energy');
-  const id = 'energy:' + Date.now();
-  currentLayout.push({
-    entity_id: id, order: currentLayout.length, card_type: 'energy',
-    cols: span.cols, rows: span.rows, x: pos.x, y: pos.y, settings: {}
-  });
-  markDirty();
-  $('picker').classList.remove('show');
-  render();
+  const id = eigeneKartenKennung('energy');
+  kartenEintragAnlegen(id, 'energy', {});
   openSettings(id); // gleich die Entitaeten abfragen, da die Karte sonst leer ist
 }
 
 function addPhotoCard() {
-  const span = clampSpan(sizeToSpan(defaultSize('photo')), 'photo');
-  const pos = findFreeSpot(span.cols, span.rows, 'photo');
-  const id = 'photo:' + Date.now();
-  currentLayout.push({
-    entity_id: id, order: currentLayout.length, card_type: 'photo',
-    cols: span.cols, rows: span.rows, x: pos.x, y: pos.y, settings: {}
-  });
-  markDirty();
-  $('picker').classList.remove('show');
-  render();
+  const id = eigeneKartenKennung('photo');
+  kartenEintragAnlegen(id, 'photo', {});
   openSettings(id); // gleich das Bild hochladen, da die Karte sonst leer ist
 }
 
 function addQuickTilesCard() {
-  const span = clampSpan(sizeToSpan(defaultSize('quicktiles')), 'quicktiles');
-  const pos = findFreeSpot(span.cols, span.rows, 'quicktiles');
-  const id = 'quicktiles:' + Date.now();
-  currentLayout.push({
-    entity_id: id, order: currentLayout.length, card_type: 'quicktiles',
-    cols: span.cols, rows: span.rows, x: pos.x, y: pos.y, settings: { tiles: [] }
-  });
-  markDirty();
-  $('picker').classList.remove('show');
-  render();
+  const id = eigeneKartenKennung('quicktiles');
+  kartenEintragAnlegen(id, 'quicktiles', { tiles: [] });
   openSettings(id); // gleich Kacheln anlegen, da die Karte sonst leer ist
 }
 
@@ -1335,28 +1390,24 @@ function renderPickerList(query) {
     row.className = 'picker-item';
     row.innerHTML = `<span>${e.name}</span><span class="domain">${e.domain}</span>`;
     row.addEventListener('click', () => {
-      const span = clampSpan(sizeToSpan(defaultSize(pickerType)), pickerType);
-      const pos = findFreeSpot(span.cols, span.rows, pickerType);
       let settings = {};
       if (duplicateSourceId) {
         const src = currentLayout.find(l => l.entity_id === duplicateSourceId);
         if (src) settings = JSON.parse(JSON.stringify(src.settings || {}));
       }
-      currentLayout.push({
-        entity_id: e.entity_id, order: currentLayout.length, card_type: pickerType,
-        cols: span.cols, rows: span.rows, x: pos.x, y: pos.y, settings
-      });
       duplicateSourceId = null;
-      markDirty();
-      $('picker').classList.remove('show');
-      render();
+      kartenEintragAnlegen(e.entity_id, pickerType, settings);
     });
     el.appendChild(row);
   });
 }
 
 $('pickerFilter').addEventListener('input', e => renderPickerList(e.target.value));
-$('pickerClose').addEventListener('click', () => { duplicateSourceId = null; $('picker').classList.remove('show'); });
+$('pickerClose').addEventListener('click', () => {
+  duplicateSourceId = null;
+  unterleisteWahl = false;   // sonst landet die naechste Karte ungewollt in der Leiste
+  $('picker').classList.remove('show');
+});
 
 $('saveBtn').addEventListener('click', async () => {
   const resultEl = $('saveResult');
