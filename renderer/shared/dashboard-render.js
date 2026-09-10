@@ -368,6 +368,138 @@
       `${base}/api/photo-card/${encodeURIComponent(fotoBildId(cardId, i))}/background?v=${v}`);
   }
 
+  // --- Verlauf im Hintergrund einer Sensorkarte ---------------------------------------------------
+  //
+  // Eine Sensorkarte zeigte Symbol, Zahl und Name -- auf einer grossen Kachel viel Luft und
+  // wenig Aussage. Die Zahl allein beantwortet auch die eigentliche Frage nicht: 21 Grad sind
+  // etwas anderes, wenn es seit Stunden faellt, als wenn es steigt.
+  //
+  // Also derselbe Verlauf, den die Verlaufskarte ohnehin abruft, aber als ruhige Flaeche im
+  // unteren Drittel hinter dem Text -- kein zweites Diagramm, sondern Untergrund.
+
+  /** Gefuellte Flaeche ohne Achsen und Beschriftung. Leer, wenn zu wenige Punkte da sind. */
+  function miniVerlaufSvg(werte, id) {
+    if (!werte || werte.length < 3 || werte.some(v => !Number.isFinite(v))) return '';
+    const min = Math.min(...werte);
+    const max = Math.max(...werte);
+    const spanne = (max - min) || 1;
+    const B = 100, H = 30;
+    const punkte = werte.map((v, i) => {
+      const x = (i / (werte.length - 1)) * B;
+      const y = H - ((v - min) / spanne) * H;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    });
+    const linie = 'M' + punkte.join(' L');
+    const flaeche = `${linie} L${B},${H} L0,${H} Z`;
+    return `<svg class="mini-verlauf" viewBox="0 0 ${B} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="mv-${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="currentColor" stop-opacity="0.30"/>
+        <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+      </linearGradient></defs>
+      <path d="${flaeche}" fill="url(#mv-${id})"/>
+      <path d="${linie}" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.1"
+            vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  /**
+   * Tendenz ueber den Zeitraum: steigt, faellt, oder nichts Nennenswertes.
+   *
+   * Zwei Vorkehrungen, beide gegen dieselbe Sorte Fehlalarm:
+   *
+   * Erstens werden DRITTEL gemittelt, nicht der erste mit dem letzten Punkt verglichen. Bei
+   * einem Einzelpunktvergleich entscheidet ein einziger Ausreisser am Rand ueber die ganze
+   * Aussage -- und Sensordaten haben Ausreisser.
+   *
+   * Zweitens eine Totzone von einem Zehntel der beobachteten Spanne. Ein Sensor, der um sich
+   * herum zappelt, ist nicht "steigend". Ohne die Zone zeigte der Pfeil bei jedem Aufbau in
+   * eine andere Richtung -- ein Flackern an der Wand, das schlimmer waere als gar keine
+   * Angabe. Relativ zur Spanne, weil ein halbes Grad bei einem Raumthermometer viel ist und
+   * bei einem Backofen nichts.
+   */
+  const TENDENZ_TOTZONE = 0.1;
+
+  function tendenz(series) {
+    if (!series || series.length < 3) return null;
+    if (series.some(v => !Number.isFinite(v))) return null;
+    const drittel = Math.max(1, Math.ceil(series.length / 3));
+    const mittel = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const anfang = mittel(series.slice(0, drittel));
+    const ende = mittel(series.slice(-drittel));
+    const spanne = Math.max(...series) - Math.min(...series);
+    const totzone = Math.max(spanne * TENDENZ_TOTZONE, 1e-9);
+    const d = ende - anfang;
+    if (Math.abs(d) <= totzone) return { richtung: 0, delta: 0 };
+    return { richtung: d > 0 ? 1 : -1, delta: d };
+  }
+
+  // --- Die Karte IST der Regler -----------------------------------------------------------------
+  //
+  // Vorher sass unter dem Wert ein duenner Schiebregler. Auf einem Wandpanel muss man den mit
+  // dem Finger treffen -- bei einer kleinen Karte ist der Griff wenige Millimeter hoch. Jetzt
+  // ist die ganze Kachel die Bedienflaeche: von unten nach oben wischen macht heller.
+  //
+  // Tippen und Wischen muessen sich dabei unterscheiden lassen. Ein Tippen schaltet um, ein
+  // Wischen setzt den Wert. Die Grenze liegt bei WISCH_SCHWELLE Pixeln -- darunter zittert nur
+  // der Finger, und ein Zittern darf nicht die Helligkeit verstellen.
+
+  const WISCH_SCHWELLE = 10;
+
+  /**
+   * Macht aus einer Karte einen senkrechten Regler.
+   *
+   * `aufWert(pct)` kommt beim Loslassen nach einem Wisch, `aufTippen()` bei einer Beruehrung
+   * ohne nennenswerte Bewegung. Waehrend des Wischens wird nur die Anzeige nachgefuehrt -- ein
+   * Dienstaufruf pro Bildschirmaktualisierung wuerde Home Assistant fluten und die Lampe
+   * flackern lassen.
+   */
+  function kachelRegler(card, opts) {
+    const einstellung = opts || {};
+    const fuellung = card.querySelector('.kachel-fuellung');
+    const anzeige = card.querySelector('.value');
+    let start = null;
+
+    const setzeAnzeige = (pct) => {
+      if (fuellung) fuellung.style.height = pct + '%';
+      if (anzeige && einstellung.beschriftung) anzeige.textContent = einstellung.beschriftung(pct);
+    };
+
+    card.addEventListener('pointerdown', (e) => {
+      // Eigene Bedienelemente auf der Karte (Farbtemperatur, Farbwahl) behalten Vorrang --
+      // sonst liesse sich die Farbtemperatur nicht mehr verstellen, ohne zu dimmen.
+      if (e.target.closest('input, button, select, a')) return;
+      start = { y: e.clientY, pct: einstellung.wert || 0, bewegt: 0 };
+      card.setPointerCapture(e.pointerId);
+      card.classList.add('wird-geregelt');
+    });
+
+    card.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      const hoehe = card.getBoundingClientRect().height || 1;
+      const weg = start.y - e.clientY;              // nach oben = heller
+      start.bewegt = Math.max(start.bewegt, Math.abs(weg));
+      if (start.bewegt < WISCH_SCHWELLE) return;
+      const pct = Math.max(0, Math.min(100, Math.round(start.pct + (weg / hoehe) * 100)));
+      start.aktuell = pct;
+      setzeAnzeige(pct);
+    });
+
+    const beenden = (e) => {
+      if (!start) return;
+      const s = start;
+      start = null;
+      card.classList.remove('wird-geregelt');
+      try { card.releasePointerCapture(e.pointerId); } catch (err) { /* Zeiger schon weg */ }
+      if (s.bewegt < WISCH_SCHWELLE) {
+        if (einstellung.aufTippen) einstellung.aufTippen();
+      } else if (einstellung.aufWert && s.aktuell !== undefined) {
+        einstellung.aufWert(s.aktuell);
+      }
+    };
+    card.addEventListener('pointerup', beenden);
+    card.addEventListener('pointercancel', beenden);
+  }
+
   /** Namen aller Symbole, die zur Auswahl stehen -- der Editor baut daraus die Liste. */
   function symbolNamen() { return Object.keys(ICONS); }
 
@@ -607,6 +739,16 @@
     // An der Quelle maskiert: "name" landet in saemtlichen Kartenvorlagen in innerHTML.
     const name = esc((settings.name && String(settings.name).trim()) || attrs.friendly_name || entity_id);
     const dis = editable ? 'disabled' : '';
+
+    // Verlauf und Tendenz stehen allen Zahlenkarten zur Verfuegung. Ohne Verlaufsdaten bleiben
+    // beide leer -- die Karte sieht dann aus wie vorher, statt eine leere Flaeche zu zeigen.
+    const verlaufReihe = (settings.verlaufAus || !Array.isArray(opts.history) || opts.history.length < 3)
+      ? null : downsample(opts.history, 40);
+    const verlaufTeil = verlaufReihe ? miniVerlaufSvg(verlaufReihe, entity_id.replace(/[^a-z0-9]/gi, '')) : '';
+    const tend = verlaufReihe ? tendenz(verlaufReihe) : null;
+    const tendenzTeil = (tend && tend.richtung !== 0)
+      ? `<span class="tendenz ${tend.richtung > 0 ? 'steigt' : 'faellt'}">${tend.richtung > 0 ? '↑' : '↓'}</span>`
+      : '';
     const type = cardType || defaultCardType(entity_id, state);
     const spanObj = (span && typeof span === 'object') ? span : sizeToSpan(span || defaultSize(type));
     const { cols, rows } = clampSpan(spanObj, type);
@@ -689,14 +831,19 @@
       const rgb = Array.isArray(attrs.rgb_color) ? attrs.rgb_color : [255, 255, 255];
       const hexFarbe = '#' + rgb.map(v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
 
+      // Nicht jede Lampe laesst sich dimmen. HA meldet das ueber die Farbmodi: 'onoff' heisst
+      // nur ein und aus. Eine solche Lampe bekommt keine Fuellung und keinen Wisch -- ein
+      // Regler, der nichts bewirkt, ist schlimmer als keiner.
+      const kannDimmen = modi.length === 0
+        ? attrs.brightness !== undefined
+        : modi.some(m => m !== 'onoff');
+
+      card.classList.add('kachel-regler');
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.light}</span><span class="badge">${isOn ? 'An' : 'Aus'}</span></div>
-        <div class="value">${pct}%</div>
+        ${kannDimmen ? `<div class="kachel-fuellung" style="height:${isOn ? pct : 0}%"></div>` : ''}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.light)}</span><span class="badge">${isOn ? 'An' : 'Aus'}</span></div>
+        <div class="value">${kannDimmen && isOn ? pct + '%' : (isOn ? 'An' : 'Aus')}</div>
         <div class="name">${name}</div>
-        <div class="controls slider-row">
-          <button data-act="toggle" ${dis} aria-label="Ein/Aus">${ICONS.power}</button>
-          <input type="range" min="0" max="100" step="5" value="${pct}" data-act="slider" ${dis}>
-        </div>
         ${kannTemperatur ? `<div class="controls slider-row light-temp">
           <input type="range" min="${kelvinMin}" max="${kelvinMax}" step="50" value="${kelvin}" data-act="kelvin" ${dis}>
         </div>` : ''}
@@ -704,18 +851,25 @@
           <input type="color" value="${hexFarbe}" data-act="farbe" ${dis}>
         </div>` : ''}`;
       if (!editable) {
-        const slider = card.querySelector('[data-act="slider"]');
-        if (cb.onSetBrightness) {
-          slider.addEventListener('change', () => {
-            const wert = parseInt(slider.value, 10);
-            // Frueher wurde bei 0 ein turn_on mit 0 Prozent geschickt -- viele Lampen ignorieren
-            // das oder bleiben glimmend an. 0 heisst aus.
-            if (wert === 0 && cb.onToggle) return cb.onToggle('light', entity_id, 'on');
-            cb.onSetBrightness(entity_id, wert);
+        const umschalten = () => cb.onToggle && cb.onToggle('light', entity_id, state ? state.state : 'off');
+        if (kannDimmen && cb.onSetBrightness) {
+          kachelRegler(card, {
+            wert: isOn ? pct : 0,
+            beschriftung: (v) => v + '%',
+            aufTippen: umschalten,
+            aufWert: (wert) => {
+              // Frueher wurde bei 0 ein turn_on mit 0 Prozent geschickt -- viele Lampen
+              // ignorieren das oder bleiben glimmend an. 0 heisst aus.
+              if (wert === 0) return cb.onToggle && cb.onToggle('light', entity_id, 'on');
+              cb.onSetBrightness(entity_id, wert);
+            }
           });
-        }
-        if (cb.onToggle) {
-          card.querySelector('[data-act="toggle"]').addEventListener('click', () => cb.onToggle('light', entity_id, state ? state.state : 'off'));
+        } else if (cb.onToggle) {
+          card.style.cursor = 'pointer';
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('input, button, select')) return;
+            umschalten();
+          });
         }
         const kelvinRegler = card.querySelector('[data-act="kelvin"]');
         if (kelvinRegler && cb.onSetColorTemp) {
@@ -780,13 +934,19 @@
       const isReadOnly = domain === 'binary_sensor';
       card.classList.add(isOn ? 'on' : 'off');
       card.classList.toggle('ist-aktiv', !!isOn);
-      card.innerHTML = `<span class="icon">${ICONS[domain] || ICONS.switch}</span><span class="name">${name}</span><span class="badge">${isOn ? 'An' : 'Aus'}</span>`;
+      card.innerHTML = `
+        <div class="row"><span></span><span class="badge">${isOn ? 'An' : 'Aus'}</span></div>
+        <span class="icon">${symbolFuer(settings, ICONS[domain] || ICONS.switch)}</span>
+        <div class="name">${name}</div>`;
       if (!editable && !isReadOnly && cb.onToggle) {
         card.style.cursor = 'pointer';
         card.addEventListener('click', () => cb.onToggle(domain, entity_id, state ? state.state : 'off'));
       }
     } else if (type === 'button') {
-      card.innerHTML = `<span class="icon">${symbolFuer(settings, ICONS.button)}</span><span class="name">${name}</span><span class="badge">Drücken</span>`;
+      card.innerHTML = `
+        <div class="row"><span></span><span class="badge">Drücken</span></div>
+        <span class="icon">${symbolFuer(settings, ICONS.button)}</span>
+        <div class="name">${name}</div>`;
       if (!editable && cb.onPress) {
         card.style.cursor = 'pointer';
         card.addEventListener('click', () => {
@@ -801,28 +961,32 @@
       const numVal = rawVal !== null ? parseFloat(rawVal) : NaN;
       card.style.setProperty('--kachel-akzent', tempAkzent(isNaN(numVal) ? null : numVal, attrs.unit_of_measurement));
       card.innerHTML = `
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.temperature)}</span></div>
+        ${verlaufTeil}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.temperature)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(isNaN(numVal) ? (rawVal ?? '–') : numVal, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     } else if (type === 'wind') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'km/h');
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.wind)}</span></div>
+        ${verlaufTeil}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.wind)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     } else if (type === 'rain') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'mm');
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.rain)}</span></div>
+        ${verlaufTeil}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.rain)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     } else if (type === 'pressure') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'hPa');
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.pressure)}</span></div>
+        ${verlaufTeil}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.pressure)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     } else if (type === 'radar') {
@@ -1080,18 +1244,28 @@
       const isOn = state && state.state === 'on';
       card.classList.toggle('ist-aktiv', !!isOn);
       const pct = attrs.percentage !== undefined && attrs.percentage !== null ? attrs.percentage : (isOn ? 100 : 0);
+      // Ein Ventilator mit Stufen wird genauso bedient wie eine Lampe: die ganze Kachel ist
+      // der Regler. Einer ohne Stufen (percentage fehlt) kann nur ein und aus.
+      const kannStufen = attrs.percentage !== undefined && attrs.percentage !== null;
+      card.classList.add('kachel-regler');
       card.innerHTML = `
+        ${kannStufen ? `<div class="kachel-fuellung" style="height:${isOn ? pct : 0}%"></div>` : ''}
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS.fan)}</span><span class="badge">${isOn ? 'An' : 'Aus'}</span></div>
-        <div class="value">${isOn ? pct + '%' : '–'}</div>
-        <div class="name">${name}</div>
-        <div class="controls slider-row">
-          <button data-act="toggle" ${dis} aria-label="Ein/Aus">${ICONS.power}</button>
-          <input type="range" min="0" max="100" step="${Number(attrs.percentage_step) || 10}" value="${pct}" data-act="slider" ${dis}>
-        </div>`;
+        <div class="value">${isOn ? (kannStufen ? pct + '%' : 'An') : 'Aus'}</div>
+        <div class="name">${name}</div>`;
       if (!editable) {
-        const slider = card.querySelector('[data-act="slider"]');
-        if (cb.onFanSpeed) slider.addEventListener('change', () => cb.onFanSpeed(entity_id, parseInt(slider.value, 10)));
-        if (cb.onToggle) card.querySelector('[data-act="toggle"]').addEventListener('click', () => cb.onToggle('fan', entity_id, state ? state.state : 'off'));
+        const umschalten = () => cb.onToggle && cb.onToggle('fan', entity_id, state ? state.state : 'off');
+        if (kannStufen && cb.onFanSpeed) {
+          kachelRegler(card, {
+            wert: isOn ? pct : 0,
+            beschriftung: (v) => v + '%',
+            aufTippen: umschalten,
+            aufWert: (wert) => (wert === 0 ? umschalten() : cb.onFanSpeed(entity_id, wert))
+          });
+        } else if (cb.onToggle) {
+          card.style.cursor = 'pointer';
+          card.addEventListener('click', umschalten);
+        }
       }
     } else if (type === 'vacuum') {
       const s = state ? state.state : 'docked';
@@ -1116,7 +1290,8 @@
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : '%';
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.humidity)}</span></div>
+        ${verlaufTeil}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.humidity)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     } else if (type === 'alarm') {
@@ -1328,7 +1503,8 @@
       const val = state ? state.state : '–';
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : attrs.unit_of_measurement;
       card.innerHTML = `
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS[domain] || ICONS.sensor)}</span></div>
+        ${verlaufTeil}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS[domain] || ICONS.sensor)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     }
@@ -1558,6 +1734,7 @@
     serviceFuerEntitaet,
     wasteColor, zahlFormatieren, symbolFuer, symbolNamen,
     quickTileAktion, quickTileAktiv, quickTileText,
+    kachelRegler, miniVerlaufSvg, tendenz,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };

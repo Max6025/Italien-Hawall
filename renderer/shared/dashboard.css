@@ -197,7 +197,7 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   width: clamp(2.4vh, 26cqmin, 7vh); height: clamp(2.4vh, 26cqmin, 7vh);
   margin: auto 0;
 }
-.card.type-switch .badge, .card.type-button .badge { align-self: flex-start; }
+.card.type-switch .icon, .card.type-button .icon { align-self: flex-start; }
 /* Ein eingeschalteter Schalter faerbte bisher die ganze Kachel um -- an einer Wand mit
    zwanzig Karten flackerte das den ganzen Tag. Der Schein und das farbige Symbol
    genuegen; siehe .ist-aktiv oben. */
@@ -861,3 +861,47 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 }
 .terminverlauf.ist-letzter-tag .tv-stark { color: #f6c85a; }
 .terminverlauf.ist-letzter-tag .tv-klein { color: rgba(246, 200, 90, 0.72); }
+
+
+/* --- Die Karte als Regler ------------------------------------------------------------------
+   Statt eines duennen Schiebreglers unter dem Wert ist die ganze Kachel die Bedienflaeche.
+   Auf einem Wandpanel wird mit dem Daumen gewischt, nicht mit der Maus gezielt -- ein Griff
+   von wenigen Millimetern Hoehe war dafuer nie gedacht. */
+.card.kachel-regler { cursor: ns-resize; touch-action: none; user-select: none; }
+.kachel-fuellung {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 0;
+  background: linear-gradient(to top,
+    color-mix(in srgb, var(--kachel-akzent) 42%, transparent),
+    color-mix(in srgb, var(--kachel-akzent) 14%, transparent));
+  border-radius: 0 0 inherit inherit;
+  transition: height 0.35s ease;
+  pointer-events: none;
+}
+/* Ohne klare Oberkante liest man den Pegel nicht ab -- der Verlauf allein sieht aus wie
+   eine eingefaerbte Karte, egal bei welchem Wert. Die Kante IST die Anzeige. */
+.kachel-fuellung::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: color-mix(in srgb, var(--kachel-akzent) 85%, transparent);
+}
+/* Fuellung UND Schein zusammen ergeben Matsch. Bei einer Reglerkachel traegt die Fuellung
+   den Zustand schon -- der Schein waere doppelt gemoppelt. */
+.card.kachel-regler::after { display: none; }
+/* Waehrend des Wischens muss die Fuellung dem Finger OHNE Verzoegerung folgen -- sonst
+   fuehlt sie sich an, als haenge sie fest. */
+.card.wird-geregelt .kachel-fuellung { transition: none; }
+.card.wird-geregelt { border-color: color-mix(in srgb, var(--kachel-akzent) 55%, var(--card-border)); }
+
+/* --- Verlauf im Hintergrund einer Zahlenkarte ---------------------------------------------
+   Untergrund, kein zweites Diagramm: unteres Drittel, hinter dem Text, in der Akzentfarbe. */
+.mini-verlauf {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 34%; width: 100%; z-index: 0;
+  color: var(--kachel-akzent);
+  opacity: 0.42; pointer-events: none;
+}
+/* Der Pfeil ist die zweite Haelfte der Aussage: 21 Grad heissen etwas anderes, wenn es
+   seit Stunden faellt, als wenn es steigt. Also gross genug, um ihn zu sehen. */
+.tendenz {
+  font-size: clamp(1.2vh, 9cqmin, 2.6vh); font-weight: 600; line-height: 1;
+  color: var(--kachel-akzent); opacity: 0.9;
+}

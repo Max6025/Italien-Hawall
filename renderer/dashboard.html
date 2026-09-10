@@ -118,6 +118,10 @@ const API = `http://localhost:${PORT}`;
 let config = null;
 let statesById = {};
 let historyCache = {};
+// Welche Kartentypen einen Verlauf brauchen. Die Zahlenkarten zeigen ihn als ruhige Flaeche
+// hinter dem Text -- eine Zahl allein beantwortet nicht, ob sie gerade steigt oder faellt.
+const MIT_VERLAUF = ['graph', 'gauge', 'temperature', 'humidity', 'pressure', 'wind', 'rain', 'sensor'];
+
 let forecastCache = {};
 let currentDashboardId = 'main';
 
@@ -430,7 +434,7 @@ async function render() {
     if (type !== 'clock' && type !== 'navigate' && type !== 'energy' && type !== 'photo' && type !== 'quicktiles' && !s) continue;
     const span = resolveSpan(entry, type);
     let history, forecast, forecastError, energy, waste, wasteError;
-    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
+    if (MIT_VERLAUF.includes(type)) history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
     if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
     if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
     if (type === 'energy') {
@@ -637,7 +641,7 @@ async function renderScreensaver() {
     if (type !== 'clock' && type !== 'energy' && !s) continue;
     const span = resolveSpan(entry, type);
     let history, forecast, forecastError, energy, waste, wasteError;
-    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
+    if (MIT_VERLAUF.includes(type)) history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
     if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
     if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
     if (type === 'energy') {

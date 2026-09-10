@@ -391,6 +391,7 @@ function settingsFieldsForType(type) {
   const ohneSymbol = ['clock', 'photo', 'quicktiles', 'energy', 'media_player', 'navigate', 'gate', 'light', 'switch', 'climate', 'cover', 'lock', 'alarm'];
   return {
     decimals: mitZahl.includes(type),
+    verlaufOpts: mitZahl.includes(type) && type !== 'graph' && type !== 'gauge',
     iconWahl: !ohneSymbol.includes(type),
     radarOpts: type === 'radar',
     clockOpts: type === 'clock',
@@ -466,6 +467,16 @@ function openSettings(entityId) {
         Bisher stand ein Sensor, der 21.34567 meldet, genau so auf der Wand. Leer bedeutet
         weiterhin unverändert – damit sich mit diesem Update keine bestehende Karte still ändert.
         Gesetzt wird deutsch formatiert: 1.234,5 statt 1234.5.</p>`;
+  }
+  if (fields.verlaufOpts) {
+    html += `<label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
+        <input type="checkbox" id="setVerlauf" style="width:auto; margin:0;" ${settings.verlaufAus ? '' : 'checked'}>
+        Verlauf der letzten Stunden im Hintergrund zeigen
+      </label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Eine ruhige Fläche im unteren Drittel plus ein Pfeil für die Tendenz. Eine Zahl allein
+        sagt nicht, ob sie gerade steigt – und ohne den Verlauf wirkte die Karte sehr leer.
+        Erscheint nur, wenn Home Assistant genug Verlaufsdaten liefert.</p>`;
   }
   if (fields.iconWahl) {
     const namen = (window.DashboardRender && DashboardRender.symbolNamen) ? DashboardRender.symbolNamen() : [];
@@ -1086,6 +1097,12 @@ $('settingsSave').addEventListener('click', () => {
     const v = ($('setDecimals') && $('setDecimals').value.trim()) || '';
     if (v !== '' && !isNaN(parseInt(v, 10))) settings.decimals = Math.max(0, Math.min(6, parseInt(v, 10)));
     else delete settings.decimals;
+  }
+  if (settingsFields.verlaufOpts) {
+    // Gespeichert wird die AUSNAHME, nicht der Normalfall: So bekommen bestehende Karten den
+    // Verlauf automatisch, ohne dass irgendwo ein Haken nachgetragen werden muss.
+    const an = !($('setVerlauf') && !$('setVerlauf').checked);
+    if (an) delete settings.verlaufAus; else settings.verlaufAus = true;
   }
   if (settingsFields.iconWahl) {
     const v = ($('setIcon') && $('setIcon').value) || '';

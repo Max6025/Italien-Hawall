@@ -317,3 +317,82 @@ test('Mehr als acht Bilder nimmt eine Karte nicht', () => {
   const viele = Array.from({ length: 20 }, (_, i) => i + 1);
   assert.strictEqual(D.fotoVersionen({ photoBilder: viele }).length, 8);
 });
+
+// --- Tendenz ----------------------------------------------------------------------------------
+//
+// Eine Zahl allein beantwortet die eigentliche Frage nicht: 21 Grad sind etwas anderes, wenn es
+// seit Stunden faellt, als wenn es steigt.
+
+test('Steigend und fallend werden erkannt', () => {
+  const rauf = [10, 11, 12, 13, 14];
+  const runter = [14, 13, 12, 11, 10];
+  assert.strictEqual(D.tendenz(rauf).richtung, 1);
+  assert.strictEqual(D.tendenz(runter).richtung, -1);
+});
+
+test('Ein zitternder Sensor gilt nicht als steigend', () => {
+  // Ohne Totzone zeigte der Pfeil bei jedem Aufbau woanders hin -- ein Flackern, das
+  // schlimmer waere als gar keine Angabe.
+  const zittert = [20, 20.4, 19.8, 20.3, 20.02];
+  assert.strictEqual(D.tendenz(zittert).richtung, 0);
+});
+
+test('Die Totzone richtet sich nach der beobachteten Spanne', () => {
+  // Ein halbes Grad ist bei einem Raumthermometer viel und bei einem Backofen nichts.
+  const raum = [20, 20.2, 20.5];
+  const ofen = [20, 120, 220.5];
+  assert.strictEqual(D.tendenz(raum).richtung, 1, 'halbes Grad bei kleiner Spanne zaehlt');
+  assert.strictEqual(D.tendenz(ofen).richtung, 1);
+});
+
+test('Zu wenige Punkte ergeben keine Tendenz statt einer erratenen', () => {
+  assert.strictEqual(D.tendenz([]), null);
+  assert.strictEqual(D.tendenz([5]), null);
+  assert.strictEqual(D.tendenz([5, 9]), null);
+  assert.strictEqual(D.tendenz(null), null);
+});
+
+// --- Verlauf im Hintergrund -------------------------------------------------------------------
+
+test('Aus genug Punkten entsteht eine Flaeche', () => {
+  const svg = D.miniVerlaufSvg([1, 4, 2, 6, 3, 7], 'test');
+  assert.ok(svg.includes('<svg'), 'kein SVG erzeugt');
+  assert.ok(svg.includes('<path'), 'kein Pfad erzeugt');
+  assert.ok(svg.includes('mv-test'), 'Verlaufskennung fehlt');
+});
+
+test('Zu wenige Punkte zeichnen lieber nichts', () => {
+  // Eine Karte ohne Verlaufsdaten soll aussehen wie vorher, nicht wie eine kaputte Flaeche.
+  assert.strictEqual(D.miniVerlaufSvg([1, 2], 'x'), '');
+  assert.strictEqual(D.miniVerlaufSvg([], 'x'), '');
+  assert.strictEqual(D.miniVerlaufSvg(null, 'x'), '');
+});
+
+test('Unbrauchbare Werte erzeugen kein kaputtes SVG', () => {
+  // Genau das ist beim Bauen passiert: doppelt durch downsample() gereicht, und im Pfad
+  // standen NaN-Koordinaten. Der Browser meldet dafuer nichts -- er zeichnet einfach nichts.
+  assert.strictEqual(D.miniVerlaufSvg([1, NaN, 3, 4], 'x'), '');
+  assert.strictEqual(D.miniVerlaufSvg([1, undefined, 3, 4], 'x'), '');
+});
+
+test('Eine waagerechte Linie ergibt trotzdem ein gueltiges SVG', () => {
+  // Spanne 0 -- ohne Absicherung waere hier durch null geteilt worden.
+  const svg = D.miniVerlaufSvg([5, 5, 5, 5], 'x');
+  assert.ok(svg.includes('<svg'));
+  assert.ok(!svg.includes('NaN'), 'NaN im Pfad');
+});
+
+test('Jede Karte bekommt ihren eigenen Farbverlauf', () => {
+  // Gleiche IDs im selben Dokument wuerden dazu fuehren, dass alle Karten die Fuellung der
+  // ersten benutzen.
+  const a = D.miniVerlaufSvg([1, 2, 3, 4], 'sensorא');
+  const b = D.miniVerlaufSvg([1, 2, 3, 4], 'sensorb');
+  assert.notStrictEqual(a, b);
+});
+
+test('Ein Ausreisser am Rand kippt die Aussage nicht', () => {
+  // Erst-gegen-Letzt-Vergleich waere hier "faellt", obwohl die Reihe klar steigt -- der
+  // letzte Punkt ist nur ein Ausrutscher, und Sensordaten haben Ausrutscher.
+  const steigtMitAusrutscher = [10, 11, 12, 13, 14, 15, 16, 9];
+  assert.strictEqual(D.tendenz(steigtMitAusrutscher).richtung, 1);
+});

@@ -102,6 +102,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
 Entwurf — genau das war bis 1.7.0 der Fall, siehe
 [ADR 0004](docs/adr/0004-farbe-als-akzent-statt-als-kachelfarbe.md).
 
+**Die Karte ist der Regler.** Lampen und Ventilatoren mit Stufen haben keinen eigenen
+Schiebregler mehr: Wischen auf der Kachel setzt den Wert, Tippen schaltet um. Die Grenze
+zwischen beidem liegt bei zehn Pixeln — darunter zittert nur der Finger, und ein Zittern darf
+nicht die Helligkeit verstellen. Während des Wischens wird **nur die Anzeige** nachgeführt; ein
+Dienstaufruf pro Bild würde Home Assistant fluten und die Lampe flackern lassen.
+
 **Ein Aufbau für alle Karten:** Symbolzeile (Symbol links, Zustand rechts), Wert, Name als
 Bildunterschrift, Bedienelemente. Linksbündig, ausnahmslos. Abweichungen fallen einzeln nicht
 auf und in der Summe sofort.
@@ -127,7 +133,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-131 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+141 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

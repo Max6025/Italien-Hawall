@@ -14,9 +14,9 @@
 <style>
   body { margin: 0; min-height: 100vh; }
   #grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4vh;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.4vh;
     padding: 2vh; height: auto; min-height: 100vh; box-sizing: border-box;
-    grid-auto-rows: 26vh;
+    grid-auto-rows: 34vh;
   }
 </style>
 </head>
@@ -49,10 +49,33 @@ const KARTEN = [
 const grid = document.getElementById('grid');
 DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
 
+// Erfundener Verlauf: eine leicht verrauschte Welle, damit die Flaeche im Hintergrund und
+// der Tendenzpfeil ueberhaupt etwas zu zeichnen haben.
+function verlauf(basis, spanne, steigend) {
+  return Array.from({ length: 60 }, (_, i) => {
+    const t = i / 59;
+    const trend = steigend ? t * spanne : -t * spanne;
+    return { t: i, v: basis + trend + Math.sin(i / 4) * spanne * 0.28 };
+  });
+}
+const VERLAEUFE = {
+  'sensor.temp_aussen': verlauf(24, 5, true),
+  'sensor.temp_keller': verlauf(7.5, 2, false),
+  'sensor.wind':        verlauf(9, 8, true),
+  'sensor.regen':       verlauf(0.9, 0.8, false),
+  'sensor.feuchte':     verlauf(49, 8, true),
+  'sensor.druck':       verlauf(1009, 7, true),
+  'sensor.zaehler':     verlauf(4180, 55, true)
+};
+
 KARTEN.forEach(([id, typ, zustand, c, r]) => {
   const el = DashboardRender.buildCard(id, zustand, typ, { cols: c, rows: r }, {
-    editable: false, settings: {}, apiBase: '', statesById: {}
-  }, {});
+    editable: false, settings: {}, apiBase: '', statesById: {}, history: VERLAEUFE[id]
+  }, {
+    onSetBrightness: (e, v) => console.log('Helligkeit', e, v),
+    onToggle: (d, e, st) => console.log('Umschalten', e, st),
+    onFanSpeed: (e, v) => console.log('Stufe', e, v)
+  });
   grid.appendChild(el);
 });
 </script>
