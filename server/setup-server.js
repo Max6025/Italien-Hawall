@@ -789,7 +789,12 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     res.json({ ok: true, datei, hinweise });
   });
 
-  app.post('/api/dashboards/import', (req, res) => {
+  // Der Pfad heisst BEWUSST nicht /api/dashboards/import: Darueber steht
+  // app.post('/api/dashboards/:id'), Express nimmt die erste passende Route, und "import"
+  // waere fuer sie eine Dashboard-Kennung. Genau das ist in 1.10.0 passiert -- jeder Import
+  // antwortete "Dashboard nicht gefunden". Ein Pfad, der gar nicht erst kollidieren kann, ist
+  // haltbarer als eine bestimmte Reihenfolge, die beim naechsten Einfuegen wieder kippt.
+  app.post('/api/dashboard-import', (req, res) => {
     const ergebnis = austausch.importieren(req.body && req.body.datei, CARD_TYPES);
     if (!ergebnis.ok) return res.status(400).json({ ok: false, fehler: ergebnis.fehler, warnungen: ergebnis.warnungen });
     const list = store.get('dashboards') || [];

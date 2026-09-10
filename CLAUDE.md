@@ -95,6 +95,14 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   standardmäßig leer und lassen den Wert unverändert. Wer hier später auf „zwei Stellen ab
   Werk" umstellt, ändert stillschweigend jede Karte, die seit Jahren so hängt.
 
+- **Neue Routen nicht unter einen `:id`-Pfad legen.** Express nimmt die erste passende Route.
+  `/api/dashboards/import` wurde von `app.post('/api/dashboards/:id')` verschluckt — `import`
+  war für sie eine Dashboard-Kennung, und jeder Import antwortete „Dashboard nicht gefunden".
+  Deshalb heißen die Austausch-Routen `/api/dashboard-import`, `/api/dashboard-format`,
+  `/api/dashboard-haupt/export`: Pfade, die gar nicht erst kollidieren können, sind haltbarer
+  als eine Reihenfolge, die beim nächsten Einfügen wieder kippt. Gefunden wurde das **auf dem
+  Gerät**, nicht im Test — die Modultests prüften das Modul, und das Modul war in Ordnung; der
+  Fehler lag im Weg dorthin. `test/server-austausch.test.js` geht diesen Weg jetzt.
 - **Ein Export darf nichts enthalten, was nicht mitreist.** Foto-Karten speichern nur eine
   Versionsnummer, das Bild liegt auf dem Gerät. Wer solche Felder mitexportiert, erzeugt
   woanders Karten mit kaputten Bildverweisen — lautlos. `dashboard-austausch.js` entfernt sie
@@ -145,7 +153,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-163 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+170 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

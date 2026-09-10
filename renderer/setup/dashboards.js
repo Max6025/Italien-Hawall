@@ -125,7 +125,7 @@ async function einspielen(text) {
     return;
   }
   try {
-    const r = await fetch('/api/dashboards/import', {
+    const r = await fetch('/api/dashboard-import', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ datei })
     });
