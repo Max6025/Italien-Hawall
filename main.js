@@ -277,7 +277,13 @@ app.whenReady().then(() => {
   controller = new Controller({
     store,
     logDir: app.getPath('userData'),
-    onStateChange: pushControlState
+    onStateChange: pushControlState,
+    // Sekunden seit der letzten Eingabe am Geraet. Damit erkennt der Controller, dass jemand
+    // davorsteht -- auch dann, wenn weder "resume" noch "unlock-screen" gefeuert haben, weil der
+    // Bildschirm bloss dunkel geschaltet war.
+    idleSeconds: () => {
+      try { return powerMonitor.getSystemIdleTime(); } catch (e) { return Infinity; }
+    }
   });
   controller.start();
 

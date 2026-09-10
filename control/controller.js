@@ -23,6 +23,8 @@ const POLL_MS = 2 * 60 * 1000;          // Kalender-Abruf
 const GRACE_MS = 1 * 60 * 1000;         // Karenzzeit nach dem Start (auf Wunsch von 10 auf 1 Minute)
 const PAUSE_MS = 30 * 60 * 1000;        // Dauer einer Pause
 const FAILURES_BEFORE_ERROR = 3;        // erst danach erscheint die Fehlerseite
+const EINGABE_SEKUNDEN = 3;             // so frisch muss eine Eingabe sein, um als "jemand steht davor" zu gelten
+const EINGABE_PAUSE_MS = 2 * 60 * 1000; // Pause, die eine solche Eingabe ausloest
 
 function parseHM(str) {
   const parts = String(str || '').split(':').map(Number);
@@ -41,8 +43,14 @@ function isWithinNightLock(cfg, now) {
 }
 
 class Controller {
-  constructor({ store, logDir, onStateChange }) {
+  /**
+   * idleSeconds: liefert die Sekunden seit der letzten Benutzereingabe am Geraet.
+   * Wird aus dem Hauptprozess hereingereicht (powerMonitor.getSystemIdleTime), damit dieses
+   * Modul ohne Electron testbar bleibt. Ohne Angabe verhaelt es sich, als sei nie jemand da.
+   */
+  constructor({ store, logDir, onStateChange, idleSeconds }) {
     this.store = store;
+    this.idleSeconds = idleSeconds || (() => Infinity);
     this.onStateChange = onStateChange || (() => {});
     this.logFile = logDir ? path.join(logDir, 'kalendersteuerung.log') : null;
     this.panel = new Panel((level, msg) => this.log(level, msg));
@@ -133,9 +141,32 @@ class Controller {
     };
   }
 
+  // Jemand steht am Geraet: Waehrend das Panel aus waere, hat gerade eine Eingabe stattgefunden.
+  //
+  // Das deckt den Fall ab, den weder "resume" noch "unlock-screen" sehen: Der Bildschirm ist bloss
+  // dunkel geschaltet, niemand hat geschlafen und niemand hat sich entsperrt -- es hat einfach
+  // jemand das Panel beruehrt. Ohne diese Regel schaltet der Waechter fuenf Sekunden spaeter
+  // wieder ab, und wer davorsteht, kommt nicht ans Geraet.
+  beruecksichtigeEingabe(now) {
+    if (now.getTime() < this.pausedUntil) return false; // laeuft schon
+    let idle;
+    try { idle = this.idleSeconds(); } catch (e) { return false; }
+    if (!(idle <= EINGABE_SEKUNDEN)) return false;
+    this.pausedUntil = now.getTime() + EINGABE_PAUSE_MS;
+    this.log('info', `Eingabe am Geraet erkannt -- Bildschirmsteuerung pausiert ${EINGABE_PAUSE_MS / 60000} Minuten`);
+    return true;
+  }
+
   tick() {
     const now = new Date();
-    const decision = this.decide(now);
+    let decision = this.decide(now);
+
+    // Nur pruefen, wenn tatsaechlich abgeschaltet wuerde. Sonst wuerde das Mauszeiger-Wackeln
+    // beim Einschalten (siehe panel.js) sich selbst als Benutzereingabe zurueckmelden.
+    if (!decision.on && this.beruecksichtigeEingabe(now)) {
+      decision = this.decide(now);
+    }
+
     this.panel.setPower(decision.on);
 
     const next = this.buildState(decision, now);
@@ -210,4 +241,4 @@ class Controller {
   }
 }
 
-module.exports = { Controller, isWithinNightLock, parseHM, TICK_MS, POLL_MS, GRACE_MS, PAUSE_MS, FAILURES_BEFORE_ERROR };
+module.exports = { Controller, isWithinNightLock, parseHM, TICK_MS, POLL_MS, GRACE_MS, PAUSE_MS, FAILURES_BEFORE_ERROR, EINGABE_SEKUNDEN, EINGABE_PAUSE_MS };

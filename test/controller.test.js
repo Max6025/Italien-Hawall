@@ -155,3 +155,65 @@ test('pause() setzt ein Ende in der Zukunft, resume() hebt sie sofort auf', () =
   c.resume();
   assert.strictEqual(c.pausedUntil, 0);
 });
+
+// --- Eingabeerkennung -------------------------------------------------------------------------
+//
+// Anlass: Der Aussperr-Schutz ueber powerMonitor greift nur bei "resume" und "unlock-screen".
+// Beruehrt jemand ein bloss dunkel geschaltetes Panel, feuert keines von beiden -- es gab weder
+// Standby noch Entsperrung. Der Waechter schaltete fuenf Sekunden spaeter wieder ab, und wer
+// davorstand, kam nicht ans Geraet.
+
+function controllerMitLeerlauf(values, idle, windows = []) {
+  const c = new Controller({ store: fakeStore(values), logDir: null, idleSeconds: () => idle });
+  c.windows = windows;
+  c.panel.supported = false;
+  c.startedAt = Date.now() - 2 * GRACE_MS;
+  return c;
+}
+
+test('Eine frische Eingabe pausiert, statt den Bildschirm wieder abzuschalten', () => {
+  const c = controllerMitLeerlauf(FULL_CONFIG, 1); // vor einer Sekunde beruehrt
+  assert.strictEqual(c.decide(new Date()).on, false, 'ohne Eingabe waere abgeschaltet worden');
+  c.tick();
+  assert.ok(c.pausedUntil > Date.now(), 'es muss eine Pause gesetzt worden sein');
+  assert.strictEqual(c.state.panelOn, true, 'das Panel bleibt an');
+  assert.strictEqual(c.state.reason, 'pause');
+});
+
+test('Laengeres Nichtstun loest keine Pause aus', () => {
+  const c = controllerMitLeerlauf(FULL_CONFIG, 600); // zehn Minuten nichts angefasst
+  c.tick();
+  assert.strictEqual(c.pausedUntil, 0);
+  assert.strictEqual(c.state.panelOn, false);
+});
+
+test('Bei laufendem Termin wird gar nicht erst auf Eingaben geschaut', () => {
+  // Wichtig gegen eine Rueckkopplung: Das Einschalten wackelt mit dem Mauszeiger (panel.js).
+  // Wuerde das als Benutzereingabe zaehlen, haette die Steuerung sich selbst am Leben gehalten.
+  const now = new Date();
+  const fenster = [{ title: 'Italien', start: new Date(now.getTime() - 60000), end: new Date(now.getTime() + 60000) }];
+  const c = controllerMitLeerlauf(FULL_CONFIG, 0, fenster);
+  c.tick();
+  assert.strictEqual(c.pausedUntil, 0, 'keine Pause, weil ohnehin eingeschaltet wird');
+  assert.strictEqual(c.state.reason, 'anzeigefenster');
+});
+
+test('Ohne Leerlauf-Geber verhaelt sich der Controller wie bisher', () => {
+  const c = new Controller({ store: fakeStore(FULL_CONFIG), logDir: null });
+  c.panel.supported = false;
+  c.startedAt = Date.now() - 2 * GRACE_MS;
+  c.tick();
+  assert.strictEqual(c.pausedUntil, 0);
+  assert.strictEqual(c.state.panelOn, false);
+});
+
+test('Ein fehlerhafter Leerlauf-Geber legt die Steuerung nicht lahm', () => {
+  const c = new Controller({
+    store: fakeStore(FULL_CONFIG), logDir: null,
+    idleSeconds: () => { throw new Error('kaputt'); }
+  });
+  c.panel.supported = false;
+  c.startedAt = Date.now() - 2 * GRACE_MS;
+  c.tick();
+  assert.strictEqual(c.state.panelOn, false, 'faellt auf das normale Verhalten zurueck');
+});
