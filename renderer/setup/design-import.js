@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 async function loadState() {
   const r = await fetch('/api/config');
   const config = await r.json();
-  DashboardRender.applyCustomTheme(config.customTheme);
+  DashboardRender.applyCustomTheme(config.customTheme || DashboardRender.DEFAULT_THEME);
   if (config.customTheme) {
     $('currentThemeInfo').style.display = 'block';
     $('currentThemeInfo').querySelector('.result').textContent =

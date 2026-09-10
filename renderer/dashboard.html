@@ -139,7 +139,9 @@ async function loadConfig() {
   applyScreensaverBackground();
   MOTION_THRESHOLD = config.motionThreshold || 34;
   applyMotionWakeSetting();
-  DashboardRender.applyCustomTheme(config.customTheme);
+  // Ohne eigenes Design greift das eingebaute "Ankunft" -- ab Werk aktiv, aber kein Zwang:
+  // ein importiertes Design gewinnt, und "Design zuruecksetzen" landet wieder hier.
+  DashboardRender.applyCustomTheme(config.customTheme || DashboardRender.DEFAULT_THEME);
   await loadDashboardOrder();
 }
 
@@ -953,7 +955,13 @@ function showPauseToast() {
   scheduleRefresh();
 
   setInterval(checkNightMode, 20000);
-  setInterval(() => { historyCache = {}; }, 5 * 60000); // Verlaufsdaten alle 5 Min neu laden
+  // Zwischenspeicher regelmaessig leeren. Frueher lief NUR der Verlauf ab -- Wettervorhersage
+  // und Muelltermine froren beim Start ein und veralteten ueber Tage. Auf einem Geraet, das
+  // durchlaeuft, faellt das garantiert auf: Die Vorhersage zeigt vorgestern, und ein laengst
+  // vergangener Muelltermin steht weiter als naechster da.
+  setInterval(() => { historyCache = {}; }, 5 * 60000);        // Verlauf: 5 Minuten
+  setInterval(() => { forecastCache = {}; }, 30 * 60000);      // Wettervorhersage: 30 Minuten
+  setInterval(() => { wasteCache = {}; }, 6 * 60 * 60000);     // Muelltermine: 6 Stunden
   setInterval(loadConfig, 10000); // Config kann sich extern aendern (Editor)
 })();
 </script>

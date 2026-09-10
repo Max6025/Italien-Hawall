@@ -26,7 +26,7 @@ async function loadAll() {
   ]);
   currentLayout = (configRes.screensaverLayout || []).map(l => ({ ...l }));
   currentSunEntity = configRes.sunEntity || '';
-  DashboardRender.applyCustomTheme(configRes.customTheme);
+  DashboardRender.applyCustomTheme(configRes.customTheme || DashboardRender.DEFAULT_THEME);
   allEntities = entitiesRes.ok ? entitiesRes.entities : [];
   updateBgPreview(configRes.screensaverBackground, configRes.screensaverBgVersion);
   await refreshStates();

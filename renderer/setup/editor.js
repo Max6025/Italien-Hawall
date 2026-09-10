@@ -7,7 +7,10 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const DASHBOARD_ID = params.get('dashboard') || 'main'; // 'main' = normales Dashboard, sonst Unterdashboard-ID
 
-const PICKER_TYPES = Object.keys(CARD_TYPES).filter(t => t !== 'clock'); // Uhr nur im Screensaver
+// Die Uhr war frueher nur im Screensaver waehlbar. Seit die Kopfzeile entfaellt, ist sie der
+// einzige Weg, Uhrzeit und Datum aufs Dashboard zu bekommen -- und zwar dort, wo der Nutzer
+// sie haben will, statt fest oben in einer Leiste.
+const PICKER_TYPES = Object.keys(CARD_TYPES);
 
 // Feste, bildschirmgrosse Arbeitsflaeche: 4 Spalten x MAX_ROWS Zeilen a 14vh -- entspricht
 // in etwa dem, was auf dem echten Wall Display ohne Scrollen sichtbar ist. Karten koennen
@@ -37,7 +40,7 @@ async function loadAll() {
   ]);
   allDashboards = dashboardsRes.ok ? dashboardsRes.dashboards : [];
   currentSunEntity = configRes.sunEntity || '';
-  DashboardRender.applyCustomTheme(configRes.customTheme);
+  DashboardRender.applyCustomTheme(configRes.customTheme || DashboardRender.DEFAULT_THEME);
   allEntities = entitiesRes.ok ? entitiesRes.entities : [];
 
   if (DASHBOARD_ID === 'main') {

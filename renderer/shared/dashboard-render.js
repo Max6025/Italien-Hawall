@@ -131,20 +131,14 @@
   const SIZE_PRESETS = { sm: { cols: 1, rows: 1 }, md: { cols: 2, rows: 1 }, lg: { cols: 2, rows: 2 }, xl: { cols: 4, rows: 2 } };
   function sizeToSpan(sizeStr) { return SIZE_PRESETS[sizeStr] || SIZE_PRESETS.sm; }
 
-  // Mindestgroessen pro Kartentyp -- verhindert kaputte/zu enge Darstellung beim freien
-  // Ziehen (z.B. darf "Verlauf" nicht schmaler als 2 Spalten werden).
-  const MIN_SPAN = {
-    graph: { cols: 2, rows: 2 },
-    radar: { cols: 2, rows: 2 },
-    climate: { cols: 2, rows: 1 },
-    cover: { cols: 2, rows: 1 },
-    light: { cols: 2, rows: 1 },
-    forecast: { cols: 2, rows: 1 },
-    energy: { cols: 2, rows: 2 },
-    media_player: { cols: 2, rows: 2 },
-    photo: { cols: 3, rows: 2 },
-    quicktiles: { cols: 2, rows: 1 }
-  };
+  // Mindestgroessen gibt es bewusst nicht mehr: Jede Karte darf auf 1x1 gezogen werden.
+  //
+  // Frueher stand hier eine Tabelle, die je Kartentyp eine Untergrenze vorgab (Verlauf 2x2,
+  // Foto 3x2 und so weiter). Sie hat mehr verhindert als geschuetzt -- viele Karten waren
+  // damit fuer das eigene Layout schlicht zu gross. Dass ein Energiefluss auf 1x1 unlesbar
+  // wird, sieht man im Editor sofort und zieht ihn wieder auf. Diese Entscheidung gehoert
+  // dem Nutzer, nicht einer Tabelle im Code.
+  const MIN_SPAN = {};
   function minSpanFor(type) { return MIN_SPAN[type] || { cols: 1, rows: 1 }; }
 
   // Kartentypen, die auf einer Foto-Bereich-Karte "andocken" duerfen (ueberlappen statt zu
@@ -457,7 +451,8 @@
     const settings = opts.settings || {};
     const attrs = (state && state.attributes) || {};
     const domain = domainOf(entity_id);
-    const name = (settings.name && String(settings.name).trim()) || attrs.friendly_name || entity_id;
+    // An der Quelle maskiert: "name" landet in saemtlichen Kartenvorlagen in innerHTML.
+    const name = esc((settings.name && String(settings.name).trim()) || attrs.friendly_name || entity_id);
     const dis = editable ? 'disabled' : '';
     const type = cardType || defaultCardType(entity_id, state);
     const spanObj = (span && typeof span === 'object') ? span : sizeToSpan(span || defaultSize(type));
@@ -650,7 +645,7 @@
           <div class="ef-node ef-home">
             <span class="ef-icon">${ICONS.home2}</span>
             <span class="ef-val">${fmtW(homeW)}</span>
-            <span class="ef-label">${settings.name || 'Haus'}</span>
+            <span class="ef-label">${esc(settings.name || 'Haus')}</span>
           </div>
           ${hasBattery ? `
           <div class="ef-node ef-battery">
@@ -739,10 +734,30 @@
       const isLocked = s === 'locked';
       const busy = s === 'locking' || s === 'unlocking';
       const label = { locked: 'Verriegelt', unlocked: 'Entriegelt', locking: 'Verriegelt…', unlocking: 'Entriegelt…', jammed: 'Blockiert' }[s] || (s || '–');
-      card.innerHTML = `<span class="icon">${isLocked ? ICONS.lockClosed : ICONS.lockOpen}</span><span class="name">${name}</span><span class="badge">${label}</span>`;
+      const lockHtml = `<span class="icon">${isLocked ? ICONS.lockClosed : ICONS.lockOpen}</span><span class="name">${name}</span><span class="badge">${label}</span>`;
+      card.innerHTML = lockHtml;
       if (!editable && !busy && cb.onLockToggle) {
         card.style.cursor = 'pointer';
-        card.addEventListener('click', () => cb.onLockToggle(entity_id, s));
+        // Entriegeln braucht eine Rueckfrage: Ein Fehlgriff auf einem Wandpanel, das Gaesten
+        // zugaenglich ist, schliesst sonst die Tuer auf. Verriegeln bleibt ein einzelner Tipp --
+        // dabei kann nichts passieren, was man bereuen wuerde.
+        let wartetAufBestaetigung = false;
+        let rueckfallTimer = null;
+        const zurueck = () => {
+          wartetAufBestaetigung = false;
+          clearTimeout(rueckfallTimer);
+          card.innerHTML = lockHtml;
+          card.classList.remove('lock-confirm');
+        };
+        card.addEventListener('click', () => {
+          if (!isLocked) return cb.onLockToggle(entity_id, s);   // verriegeln: sofort
+          if (wartetAufBestaetigung) { zurueck(); return cb.onLockToggle(entity_id, s); }
+          wartetAufBestaetigung = true;
+          card.classList.add('lock-confirm');
+          card.innerHTML = `<span class="icon">${ICONS.lockOpen}</span><span class="name">${name}</span>`
+            + `<span class="badge">Wirklich entriegeln? Erneut tippen</span>`;
+          rueckfallTimer = setTimeout(zurueck, 6000);
+        });
       }
     } else if (type === 'fan') {
       const isOn = state && state.state === 'on';
@@ -814,7 +829,7 @@
           <div class="waste-next">
             <span class="waste-dot" style="background:${wasteColor(next.summary)}"></span>
             <div>
-              <div class="waste-next-title">${next.summary}</div>
+              <div class="waste-next-title">${esc(next.summary)}</div>
               <div class="waste-next-date">${wasteDateLabel(next.start)}</div>
             </div>
           </div>
@@ -822,7 +837,7 @@
             ${events.slice(1).map(e => `
               <div class="waste-item">
                 <span class="waste-dot" style="background:${wasteColor(e.summary)}"></span>
-                <span class="waste-item-title">${e.summary}</span>
+                <span class="waste-item-title">${esc(e.summary)}</span>
                 <span class="waste-item-date">${wasteDateLabel(e.start)}</span>
               </div>`).join('')}
           </div>` : `<div class="graph-empty">${opts.wasteError || 'Keine Termine gefunden'}</div>`}`;
@@ -837,7 +852,7 @@
         card.style.backgroundImage = `url('${pictureUrl}')`;
       }
       if (settings.name) {
-        card.innerHTML = `<div class="photo-card-label">${settings.name}</div>`;
+        card.innerHTML = `<div class="photo-card-label">${esc(settings.name)}</div>`;
       } else if (!pictureUrl) {
         card.innerHTML = `<div class="photo-card-empty">Kein Bild – in den Karten-Einstellungen hochladen</div>`;
       }
@@ -846,14 +861,14 @@
       const statesById = opts.statesById || {};
       card.classList.add('quicktiles-card');
       card.innerHTML = `
-        ${settings.name ? `<div class="qt-title">${settings.name}</div>` : ''}
+        ${settings.name ? `<div class="qt-title">${esc(settings.name)}</div>` : ''}
         <div class="qt-row">
           ${tiles.map(t => {
             const st = statesById[t.mediaPlayerEntity];
             const isActive = !!(st && st.state === 'playing' && st.attributes && st.attributes.source === t.source);
             const bg = t.imageDataUrl ? ` style="background-image:url('${t.imageDataUrl}')"` : '';
             return `<button class="qt-tile ${isActive ? 'active' : ''}" data-tile-id="${t.id}" ${dis}${bg}>
-              ${!t.imageDataUrl ? `<span class="qt-tile-label">${t.label || t.source || '?'}</span>` : ''}
+              ${!t.imageDataUrl ? `<span class="qt-tile-label">${esc(t.label || t.source || '?')}</span>` : ''}
             </button>`;
           }).join('')}
           ${!tiles.length ? `<div class="graph-empty">Noch keine Kacheln – in den Karten-Einstellungen hinzufügen</div>` : ''}
@@ -871,7 +886,7 @@
         <div class="row"><span class="icon">${ICONS.select}</span></div>
         <div class="name">${name}</div>
         <select class="select-input" ${dis}>
-          ${options.map(o => `<option value="${o}" ${o === current ? 'selected' : ''}>${o}</option>`).join('')}
+          ${options.map(o => `<option value="${esc(o)}" ${o === current ? 'selected' : ''}>${esc(o)}</option>`).join('')}
         </select>`;
       if (!editable && cb.onSelectOption) {
         const sel = card.querySelector('.select-input');
@@ -998,6 +1013,65 @@
   // Wendet ein importiertes Design (siehe /setup/design-import.html) als CSS-Variablen auf
   // :root an -- ueberschreibt Farben UND Formen/Abstaende. theme=null setzt alles wieder auf
   // die eingebauten Standardwerte aus dashboard.css zurueck (per removeProperty).
+  // --- Eingebautes Standarddesign "Ankunft" ---------------------------------------------------
+  //
+  // Ab Werk aktiv, aber kein Zwang: Sobald der Nutzer ein eigenes Design importiert, gewinnt
+  // seines. Ueber "Design zuruecksetzen" landet er wieder hier.
+  //
+  // Der Hintergrund ist hier bewusst ein STANDBILD aus denselben Farbwolken, die der
+  // Ankunftsschirm bewegt zeigt. Hinter Zahlen, Diagrammen und Schaltern konkurriert eine
+  // laufende Animation mit dem Inhalt -- und ein Dashboard schaut man tagelang an, einen
+  // Ankunftsschirm einmal.
+  const DEFAULT_THEME = {
+    name: 'Ankunft',
+    dark: {
+      bg: '#0a0810',
+      surface: 'rgba(255,255,255,0.07)',
+      panel2: 'rgba(255,255,255,0.06)',
+      cardBorder: 'rgba(255,255,255,0.14)',
+      text: '#f3f1f7',
+      muted: 'rgba(243,241,247,0.62)'
+    },
+    light: {
+      bg: '#eceaf2',
+      surface: 'rgba(255,255,255,0.55)',
+      panel2: 'rgba(255,255,255,0.45)',
+      cardBorder: 'rgba(255,255,255,0.7)',
+      text: '#17151d',
+      muted: 'rgba(23,21,29,0.6)'
+    },
+    cardRadius: '26px',
+    cardShadow: '0 1.2vh 4vh rgba(0,0,0,0.42), 0 0.2vh 0.8vh rgba(0,0,0,0.22)',
+    cardBlur: '20px',
+    cardSaturate: '170%',
+    cardHighlight: 'rgba(255,255,255,0.34)',
+    cardHighlightSide: 'rgba(255,255,255,0.13)',
+    pageBgGradient: [
+      'radial-gradient(52% 44% at 14% 18%, rgba(196,74,58,0.30) 0%, transparent 68%)',
+      'radial-gradient(46% 40% at 86% 26%, rgba(122,58,168,0.28) 0%, transparent 66%)',
+      'radial-gradient(60% 46% at 74% 88%, rgba(38,124,120,0.26) 0%, transparent 70%)',
+      'radial-gradient(40% 34% at 38% 72%, rgba(214,132,48,0.18) 0%, transparent 68%)',
+      '#0a0810'
+    ].join(', '),
+    // Schlankere Schrift und ruhigere Beschriftungen -- das ist der Teil des Aussehens, den
+    // die strukturierten Felder oben nicht abdecken.
+    extraCss: [
+      '.card .label, .card .caption { letter-spacing: .04em; }',
+      '.card .value, .card .badge { font-weight: 300; }',
+      '.card { border-top: 1px solid var(--card-highlight, transparent); }',
+      'body { background-attachment: fixed; }'
+    ].join(' ')
+  };
+
+  // Alles, was aus Home Assistant oder aus den Einstellungen kommt, muss hier durch, bevor es
+  // in innerHTML landet. Ein Kalendertitel mit "<" hat sonst gereicht, um eine Karte zu
+  // zerlegen -- und Kalendertitel sind seit der Kalendersteuerung Alltag.
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   const CUSTOM_THEME_VARS = {
     dark: { bg: '--bg', surface: '--surface', panel2: '--panel2', cardBorder: '--card-border', text: '--text', muted: '--muted' },
     light: { bg: '--bg', surface: '--surface', panel2: '--panel2', cardBorder: '--card-border', text: '--text', muted: '--muted' }
@@ -1042,6 +1116,11 @@
     ICONS, DOMAIN_LABEL, CARD_TYPES, TOGGLE_DOMAINS, PRESS_DOMAINS,
     defaultCardType, allowedCardTypes, defaultSize, buildCard,
     sizeToSpan, minSpanFor, clampSpan, resolveSpan, thresholdColor,
-    domainsForType, typesForEntity, renderClockNow, canOverlayOnPhoto, applyCustomTheme
+    domainsForType, typesForEntity, renderClockNow, canOverlayOnPhoto, applyCustomTheme, esc,
+    DEFAULT_THEME
   };
-})(window);
+  // Auch ausserhalb eines Browsers ladbar machen. Ohne das konnte kein einziger Test dieses
+  // Modul ueberhaupt anfassen -- und genau in einem ungetesteten Pfad steckte der Fehler,
+  // der es bis aufs Geraet geschafft hat (siehe CLAUDE.md).
+  if (typeof module !== 'undefined' && module.exports) module.exports = global.DashboardRender;
+})(typeof window !== 'undefined' ? window : globalThis);

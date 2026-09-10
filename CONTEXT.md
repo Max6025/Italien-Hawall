@@ -26,6 +26,23 @@ _Vermeiden_: Zeitfenster, Termin, Slot
 Zwei einstellbare Minutenwerte, die das Anzeigefenster nach vorne bzw. hinten verlängern.
 Standardwert ist jeweils 0.
 
+### Anzeige
+
+**Dashboard**:
+Ein Raster aus Karten, das der Nutzer im Editor zusammenstellt. Es gibt mehrere davon; eines
+ist das Hauptdashboard, weitere sind Unterdashboards.
+
+**Ankunftsschirm**:
+Eine Vollbildanzeige, die zu Beginn eines Anzeigefensters vor dem Dashboard erscheint und einen
+ankommenden Gast begrüßt. Sie ist ausdrücklich kein Dashboard: kein Kartenraster, sondern
+Hintergrundbewegung, Überschrift, Text und ein Bild. Sie verschwindet durch Berührung oder nach
+einer eingestellten Dauer und kommt erst beim nächsten Anzeigefenster wieder.
+_Vermeiden_: Willkommensbildschirm, Splashscreen, Startbildschirm, Begrüßungsdashboard
+
+**Verworfen**:
+Der Zustand eines Ankunftsschirms, den jemand weggetippt hat. Gilt für das laufende
+Anzeigefenster und überdauert einen Neustart der Anwendung.
+
 ### Bildschirmzustand
 
 **Panel**:

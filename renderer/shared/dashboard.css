@@ -49,7 +49,12 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 
 /* Main (keine Sidebar mehr -- ungenutzt) */
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.statusbar { display: flex; justify-content: space-between; align-items: center;
+/* Die Kopfzeile entfaellt: Titel und Symbole sind weggefallen, Uhrzeit und Datum holt man
+   sich als Uhr-Karte an die gewuenschte Stelle. Das Markup bleibt bestehen, damit die
+   zahlreichen JS-Verweise darauf nicht ins Leere greifen -- ausgeblendet gibt es den Platz
+   vollstaendig an die Karten ab. */
+.statusbar { display: none !important; }
+.statusbar--alt { display: flex; justify-content: space-between; align-items: center;
   padding: 1.8vh 2vw 0.6vh; font-size: 1.6vh; color: var(--muted); }
 .statusbar .clock { font-size: 2.6vh; color: var(--text); font-weight: 300; }
 .statusbar .icon-btn { width: 3.4vh; height: 3.4vh; border-radius: 10px; display: flex; align-items: center;
@@ -459,3 +464,8 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .settings-modal .actions button { padding: 0.8vh 1.6vh; border-radius: 8px; border: none; cursor: pointer; font-size: 1.4vh; }
 .settings-modal .btn-save { background: #4f7cff; color: #fff; }
 .settings-modal .btn-cancel { background: #444; color: #fff; }
+
+/* Schloss-Karte, die auf die Bestaetigung des Entriegelns wartet. Deutlich sichtbar, damit
+   niemand versehentlich ein zweites Mal tippt und die Tuer aufschliesst. */
+.card.lock-confirm { outline: 2px solid #f0ad4e; outline-offset: -2px; }
+.card.lock-confirm .badge { background: #f0ad4e; color: #1a1a1a; font-weight: 600; }
