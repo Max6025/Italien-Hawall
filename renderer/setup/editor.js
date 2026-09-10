@@ -372,7 +372,8 @@ function settingsFieldsForType(type) {
     gateOpts: type === 'gate',
     climateOpts: type === 'climate',
     graphOpts: type === 'graph',
-    coverOpts: type === 'cover'
+    coverOpts: type === 'cover',
+    lightOpts: type === 'light'
   };
 }
 
@@ -519,6 +520,21 @@ function openSettings(entityId) {
     `;
   }
 
+  if (fields.lightOpts) {
+    html += `
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
+        <input type="checkbox" id="lightTemp" style="width:auto; margin:0;" ${settings.lightTemp === false ? '' : 'checked'}>
+        Farbtemperatur-Regler anzeigen
+      </label>
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.4rem;">
+        <input type="checkbox" id="lightColor" style="width:auto; margin:0;" ${settings.lightColor ? 'checked' : ''}>
+        Farbwahl anzeigen
+      </label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Beide erscheinen nur, wenn die Lampe das laut Home Assistant beherrscht.</p>
+    `;
+  }
+
   if (fields.coverOpts) {
     html += `
       <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
@@ -662,6 +678,11 @@ function openSettings(entityId) {
     });
     zahlOderWeg('graphMin', 'graphMin');
     zahlOderWeg('graphMax', 'graphMax');
+  }
+
+  if (fields.lightOpts) {
+    $('lightTemp').addEventListener('change', () => { settings.lightTemp = $('lightTemp').checked; markDirty(); });
+    $('lightColor').addEventListener('change', () => { settings.lightColor = $('lightColor').checked; markDirty(); });
   }
 
   if (fields.coverOpts) {

@@ -407,6 +407,9 @@ async function ensureWasteEvents(entityId) {
 async function render() {
   const layout = await activeLayout();
   const grid = $('grid');
+  // Nicht neu aufbauen, waehrend jemand bedient -- sonst verschwindet der Regler unter dem
+  // Finger. Der naechste Durchlauf holt es nach.
+  if (grid.children.length && wirdGeradeBedient()) return;
   grid.innerHTML = '';
   if (!layout.length) {
     grid.innerHTML = '<div class="empty">Keine Karten eingerichtet. /setup/editor.html auf einem anderen Gerät öffnen.</div>';
@@ -448,6 +451,8 @@ async function render() {
         onSetBrightness: (entityId, pct) => callService('light', 'turn_on', entityId, { brightness_pct: pct }),
         // Tor-Card: Der passende Dienst wird aus der Entitaet abgeleitet, damit Taster,
         // Rollladen und Skripte in derselben Knopfliste stehen duerfen.
+        onSetColorTemp: (entityId, kelvin) => callService('light', 'turn_on', entityId, { color_temp_kelvin: kelvin }),
+        onSetColor: (entityId, rgb) => callService('light', 'turn_on', entityId, { rgb_color: rgb }),
         onSetHvacMode: (entityId, modus) => callService('climate', 'set_hvac_mode', entityId, { hvac_mode: modus }),
         onSetPreset: (entityId, preset) => callService('climate', 'set_preset_mode', entityId, { preset_mode: preset }),
         onGatePress: (entityId) => {
@@ -474,6 +479,36 @@ async function render() {
     }));
   }
 }
+
+// --- Schutz vor dem Neuaufbau waehrend der Bedienung ------------------------------------------
+//
+// Das Raster wird alle 15 Sekunden komplett neu aufgebaut (grid.innerHTML = ''). Faellt das
+// mitten in eine Bedienung, ist der Regler unter dem Finger weg, das offene Auswahlmenue
+// geschlossen, die halb eingetippte Alarm-Code-Eingabe geloescht. Genau das ist das
+// "manchmal geht es einfach nicht".
+//
+// Statt eines grossen Umbaus auf punktuelles Aktualisieren: Solange jemand bedient, wird der
+// Neuaufbau verschoben. Nach zwoelf Sekunden Ruhe laeuft er nach.
+let bedienungBis = 0;
+const BEDIEN_RUHE_MS = 12000;
+
+function bedienungGemerkt() { bedienungBis = Date.now() + BEDIEN_RUHE_MS; }
+
+function wirdGeradeBedient() {
+  if (Date.now() < bedienungBis) return true;
+  // Ein Eingabefeld oder Auswahlmenue im Raster hat den Fokus -- da wird gerade getippt.
+  const a = document.activeElement;
+  if (!a || a === document.body) return false;
+  if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(a.tagName)) return false;
+  return !!a.closest('#grid');
+}
+
+(function bedienungBeobachten() {
+  const raster = $('grid');
+  if (!raster) return;
+  ['pointerdown', 'input', 'change', 'keydown'].forEach(ev =>
+    raster.addEventListener(ev, bedienungGemerkt, { passive: true, capture: true }));
+})();
 
 async function refresh() {
   const r = await fetch(`${API}/api/ha/states`);

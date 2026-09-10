@@ -536,6 +536,16 @@
     } else if (type === 'light') {
       const isOn = state && state.state === 'on';
       const pct = Math.round((attrs.brightness || 0) / 255 * 100);
+      // Kann die Lampe Farbtemperatur oder Farbe? HA meldet das in supported_color_modes.
+      const modi = Array.isArray(attrs.supported_color_modes) ? attrs.supported_color_modes : [];
+      const kannTemperatur = settings.lightTemp !== false && modi.includes('color_temp');
+      const kannFarbe = !!settings.lightColor && modi.some(m => ['hs', 'rgb', 'rgbw', 'rgbww', 'xy'].includes(m));
+      const kelvinMin = Number(attrs.min_color_temp_kelvin) || 2000;
+      const kelvinMax = Number(attrs.max_color_temp_kelvin) || 6500;
+      const kelvin = Number(attrs.color_temp_kelvin) || Math.round((kelvinMin + kelvinMax) / 2);
+      const rgb = Array.isArray(attrs.rgb_color) ? attrs.rgb_color : [255, 255, 255];
+      const hexFarbe = '#' + rgb.map(v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
+
       card.innerHTML = `
         <div class="row"><span class="icon">${ICONS.light}</span><span class="badge">${isOn ? 'ON' : 'OFF'}</span></div>
         <div class="name">${name}</div>
@@ -543,14 +553,42 @@
         <div class="controls slider-row">
           <button data-act="toggle" ${dis}>⏻</button>
           <input type="range" min="0" max="100" step="5" value="${pct}" data-act="slider" ${dis}>
-        </div>`;
+        </div>
+        ${kannTemperatur ? `<div class="controls slider-row light-temp">
+          <input type="range" min="${kelvinMin}" max="${kelvinMax}" step="50" value="${kelvin}" data-act="kelvin" ${dis}>
+        </div>` : ''}
+        ${kannFarbe ? `<div class="controls light-color">
+          <input type="color" value="${hexFarbe}" data-act="farbe" ${dis}>
+        </div>` : ''}`;
       if (!editable) {
         const slider = card.querySelector('[data-act="slider"]');
         if (cb.onSetBrightness) {
-          slider.addEventListener('change', () => cb.onSetBrightness(entity_id, parseInt(slider.value, 10)));
+          slider.addEventListener('change', () => {
+            const wert = parseInt(slider.value, 10);
+            // Frueher wurde bei 0 ein turn_on mit 0 Prozent geschickt -- viele Lampen ignorieren
+            // das oder bleiben glimmend an. 0 heisst aus.
+            if (wert === 0 && cb.onToggle) return cb.onToggle('light', entity_id, 'on');
+            cb.onSetBrightness(entity_id, wert);
+          });
         }
         if (cb.onToggle) {
           card.querySelector('[data-act="toggle"]').addEventListener('click', () => cb.onToggle('light', entity_id, state ? state.state : 'off'));
+        }
+        const kelvinRegler = card.querySelector('[data-act="kelvin"]');
+        if (kelvinRegler && cb.onSetColorTemp) {
+          kelvinRegler.addEventListener('change', (e) => {
+            e.stopPropagation(); cb.onSetColorTemp(entity_id, parseInt(kelvinRegler.value, 10));
+          });
+        }
+        const farbwahl = card.querySelector('[data-act="farbe"]');
+        if (farbwahl && cb.onSetColor) {
+          farbwahl.addEventListener('change', (e) => {
+            e.stopPropagation();
+            const h = farbwahl.value.replace('#', '');
+            cb.onSetColor(entity_id, [
+              parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)
+            ]);
+          });
         }
       }
     } else if (type === 'cover') {

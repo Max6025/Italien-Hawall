@@ -654,3 +654,14 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 /* Rollladen: Neigungsregler */
 .cover-tilt { align-items: center; gap: .5vh; }
 .cover-tilt-label { font-size: clamp(.55rem, 1.8cqmin, .85rem); color: var(--muted); white-space: nowrap; }
+
+/* Lampe: Farbtemperatur und Farbwahl */
+.light-temp input[type="range"] {
+  background: linear-gradient(90deg, #ffb46b 0%, #ffd9b0 35%, #ffffff 60%, #cfe0ff 100%);
+  border-radius: 999px;
+}
+.light-color { justify-content: center; margin-top: .4vh; }
+.light-color input[type="color"] {
+  width: 100%; max-width: 12vh; height: 3.2vh; padding: 0; cursor: pointer;
+  border: 1px solid var(--card-border); border-radius: 9px; background: transparent;
+}
