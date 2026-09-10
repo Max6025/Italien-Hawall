@@ -1303,11 +1303,17 @@
       // "Scharf (Nacht)" wurde als Zustand angezeigt, war aber nicht schaltbar.
       const koennen = Number(attrs.supported_features);
       const kann = (bit) => isNaN(koennen) ? true : !!(koennen & bit);
+      // Was die Anlage KANN, heisst nicht, dass man es auf der Wand haben will. Wer nie
+      // "Nacht" benutzt, hat sonst dauerhaft einen Knopf, den er nur versehentlich trifft.
+      // Ohne Einstellung bleibt alles sichtbar -- bestehende Karten aendern sich nicht.
+      const gewaehlt = Array.isArray(settings.alarmModi) ? settings.alarmModi : null;
+      const gewuenscht = (id) => !gewaehlt || gewaehlt.includes(id);
       const knoepfe = [
         { id: 'home', bit: 1, text: 'Zuhause', dienst: 'alarm_arm_home' },
         { id: 'away', bit: 2, text: 'Abwesend', dienst: 'alarm_arm_away' },
         { id: 'night', bit: 4, text: 'Nacht', dienst: 'alarm_arm_night' }
-      ].filter(b => kann(b.bit));
+      ].filter(b => kann(b.bit) && gewuenscht(b.id));
+      const zeigeUnscharf = gewuenscht('disarm');
 
       // Verlangt die Anlage einen Code, hat der Druck bisher schlicht nichts bewirkt -- ohne
       // Fehlermeldung. Jetzt klappt die Karte eine Eingabe auf.
@@ -1316,13 +1322,20 @@
       const codeZumEntschaerfen = !!codeFormat;
 
       const knopfHtml = knoepfe.map(b =>
-        `<button data-act="${b.id}" ${dis} style="flex:1; font-size:1.1vh;">${b.text}</button>`).join('') +
-        `<button data-act="disarm" ${dis} style="flex:1; font-size:1.1vh;">Unscharf</button>`;
+        `<button data-act="${b.id}" ${dis} class="${s === 'armed_' + b.id ? 'ist-zustand' : ''}">${b.text}</button>`).join('') +
+        (zeigeUnscharf ? `<button data-act="disarm" ${dis} class="${s === 'disarmed' ? 'ist-zustand' : ''}">Unscharf</button>` : '');
 
+      // Der Zustand ist bei einer Alarmanlage die Hauptaussage, nicht der Name der Karte.
+      // Er stand bisher klein unter dem Namen; aus zwei Metern Abstand las man ihn nicht.
+      // Jetzt steht er gross an der Stelle, an der auf jeder anderen Karte der Wert steht.
+      const zustandsKlasse = s === 'triggered' ? 'alarm-ausgeloest'
+        : (isArmed ? 'alarm-scharf' : (s === 'pending' || s === 'arming' ? 'alarm-wartet' : 'alarm-unscharf'));
+
+      card.classList.add(zustandsKlasse);
       card.innerHTML = `
         <div class="row"><span class="icon">${isArmed ? ICONS.shield : ICONS.shieldOff}</span></div>
+        <div class="value alarm-zustand">${esc(label)}</div>
         <div class="name">${name}</div>
-        <div class="value" style="font-size:clamp(1vh,7cqmin,1.8vh); ${s === 'triggered' ? 'color:#ef4444;' : ''}">${esc(label)}</div>
         <div class="controls alarm-buttons" style="display:flex; gap:0.5vh; margin-top:0.4vh; flex-wrap:wrap;">${knopfHtml}</div>
         <div class="alarm-code" style="display:none;">
           <input type="${codeFormat === 'number' ? 'tel' : 'password'}" inputmode="${codeFormat === 'number' ? 'numeric' : 'text'}"

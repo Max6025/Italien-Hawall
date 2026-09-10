@@ -41,8 +41,14 @@
         </div>
         <div id="trackerMap"></div>
       </div>
-      <div class="room-tabs" id="roomTabs" style="display:none;"></div>
-      <footer class="footer" id="footer">Zuletzt aktualisiert –</footer>
+      <!-- Die Reiter-Leiste und die Fusszeile "Zuletzt aktualisiert" sind entfallen: beide
+           standen dauerhaft am unteren Rand und nahmen Platz weg, den die Karten brauchen.
+           Der Zeitstempel beantwortete ausserdem eine Frage, die niemand stellt -- solange
+           die Werte stimmen, ist egal, wann sie geholt wurden.
+
+           ACHTUNG: Die Leiste war der EINZIGE Weg zurueck, seit die Kopfzeile mit dem
+           Zurueck-Knopf ausgeblendet ist. Ohne den Knopf unten waere man auf einem
+           Unterdashboard gefangen. -->
     </div>
   </div>
 
@@ -98,6 +104,9 @@
        die man wegtippt: Wer sie weggetippt hat, sieht am naechsten Morgen nicht mehr,
        dass heute abgereist wird. -->
   <div class="terminverlauf" id="terminverlauf" hidden></div>
+  <!-- Der Weg zurueck zum Hauptdashboard. Erscheint NUR auf einem Unterdashboard und liegt
+       oben links, gegenueber der Termin-Anzeige. -->
+  <button class="zurueck-knopf" id="zurueckKnopf" hidden aria-label="Zurück zum Hauptdashboard"></button>
   <div class="terminankuendigung" id="terminankuendigung"></div>
 
   <div class="notify-overlay" id="notifyOverlay">
@@ -173,17 +182,16 @@ async function loadDashboardOrder() {
   renderRoomTabs();
 }
 
-// Reiter-Leiste fuer den Wechsel zwischen Haupt- und Unterdashboards -- Namen kommen
-// automatisch aus den bestehenden Unterdashboards, kein separates "Raum"-Konzept noetig.
+// Der Weg zurueck. Frueher gab es dafuer eine Reiter-Leiste am unteren Rand; sie ist
+// entfallen, weil sie dauerhaft Platz kostete. Der Knopf hier erscheint nur, wenn man ihn
+// wirklich braucht -- auf einem Unterdashboard.
+//
+// Er ist NICHT wegzulassen: Der Zurueck-Knopf in der Kopfzeile ist seit dem Redesign
+// ausgeblendet, und ohne beides kaeme man von einem Unterdashboard nicht mehr weg.
 function renderRoomTabs() {
-  const el = $('roomTabs');
-  if (dashboardOrder.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = 'flex';
-  el.innerHTML = dashboardOrder.map(d =>
-    `<button class="room-tab ${d.id === currentDashboardId ? 'active' : ''}" data-id="${d.id}">${d.name}</button>`).join('');
-  el.querySelectorAll('.room-tab').forEach(btn => {
-    btn.addEventListener('click', () => navigateTo(btn.dataset.id));
-  });
+  const el = $('zurueckKnopf');
+  if (!el) return;
+  el.hidden = currentDashboardId === 'main';
 }
 
 // Screensaver-Hintergrundbild: eigenes Foto statt der neutralen Theme-Farbe. Karten
@@ -551,7 +559,6 @@ async function refresh() {
     }
     if (screensaverActive) renderScreensaver();
   }
-  $('footer').textContent = 'Zuletzt aktualisiert ' + new Date().toLocaleTimeString('de-DE');
 }
 
 function applyTheme() {
@@ -958,6 +965,8 @@ $('batteryModalClose').addEventListener('click', () => $('batteryModal').classLi
 $('refreshBtn').innerHTML = ICONS.refresh;
 $('settingsBtn').innerHTML = ICONS.settings;
 $('backBtn').innerHTML = ICONS.back;
+$('zurueckKnopf').innerHTML = ICONS.back;
+$('zurueckKnopf').addEventListener('click', () => navigateTo('main'));
 $('batteryWarnBtn').innerHTML = ICONS.battery2;
 
 // --- Kalendersteuerung: Anzeigeseite der im Hauptprozess laufenden Logik --------------------

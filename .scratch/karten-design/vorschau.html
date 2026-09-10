@@ -14,9 +14,9 @@
 <style>
   body { margin: 0; min-height: 100vh; }
   #grid {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.4vh;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.4vh;
     padding: 2vh; height: auto; min-height: 100vh; box-sizing: border-box;
-    grid-auto-rows: 34vh;
+    grid-auto-rows: 24vh;
   }
 </style>
 </head>
@@ -43,7 +43,11 @@ const KARTEN = [
   ['sensor.batterie',     'gauge',       Z('72',   { friendly_name: 'Batterie', unit_of_measurement: '%', device_class: 'battery' }), 1, 1],
   ['fan.schlafzimmer',    'fan',         Z('on',   { friendly_name: 'Ventilator', percentage: 40, percentage_step: 10 }), 1, 1],
   ['lock.haustuer',       'lock',        Z('locked', { friendly_name: 'Haustür' }), 1, 1],
-  ['sensor.zaehler',      'sensor',      Z('4231.7', { friendly_name: 'Zählerstand', unit_of_measurement: 'kWh' }), 1, 1]
+  ['sensor.zaehler',      'sensor',      Z('4231.7', { friendly_name: 'Zählerstand', unit_of_measurement: 'kWh' }), 1, 1],
+  ['alarm_control_panel.a', 'alarm',      Z('disarmed', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
+  ['alarm_control_panel.b', 'alarm',      Z('armed_away', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
+  ['alarm_control_panel.c', 'alarm',      Z('pending', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
+  ['alarm_control_panel.d', 'alarm',      Z('triggered', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1]
 ];
 
 const grid = document.getElementById('grid');
@@ -68,7 +72,8 @@ const VERLAEUFE = {
   'sensor.zaehler':     verlauf(4180, 55, true)
 };
 
-KARTEN.forEach(([id, typ, zustand, c, r]) => {
+const nur = new URLSearchParams(location.search).get('nur');
+(nur ? KARTEN.filter(k => k[1] === nur) : KARTEN).forEach(([id, typ, zustand, c, r]) => {
   const el = DashboardRender.buildCard(id, zustand, typ, { cols: c, rows: r }, {
     editable: false, settings: {}, apiBase: '', statesById: {}, history: VERLAEUFE[id]
   }, {

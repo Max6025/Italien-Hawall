@@ -402,11 +402,6 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 #ssEditGrid { grid-auto-rows: 20vh !important; grid-auto-flow: row !important; }
 .card.editable.moving { outline: 2px solid #4f7cff; z-index: 6; opacity: 0.9; }
 
-.footer { text-align: center; font-size: 1.3vh; color: var(--muted); padding: 0.8vh 0 1.4vh; }
-
-.room-tabs { display: flex; justify-content: center; align-items: center; gap: 0.8vh;
-  padding: 0.8vh 2vw; flex-wrap: wrap; }
-
 /* Kleiner Anwesenheits-Indikator (Annaeherungserkennung): standardmaessig komplett
    ausgeblendet -- wird per JS nur eingeblendet (display:block via .relevant), waehrend die
    Funktion aktiv ist, und leuchtet nur gruen (.occupied), solange jemand erkannt wird. */
@@ -432,10 +427,6 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   border: 1px solid var(--card-border); background: var(--panel2); color: var(--text); }
 .tracker-custom-range span { color: var(--muted); font-size: 1.1vh; }
 #trackerMap { flex: 1; border-radius: 22px; overflow: hidden; min-height: 0; }
-.room-tab { border: 1px solid var(--card-border); border-radius: 999px; padding: 0.7vh 1.8vh; font-size: 1.3vh;
-  font-weight: 600; color: var(--text); background: var(--panel2);
-  cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; }
-.room-tab.active { background: #4f7cff; color: #fff; border-color: transparent; }
 .empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 6vh 0; font-size: 1.8vh; }
 
 /* Ankuendigungs-Box: erscheint, wenn die konfigurierte input_text-Entitaet Inhalt hat --
@@ -904,4 +895,58 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .tendenz {
   font-size: clamp(1.2vh, 9cqmin, 2.6vh); font-weight: 600; line-height: 1;
   color: var(--kachel-akzent); opacity: 0.9;
+}
+
+
+/* --- Weg zurueck zum Hauptdashboard ---------------------------------------------------------
+   Ersetzt die Reiter-Leiste am unteren Rand. Die kostete dauerhaft Platz, obwohl man sie nur
+   beim Wechseln braucht -- und auf dem Hauptdashboard gar nicht.
+
+   Dieser Knopf darf nicht verschwinden: Der Zurueck-Knopf in der Kopfzeile ist seit dem
+   Redesign ausgeblendet. Ohne beides waere man auf einem Unterdashboard gefangen. */
+.zurueck-knopf {
+  position: fixed; top: 1.6vh; left: 1.6vh; z-index: 40;
+  width: 5.6vh; height: 5.6vh;          /* fingergerecht, nicht zielgenau */
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; border-radius: 14px; cursor: pointer;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 13%, transparent);
+  backdrop-filter: blur(14px);
+  color: var(--text);
+  transition: background 0.15s;
+}
+.zurueck-knopf:active { background: color-mix(in srgb, var(--text) 18%, transparent); }
+.zurueck-knopf svg { width: 48%; height: 48%; }
+
+
+/* --- Alarmanlage -----------------------------------------------------------------------------
+   Der Zustand ist hier die Hauptaussage. Er stand bisher klein unter dem Namen und war aus
+   zwei Metern nicht zu lesen -- ausgerechnet bei der Karte, bei der man aus dem Vorbeigehen
+   wissen will, ob scharf geschaltet ist. */
+.card.type-alarm .alarm-zustand {
+  font-size: clamp(1.4vh, 15cqmin, 3.4vh);
+  font-weight: 500; letter-spacing: -0.01em;
+  color: var(--kachel-akzent);
+}
+.card.type-alarm.alarm-unscharf   { --kachel-akzent: rgba(255,255,255,0.62); }
+.card.type-alarm.alarm-scharf     { --kachel-akzent: #6fd6a0; }
+.card.type-alarm.alarm-wartet     { --kachel-akzent: #ffc061; }
+.card.type-alarm.alarm-ausgeloest { --kachel-akzent: #ff6b6b; }
+
+/* Scharf und ausgeloest sollen von weitem auffallen, unscharf nicht -- eine Anlage, die
+   ruht, ist der Normalfall und braucht keine Aufmerksamkeit. */
+.card.type-alarm.alarm-scharf::after     { opacity: 0.13; }
+.card.type-alarm.alarm-wartet::after     { opacity: 0.18; }
+.card.type-alarm.alarm-ausgeloest::after { opacity: 0.30; }
+.card.type-alarm.alarm-ausgeloest {
+  border-color: color-mix(in srgb, var(--kachel-akzent) 60%, var(--card-border));
+}
+
+/* Der Knopf, der dem aktuellen Zustand entspricht, ist markiert -- sonst drueckt man
+   "Abwesend", obwohl es schon abwesend scharf ist. */
+.card.type-alarm .alarm-buttons .ist-zustand {
+  background: color-mix(in srgb, var(--kachel-akzent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--kachel-akzent) 55%, transparent);
+  color: color-mix(in srgb, var(--kachel-akzent) 85%, var(--text));
+  font-weight: 600;
 }

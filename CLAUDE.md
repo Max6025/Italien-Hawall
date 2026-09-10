@@ -95,6 +95,10 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   standardmäßig leer und lassen den Wert unverändert. Wer hier später auf „zwei Stellen ab
   Werk" umstellt, ändert stillschweigend jede Karte, die seit Jahren so hängt.
 
+- **Der Weg zurück darf nie verschwinden.** Der Zurück-Knopf in der Kopfzeile ist seit dem
+  Redesign ausgeblendet (`.statusbar { display: none }`), und die Reiter-Leiste am unteren Rand
+  ist entfallen. Übrig bleibt `#zurueckKnopf` — er ist die **einzige** Rückkehr von einem
+  Unterdashboard. Wer ihn entfernt, sperrt den Nutzer dort ein.
 - **Der Bedien-Schutz darf einen Dashboardwechsel nicht aufhalten.** `render()` verschiebt den
   Neuaufbau, solange jemand bedient — aber das Antippen der Wechsel-Karte zählt selbst als
   Bedienung. Ohne `aufbauErzwingen` in `navigateTo()` tippt man, es passiert nichts, und nach

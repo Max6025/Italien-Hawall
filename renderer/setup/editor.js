@@ -394,6 +394,7 @@ function settingsFieldsForType(type) {
     verlaufOpts: mitZahl.includes(type) && type !== 'graph' && type !== 'gauge',
     iconWahl: !ohneSymbol.includes(type),
     radarOpts: type === 'radar',
+    alarmOpts: type === 'alarm',
     clockOpts: type === 'clock',
     name: type !== 'navigate',
     suffix: withSuffix.includes(type),
@@ -486,6 +487,29 @@ function openSettings(entityId) {
         ${namen.map(n => `<option value="${n}" ${settings.icon === n ? 'selected' : ''}>${n}</option>`).join('')}
       </select>
       <div id="iconVorschau" style="margin:0.6vh 0 1vh; width:3.4vh; height:3.4vh; color:var(--fg);"></div>`;
+  }
+  if (fields.alarmOpts) {
+    const gewaehlt = Array.isArray(settings.alarmModi) ? settings.alarmModi : ['home', 'away', 'night', 'disarm'];
+    const zeile = (id, text, zusatz) => `
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.4rem;">
+        <input type="checkbox" class="alarmModus" data-modus="${id}" style="width:auto; margin:0;"
+               ${gewaehlt.includes(id) ? 'checked' : ''}>
+        ${text}${zusatz ? ` <span style="color:var(--muted); font-size:1.1vh;">${zusatz}</span>` : ''}
+      </label>`;
+    html += `
+      <label>Welche Knöpfe die Karte zeigt</label>
+      ${zeile('home', 'Zuhause')}
+      ${zeile('away', 'Abwesend')}
+      ${zeile('night', 'Nacht')}
+      ${zeile('disarm', 'Unscharf', '– zum Entschärfen')}
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.6vh 0 1vh;">
+        Es erscheint ohnehin nur, was die Anlage laut Home Assistant beherrscht – der Haken
+        blendet zusätzlich aus, was du nicht auf der Wand haben willst. Wer „Nacht“ nie
+        benutzt, trifft den Knopf sonst nur versehentlich.</p>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.6vh 0 1vh;">
+        <strong>„Unscharf“ abwählen heißt: von dieser Karte aus lässt sich die Anlage nicht
+        mehr entschärfen.</strong> Das kann gewollt sein, wenn das Panel für Gäste zugänglich
+        ist – dann braucht es aber einen anderen Weg zum Entschärfen.</p>`;
   }
   if (fields.radarOpts) {
     html += `<label>Bild neu laden alle … Sekunden</label>
@@ -1107,6 +1131,11 @@ $('settingsSave').addEventListener('click', () => {
   if (settingsFields.iconWahl) {
     const v = ($('setIcon') && $('setIcon').value) || '';
     if (v) settings.icon = v; else delete settings.icon;
+  }
+  if (settingsFields.alarmOpts) {
+    const an = Array.from(document.querySelectorAll('.alarmModus'))
+      .filter(el => el.checked).map(el => el.dataset.modus);
+    settings.alarmModi = an;
   }
   if (settingsFields.radarOpts) {
     const v = ($('setRadarSeconds') && $('setRadarSeconds').value.trim()) || '';
