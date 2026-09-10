@@ -636,3 +636,21 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   background: var(--panel2); color: var(--text); font-family: inherit;
   font-size: clamp(.6rem, 2cqmin, .95rem); max-width: 100%;
 }
+
+/* Alarmkarte: Code-Eingabe, die statt der Knopfreihe aufklappt */
+.alarm-code { display: flex; gap: .4vh; margin-top: .4vh; align-items: center; }
+.alarm-code-input {
+  flex: 1; min-width: 0; border-radius: 9px; padding: .5vh .7vh; text-align: center;
+  border: 1px solid var(--card-border); background: var(--panel2); color: var(--text);
+  font-family: inherit; font-size: clamp(.7rem, 2.4cqmin, 1.1rem); letter-spacing: .18em;
+}
+.alarm-code-ok, .alarm-code-ab {
+  border-radius: 9px; padding: .5vh .9vh; cursor: pointer; font-family: inherit;
+  border: 1px solid var(--card-border); background: var(--panel2); color: var(--text);
+  font-size: clamp(.65rem, 2.2cqmin, 1rem);
+}
+.alarm-code-ok { background: var(--text); color: var(--bg); font-weight: 600; }
+
+/* Rollladen: Neigungsregler */
+.cover-tilt { align-items: center; gap: .5vh; }
+.cover-tilt-label { font-size: clamp(.55rem, 1.8cqmin, .85rem); color: var(--muted); white-space: nowrap; }

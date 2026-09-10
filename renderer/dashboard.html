@@ -354,16 +354,21 @@ async function loadTrackerHistory(entityId, range, btnEl, customStart, customEnd
   map.fitBounds(trackerPolyline.getBounds(), { padding: [30, 30] });
 }
 
-async function ensureHistory(entityId) {
-  if (historyCache[entityId]) return historyCache[entityId];
+// Der Zeitraum ist jetzt eine Einstellung je Karte statt fest 24 Stunden. Der Zwischenspeicher
+// muss ihn deshalb mit im Schluessel fuehren -- sonst bekaeme eine 6-Stunden-Karte die Daten
+// einer 7-Tage-Karte, je nachdem welche zuerst geladen hat.
+async function ensureHistory(entityId, stunden) {
+  const h = Number(stunden) > 0 ? Number(stunden) : 24;
+  const key = entityId + '@' + h;
+  if (historyCache[key]) return historyCache[key];
   try {
-    const r = await fetch(`${API}/api/ha/history?entity_id=${encodeURIComponent(entityId)}&hours=24`);
+    const r = await fetch(`${API}/api/ha/history?entity_id=${encodeURIComponent(entityId)}&hours=${h}`);
     const data = await r.json();
-    historyCache[entityId] = data.ok ? data.series : [];
+    historyCache[key] = data.ok ? data.series : [];
   } catch (e) {
-    historyCache[entityId] = [];
+    historyCache[key] = [];
   }
-  return historyCache[entityId];
+  return historyCache[key];
 }
 
 async function ensureForecast(entityId, forecastType) {
@@ -413,7 +418,7 @@ async function render() {
     if (type !== 'clock' && type !== 'navigate' && type !== 'energy' && type !== 'photo' && type !== 'quicktiles' && !s) continue;
     const span = resolveSpan(entry, type);
     let history, forecast, forecastError, energy, waste, wasteError;
-    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id);
+    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
     if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
     if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
     if (type === 'energy') {
@@ -452,12 +457,17 @@ async function render() {
         },
         onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
         onCover: (entityId, service) => callService('cover', service, entityId),
+        onCoverPosition: (entityId, pos) => callService('cover', 'set_cover_position', entityId, { position: pos }),
+        onCoverTilt: (entityId, pos) => callService('cover', 'set_cover_tilt_position', entityId, { tilt_position: pos }),
         onSelectOption: (domain, entityId, option) => callService(domain, 'select_option', entityId, { option }),
         onMediaControl: (entityId, service, serviceData) => callService('media_player', service, entityId, serviceData),
         onLockToggle: (entityId, curState) => callService('lock', curState === 'locked' ? 'unlock' : 'lock', entityId),
         onFanSpeed: (entityId, pct) => callService('fan', 'set_percentage', entityId, { percentage: pct }),
         onVacuumControl: (entityId, service) => callService('vacuum', service, entityId),
-        onAlarmControl: (entityId, service) => callService('alarm_control_panel', service, entityId),
+        // Der Code wird nur mitgeschickt, wenn die Anlage einen verlangt -- sonst bleibt das
+        // Feld weg, statt ein leeres mitzusenden.
+        onAlarmControl: (entityId, service, code) =>
+          callService('alarm_control_panel', service, entityId, code ? { code } : undefined),
         onQuickTile: (mediaPlayerEntity, source) => callService('media_player', 'select_source', mediaPlayerEntity, { source }),
         onNavigate: (targetId) => navigateTo(targetId)
       }
@@ -576,7 +586,7 @@ async function renderScreensaver() {
     if (type !== 'clock' && type !== 'energy' && !s) continue;
     const span = resolveSpan(entry, type);
     let history, forecast, forecastError, energy, waste, wasteError;
-    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id);
+    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
     if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
     if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
     if (type === 'energy') {

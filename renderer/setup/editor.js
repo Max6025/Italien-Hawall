@@ -91,10 +91,10 @@ function applyTheme() {
   document.body.classList.toggle('light-theme', isDay);
 }
 
-async function ensureHistory(entityId) {
+async function ensureHistory(entityId, stunden) {
   if (historyCache[entityId]) return historyCache[entityId];
   try {
-    const r = await fetch(`/api/ha/history?entity_id=${encodeURIComponent(entityId)}&hours=24`);
+    const r = await fetch(`/api/ha/history?entity_id=${encodeURIComponent(entityId)}&hours=${Number(stunden) > 0 ? Number(stunden) : 24}`);
     const data = await r.json();
     historyCache[entityId] = data.ok ? data.series : [];
   } catch (e) {
@@ -154,7 +154,7 @@ async function render() {
     const type = entry.card_type || defaultCardType(entry.entity_id, state);
     const span = resolveSpan(entry, type);
     let history, forecast, forecastError, energy, waste, wasteError;
-    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id);
+    if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
     if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
     if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
     if (type === 'energy') {
@@ -370,7 +370,9 @@ function settingsFieldsForType(type) {
     photoUpload: type === 'photo',
     quickTiles: type === 'quicktiles',
     gateOpts: type === 'gate',
-    climateOpts: type === 'climate'
+    climateOpts: type === 'climate',
+    graphOpts: type === 'graph',
+    coverOpts: type === 'cover'
   };
 }
 
@@ -495,6 +497,43 @@ function openSettings(entityId) {
       </datalist>
     `;
   }
+  if (fields.graphOpts) {
+    const stunden = settings.graphHours || 24;
+    const wahl = [[1,'1 Stunde'],[6,'6 Stunden'],[12,'12 Stunden'],[24,'24 Stunden'],[48,'2 Tage'],[168,'7 Tage']];
+    html += `
+      <label>Zeitraum</label>
+      <select id="graphHours">
+        ${wahl.map(([v, txt]) => `<option value="${v}" ${Number(stunden) === v ? 'selected' : ''}>${txt}</option>`).join('')}
+      </select>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        War bisher fest auf 24 Stunden verdrahtet.</p>
+      <label>Y-Achse</label>
+      <div class="row2">
+        <div><label style="font-size:1.1vh;">Untergrenze</label>
+          <input type="number" id="graphMin" placeholder="automatisch" value="${settings.graphMin ?? ''}"></div>
+        <div><label style="font-size:1.1vh;">Obergrenze</label>
+          <input type="number" id="graphMax" placeholder="automatisch" value="${settings.graphMax ?? ''}"></div>
+      </div>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Leer lassen für automatische Skalierung.</p>
+    `;
+  }
+
+  if (fields.coverOpts) {
+    html += `
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
+        <input type="checkbox" id="coverPosition" style="width:auto; margin:0;" ${settings.coverPosition === false ? '' : 'checked'}>
+        Positionsregler anzeigen
+      </label>
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.4rem;">
+        <input type="checkbox" id="coverTilt" style="width:auto; margin:0;" ${settings.coverTilt ? 'checked' : ''}>
+        Neigungsregler anzeigen
+      </label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Beide erscheinen nur, wenn das Gerät sie laut Home Assistant auch beherrscht.</p>
+    `;
+  }
+
   if (fields.climateOpts) {
     html += `
       <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
@@ -612,6 +651,22 @@ function openSettings(entityId) {
       $('photoRemoveBtn').style.display = 'none';
       $('photoResult').textContent = '';
     });
+  }
+
+  if (fields.graphOpts) {
+    $('graphHours').addEventListener('change', () => { settings.graphHours = parseInt($('graphHours').value, 10); markDirty(); });
+    const zahlOderWeg = (id, feld) => $(id).addEventListener('input', () => {
+      const v = $(id).value.trim();
+      if (v === '') delete settings[feld]; else settings[feld] = parseFloat(v);
+      markDirty();
+    });
+    zahlOderWeg('graphMin', 'graphMin');
+    zahlOderWeg('graphMax', 'graphMax');
+  }
+
+  if (fields.coverOpts) {
+    $('coverPosition').addEventListener('change', () => { settings.coverPosition = $('coverPosition').checked; markDirty(); });
+    $('coverTilt').addEventListener('change', () => { settings.coverTilt = $('coverTilt').checked; markDirty(); });
   }
 
   if (fields.climateOpts) {

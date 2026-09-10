@@ -413,12 +413,18 @@
     return d;
   }
 
-  function sparklineSvg(series, gradId) {
+  function sparklineSvg(series, gradId, grenzen) {
     if (!series || series.length < 2) {
       return { svg: '<div class="graph-empty">Keine Verlaufsdaten</div>', caption: '' };
     }
     const smoothed = downsample(series, 36);
-    const min = Math.min(...smoothed), max = Math.max(...smoothed);
+    // Die Beschriftung stammte frueher aus den ROHdaten, die Kurve aus den geglaetteten --
+    // die angezeigten Extremwerte passten also nicht zu dem, was man sah. Jetzt beides gleich.
+    const g = grenzen || {};
+    const festUnten = typeof g.min === 'number' && !isNaN(g.min);
+    const festOben = typeof g.max === 'number' && !isNaN(g.max);
+    const min = festUnten ? g.min : Math.min(...smoothed);
+    const max = festOben ? g.max : Math.max(...smoothed);
     const range = (max - min) || 1;
     const w = 100, h = 36;
     const points = smoothed.map((v, i) => {
@@ -549,6 +555,12 @@
       }
     } else if (type === 'cover') {
       const pos = attrs.current_position;
+      // Nur anbieten, was das Geraet wirklich kann -- ein Schieber, der ins Leere greift, ist
+      // schlimmer als keiner. HA meldet die Faehigkeiten in supported_features:
+      // 4 = SET_POSITION, 128 = SET_TILT_POSITION.
+      const faehig = Number(attrs.supported_features) || 0;
+      const zeigePosition = settings.coverPosition !== false && pos !== undefined && (faehig & 4);
+      const zeigeNeigung = !!settings.coverTilt && attrs.current_tilt_position !== undefined && (faehig & 128);
       card.innerHTML = `
         <div class="row"><span class="icon">${ICONS.cover}</span><span class="badge">${state ? state.state : '–'}</span></div>
         <div class="name">${name}</div>
@@ -557,11 +569,30 @@
           <button data-act="open" ${dis}>▲</button>
           <button data-act="stop" ${dis}>⏸</button>
           <button data-act="close" ${dis}>▼</button>
-        </div>`;
+        </div>
+        ${zeigePosition ? `<div class="controls slider-row">
+          <input type="range" min="0" max="100" step="1" value="${pos}" data-act="position" ${dis}>
+        </div>` : ''}
+        ${zeigeNeigung ? `<div class="controls slider-row cover-tilt">
+          <span class="cover-tilt-label">Neigung</span>
+          <input type="range" min="0" max="100" step="1" value="${attrs.current_tilt_position}" data-act="tilt" ${dis}>
+        </div>` : ''}`;
       if (!editable && cb.onCover) {
         card.querySelector('[data-act="open"]').addEventListener('click', () => cb.onCover(entity_id, 'open_cover'));
         card.querySelector('[data-act="stop"]').addEventListener('click', () => cb.onCover(entity_id, 'stop_cover'));
         card.querySelector('[data-act="close"]').addEventListener('click', () => cb.onCover(entity_id, 'close_cover'));
+      }
+      // Anfahren einer Position war bisher nicht moeglich: Die Position wurde angezeigt, aber
+      // es gab nur Auf, Stop und Zu. Auf 40 Prozent kam man nicht.
+      if (!editable && cb.onCoverPosition) {
+        const schieber = card.querySelector('[data-act="position"]');
+        if (schieber) schieber.addEventListener('change', (e) => {
+          e.stopPropagation(); cb.onCoverPosition(entity_id, parseInt(schieber.value, 10));
+        });
+        const neigung = card.querySelector('[data-act="tilt"]');
+        if (neigung) neigung.addEventListener('change', (e) => {
+          e.stopPropagation(); cb.onCoverTilt(entity_id, parseInt(neigung.value, 10));
+        });
       }
     } else if (type === 'switch') {
       const isOn = state && state.state === 'on';
@@ -633,12 +664,18 @@
     } else if (type === 'graph') {
       const val = state ? state.state : '–';
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : attrs.unit_of_measurement;
-      const { svg, caption } = sparklineSvg(opts.history, entity_id.replace(/[^a-z0-9]/gi, ''));
+      const { svg, caption } = sparklineSvg(opts.history, entity_id.replace(/[^a-z0-9]/gi, ''),
+        { min: settings.graphMin, max: settings.graphMax });
+      // Ohne Zeitangabe wusste niemand, welchen Ausschnitt die Kurve zeigt.
+      const stundenGraph = Number(settings.graphHours) > 0 ? Number(settings.graphHours) : 24;
+      const zeitraumText = stundenGraph >= 24 && stundenGraph % 24 === 0
+        ? (stundenGraph / 24) + (stundenGraph === 24 ? ' Tag' : ' Tage')
+        : stundenGraph + ' h';
       card.innerHTML = `
         <div class="row"><span class="icon">${ICONS.graph}</span><span class="badge">${fmt(val, unit)}</span></div>
         <div class="name">${name}</div>
         <div class="graph-wrap">${svg}</div>
-        ${caption ? `<div class="graph-caption">${caption}${unit ? ' ' + unit : ''}</div>` : ''}`;
+        <div class="graph-caption">${caption ? esc(caption) + (unit ? ' ' + esc(unit) : '') + ' · ' : ''}${zeitraumText}</div>`;
     } else if (type === 'clock') {
       card.innerHTML = `<div class="clock-time">--:--</div><div class="clock-date">-</div>`;
       renderClockNow(card);
@@ -828,7 +865,7 @@
         <div class="value">${isOn ? pct + '%' : '–'}</div>
         <div class="controls slider-row">
           <button data-act="toggle" ${dis}>⏻</button>
-          <input type="range" min="0" max="100" step="10" value="${pct}" data-act="slider" ${dis}>
+          <input type="range" min="0" max="100" step="${Number(attrs.percentage_step) || 10}" value="${pct}" data-act="slider" ${dis}>
         </div>`;
       if (!editable) {
         const slider = card.querySelector('[data-act="slider"]');
@@ -865,20 +902,78 @@
       const s = state ? state.state : 'disarmed';
       const isArmed = s.startsWith('armed');
       const label = { disarmed: 'Unscharf', armed_home: 'Scharf (Zuhause)', armed_away: 'Scharf (Abwesend)', armed_night: 'Scharf (Nacht)', pending: 'Ausstehend…', triggered: 'ALARM!', arming: 'Aktiviert…' }[s] || s;
+      // Nur anbieten, was die Anlage kann. HA meldet die Faehigkeiten in supported_features:
+      // 1 = ARM_HOME, 2 = ARM_AWAY, 4 = ARM_NIGHT. Bisher standen hier drei feste Knoepfe, und
+      // "Scharf (Nacht)" wurde als Zustand angezeigt, war aber nicht schaltbar.
+      const koennen = Number(attrs.supported_features);
+      const kann = (bit) => isNaN(koennen) ? true : !!(koennen & bit);
+      const knoepfe = [
+        { id: 'home', bit: 1, text: 'Zuhause', dienst: 'alarm_arm_home' },
+        { id: 'away', bit: 2, text: 'Abwesend', dienst: 'alarm_arm_away' },
+        { id: 'night', bit: 4, text: 'Nacht', dienst: 'alarm_arm_night' }
+      ].filter(b => kann(b.bit));
+
+      // Verlangt die Anlage einen Code, hat der Druck bisher schlicht nichts bewirkt -- ohne
+      // Fehlermeldung. Jetzt klappt die Karte eine Eingabe auf.
+      const codeFormat = attrs.code_format || '';
+      const codeZumScharfschalten = !!attrs.code_arm_required && !!codeFormat;
+      const codeZumEntschaerfen = !!codeFormat;
+
+      const knopfHtml = knoepfe.map(b =>
+        `<button data-act="${b.id}" ${dis} style="flex:1; font-size:1.1vh;">${b.text}</button>`).join('') +
+        `<button data-act="disarm" ${dis} style="flex:1; font-size:1.1vh;">Unscharf</button>`;
+
       card.innerHTML = `
         <div class="row"><span class="icon">${isArmed ? ICONS.shield : ICONS.shieldOff}</span></div>
         <div class="name">${name}</div>
-        <div class="value" style="font-size:clamp(1vh,7cqmin,1.8vh); ${s === 'triggered' ? 'color:#ef4444;' : ''}">${label}</div>
-        <div class="controls" style="display:flex; gap:0.5vh; margin-top:0.4vh; flex-wrap:wrap;">
-          <button data-act="home" ${dis} style="flex:1; font-size:1.1vh;">Zuhause</button>
-          <button data-act="away" ${dis} style="flex:1; font-size:1.1vh;">Abwesend</button>
-          <button data-act="disarm" ${dis} style="flex:1; font-size:1.1vh;">Unscharf</button>
+        <div class="value" style="font-size:clamp(1vh,7cqmin,1.8vh); ${s === 'triggered' ? 'color:#ef4444;' : ''}">${esc(label)}</div>
+        <div class="controls alarm-buttons" style="display:flex; gap:0.5vh; margin-top:0.4vh; flex-wrap:wrap;">${knopfHtml}</div>
+        <div class="alarm-code" style="display:none;">
+          <input type="${codeFormat === 'number' ? 'tel' : 'password'}" inputmode="${codeFormat === 'number' ? 'numeric' : 'text'}"
+                 class="alarm-code-input" placeholder="Code" autocomplete="off">
+          <button class="alarm-code-ok">OK</button>
+          <button class="alarm-code-ab">×</button>
         </div>`;
+
       if (!editable && cb.onAlarmControl) {
-        const act = (n, svc) => { const el = card.querySelector(`[data-act="${n}"]`); if (el) el.addEventListener('click', e => { e.stopPropagation(); cb.onAlarmControl(entity_id, svc); }); };
-        act('home', 'alarm_arm_home');
-        act('away', 'alarm_arm_away');
-        act('disarm', 'alarm_disarm');
+        const feld = card.querySelector('.alarm-code');
+        const eingabe = card.querySelector('.alarm-code-input');
+        const knopfleiste = card.querySelector('.alarm-buttons');
+        let offenerDienst = null;
+
+        const schliessen = () => {
+          offenerDienst = null;
+          feld.style.display = 'none';
+          knopfleiste.style.display = '';
+          eingabe.value = '';
+        };
+        const ausloesen = (dienst, code) => { schliessen(); cb.onAlarmControl(entity_id, dienst, code); };
+
+        const act = (n, dienst, brauchtCode) => {
+          const el = card.querySelector(`[data-act="${n}"]`);
+          if (!el) return;
+          el.addEventListener('click', e => {
+            e.stopPropagation();
+            if (!brauchtCode) return ausloesen(dienst);
+            offenerDienst = dienst;
+            knopfleiste.style.display = 'none';
+            feld.style.display = 'flex';
+            eingabe.focus();
+          });
+        };
+        knoepfe.forEach(b => act(b.id, b.dienst, codeZumScharfschalten));
+        act('disarm', 'alarm_disarm', codeZumEntschaerfen);
+
+        card.querySelector('.alarm-code-ok').addEventListener('click', e => {
+          e.stopPropagation();
+          if (offenerDienst) ausloesen(offenerDienst, eingabe.value);
+        });
+        card.querySelector('.alarm-code-ab').addEventListener('click', e => { e.stopPropagation(); schliessen(); });
+        eingabe.addEventListener('click', e => e.stopPropagation());
+        eingabe.addEventListener('keydown', e => {
+          if (e.key === 'Enter' && offenerDienst) ausloesen(offenerDienst, eingabe.value);
+          if (e.key === 'Escape') schliessen();
+        });
       }
     } else if (type === 'waste') {
       const events = (opts.waste || []).slice(0, 4);
