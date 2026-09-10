@@ -549,20 +549,44 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 
 .as-rechts { justify-self: center; text-align: center; }
 .as-bildrahmen {
+  --kante: clamp(180px, 26vw, 380px);
+  --halbe-kante: calc((var(--kante) - 4.4vh) / 2);
   background: #fff; border-radius: 26px; padding: 2.2vh;
   box-shadow: 0 26px 80px rgba(0,0,0,.55);
   display: grid; place-items: center;
-  width: clamp(180px, 26vw, 380px); aspect-ratio: 1;
+  width: var(--kante); aspect-ratio: 1;
+  position: relative;
+  /* Ohne Perspektive waere die Drehung eine flache Stauchung statt eines Wuerfels. Der Wert
+     haengt an der Kantenlaenge: fest in Pixeln wuerde die Drehung auf einem grossen Panel
+     flach und auf einem kleinen uebertrieben tief wirken. */
+  perspective: calc(var(--kante) * 2.6);
 }
-/* Zwei Bilder uebereinander, die sich ueberblenden -- kein Umschalten, kein Flackern. */
-.as-bildrahmen { position: relative; }
-.as-bild {
+/* Ein Wuerfel mit vier Seiten, der sich immer in dieselbe Richtung dreht. Bild eins sitzt auf
+   Seite 0 und 2, Bild zwei auf Seite 1 und 3 -- so steht nach jeder Vierteldrehung die
+   naechste Seite bereit und der Wuerfel muss nie zurueckdrehen. */
+.as-wuerfel {
   position: absolute; inset: 2.2vh;
-  width: calc(100% - 4.4vh); height: calc(100% - 4.4vh);
-  object-fit: contain; opacity: 0;
-  transition: opacity 1.2s ease;
+  transform-style: preserve-3d;
+  /* Der Wuerfel wird um seine eigene Mitte gedreht, deshalb erst nach hinten schieben. */
+  transform: translateZ(calc(var(--halbe-kante) * -1)) rotateY(var(--drehung, 0deg));
+  transition: transform 1.1s cubic-bezier(.66, .02, .28, 1);
 }
-.as-bild.as-bild-vorn { opacity: 1; }
+.as-bild {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  background: #fff;
+  backface-visibility: hidden;
+}
+.as-seite-0 { transform: rotateY(0deg)   translateZ(var(--halbe-kante)); }
+.as-seite-1 { transform: rotateY(90deg)  translateZ(var(--halbe-kante)); }
+.as-seite-2 { transform: rotateY(180deg) translateZ(var(--halbe-kante)); }
+.as-seite-3 { transform: rotateY(270deg) translateZ(var(--halbe-kante)); }
+
+/* Wer Bewegung nicht vertraegt, bekommt einen harten Schnitt statt der Drehung. */
+@media (prefers-reduced-motion: reduce) {
+  .as-wuerfel { transition: none; }
+}
 
 /* Markdown im Text des Ankunftsschirms */
 .as-text p { margin: 0 0 .9em; }
@@ -583,7 +607,11 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .as-bildtext {
   margin-top: 1.6vh; font-size: clamp(.9rem, 1.5vw, 1.25rem);
   color: rgba(255,255,255,.8); letter-spacing: .1em; text-transform: uppercase;
+  transition: opacity .45s ease;
 }
+/* Die Unterschrift blendet weg, waehrend der Wuerfel kippt, und kommt mit der neuen Seite
+   zurueck -- sonst stuende sekundenlang der Text zum falschen Bild da. */
+.as-bildtext.as-bildtext-weg { opacity: 0; }
 
 .as-tippen {
   position: absolute; left: 0; right: 0; bottom: 3.5vh; text-align: center;

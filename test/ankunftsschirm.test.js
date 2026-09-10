@@ -141,3 +141,70 @@ test('Auch in der Ueberschrift wird HTML maskiert', () => {
   const h = inlineMarkdown('<b>roh</b>', esc);
   assert.ok(!h.includes('<b>'), 'rohes HTML darf nicht durchkommen');
 });
+
+// --- Bildwechsel ------------------------------------------------------------------------------
+//
+// Am Geraet gemeldet: Das zweite Bild erschien, war nach rund drei Sekunden wieder weg, dann
+// wartete der Schirm die eingestellte Dauer und dasselbe von vorn. Ursache war NICHT der
+// Zeitgeber, sondern dass inhaltSetzen() bei jeder Zustandsmeldung aufgerufen wird und dabei
+// hart auf Bild eins zuruecksetzte. Die Kennung unten ist das Gegenmittel.
+
+const { bildFolge, textFuerDrehung } = require('../renderer/shared/ankunftsschirm.js');
+
+test('Gleicher Inhalt ergibt dieselbe Kennung -- der Wechsel laeuft weiter', () => {
+  const inhalt = { bildUrl: 'a.png', bildUrl2: 'b.png', bildtext: 'WLAN', wechselSekunden: 20 };
+  assert.strictEqual(bildFolge(inhalt).kennung, bildFolge({ ...inhalt }).kennung);
+});
+
+test('Ein geaenderter Inhalt ergibt eine andere Kennung', () => {
+  const a = bildFolge({ bildUrl: 'a.png', bildUrl2: 'b.png', wechselSekunden: 20 });
+  assert.notStrictEqual(a.kennung, bildFolge({ bildUrl: 'a.png', bildUrl2: 'c.png', wechselSekunden: 20 }).kennung);
+  assert.notStrictEqual(a.kennung, bildFolge({ bildUrl: 'a.png', bildUrl2: 'b.png', wechselSekunden: 30 }).kennung);
+});
+
+test('Die Ueberschrift aendert die Kennung NICHT', () => {
+  // Sonst setzte ein wechselnder Termintitel den Bildwechsel zurueck -- derselbe Fehler
+  // in neuem Gewand.
+  const basis = { bildUrl: 'a.png', bildUrl2: 'b.png', wechselSekunden: 20 };
+  assert.strictEqual(
+    bildFolge({ ...basis, ueberschrift: 'Hallo' }).kennung,
+    bildFolge({ ...basis, ueberschrift: 'Anders' }).kennung);
+});
+
+test('Vier Wuerfelseiten, damit er immer gleich herum dreht', () => {
+  const f = bildFolge({ bildUrl: 'a.png', bildUrl2: 'b.png' });
+  assert.deepStrictEqual(f.seiten, ['a.png', 'b.png', 'a.png', 'b.png']);
+  assert.strictEqual(f.dreht, true);
+});
+
+test('Nur ein Bild heisst: keine Drehung', () => {
+  const f = bildFolge({ bildUrl: 'a.png' });
+  assert.strictEqual(f.dreht, false);
+  assert.deepStrictEqual(f.seiten, ['a.png', 'a.png', 'a.png', 'a.png']);
+});
+
+test('Ohne Bild bleibt der Bereich leer', () => {
+  assert.deepStrictEqual(bildFolge({}).seiten, []);
+  assert.deepStrictEqual(bildFolge(null).seiten, []);
+});
+
+test('Die zweite Bildunterschrift faellt auf die erste zurueck', () => {
+  assert.deepStrictEqual(bildFolge({ bildUrl: 'a', bildtext: 'WLAN' }).texte, ['WLAN', 'WLAN']);
+  assert.deepStrictEqual(bildFolge({ bildUrl: 'a', bildtext: 'WLAN', bildtext2: 'Karte' }).texte, ['WLAN', 'Karte']);
+});
+
+test('Die Unterschrift folgt der Drehung', () => {
+  const texte = ['WLAN', 'Karte'];
+  assert.strictEqual(textFuerDrehung(texte, 0), 'WLAN');
+  assert.strictEqual(textFuerDrehung(texte, -90), 'Karte');
+  assert.strictEqual(textFuerDrehung(texte, -180), 'WLAN');
+  assert.strictEqual(textFuerDrehung(texte, -270), 'Karte');
+  assert.strictEqual(textFuerDrehung(texte, -360), 'WLAN');
+});
+
+test('Eine unbrauchbare Wechseldauer faellt auf acht Sekunden zurueck', () => {
+  assert.strictEqual(bildFolge({ bildUrl: 'a' }).sekunden, 8);
+  assert.strictEqual(bildFolge({ bildUrl: 'a', wechselSekunden: 0 }).sekunden, 8);
+  assert.strictEqual(bildFolge({ bildUrl: 'a', wechselSekunden: 'x' }).sekunden, 8);
+  assert.strictEqual(bildFolge({ bildUrl: 'a', wechselSekunden: 25 }).sekunden, 25);
+});

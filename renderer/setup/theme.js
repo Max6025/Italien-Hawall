@@ -61,6 +61,7 @@ async function load() {
   $('welcomeHeading').value = configRes.welcomeHeading || '';
   $('welcomeText').value = configRes.welcomeText || '';
   $('welcomeCaption').value = configRes.welcomeCaption || '';
+  $('welcomeCaption2').value = configRes.welcomeCaption2 || '';
   $('welcomeImageSeconds').value = configRes.welcomeImageSeconds === undefined ? 8 : configRes.welcomeImageSeconds;
   $('welcomeHours').value = configRes.welcomeHours === undefined ? 5 : configRes.welcomeHours;
 
@@ -239,6 +240,7 @@ $('saveWelcomeBtn').addEventListener('click', async () => {
       welcomeText: $('welcomeText').value,
       welcomeImageEntity: $('welcomeImageEntity').value,
       welcomeCaption: $('welcomeCaption').value,
+      welcomeCaption2: $('welcomeCaption2').value,
       welcomeHours: parseInt($('welcomeHours').value, 10) || 0,
       welcomeImage2Quelle: $('welcomeImage2Quelle').value,
       welcomeImageEntity2: $('welcomeImage2Quelle').value === 'entity' ? $('welcomeImageEntity2').value : '',

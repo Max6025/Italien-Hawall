@@ -248,6 +248,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeText: store.get('welcomeText') || '',
       welcomeImageEntity: store.get('welcomeImageEntity') || '',
       welcomeCaption: store.get('welcomeCaption') || 'Gast-WLAN',
+      welcomeCaption2: store.get('welcomeCaption2') || '',
       welcomeImageEntity2: store.get('welcomeImageEntity2') || '',
       // Das zweite Bild kann entweder aus Home Assistant kommen oder hochgeladen sein.
       welcomeImage2Quelle: store.get('welcomeImage2Quelle') || '',
@@ -270,7 +271,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       motionWakeEnabled, motionThreshold,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
-      welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeHours,
+      welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
       welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
@@ -305,6 +306,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (welcomeText !== undefined) store.set('welcomeText', String(welcomeText || ''));
     if (welcomeImageEntity !== undefined) store.set('welcomeImageEntity', String(welcomeImageEntity || ''));
     if (welcomeCaption !== undefined) store.set('welcomeCaption', String(welcomeCaption || ''));
+    if (welcomeCaption2 !== undefined) store.set('welcomeCaption2', String(welcomeCaption2 || ''));
     if (welcomeHours !== undefined) store.set('welcomeHours', Math.max(0, Number(welcomeHours) || 0));
     if (welcomeImageEntity2 !== undefined) store.set('welcomeImageEntity2', String(welcomeImageEntity2 || ''));
     if (welcomeImage2Quelle !== undefined) store.set('welcomeImage2Quelle', String(welcomeImage2Quelle || ''));

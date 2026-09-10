@@ -159,14 +159,19 @@
       <div id="welcomeImage2Result" class="result"></div>
     </div>
 
-    <p class="hint-text">Ist ein zweites Bild gesetzt, wechseln die beiden mit einer weichen
-      Überblendung ab.</p>
+    <p class="hint-text">Ist ein zweites Bild gesetzt, dreht sich der Bildrahmen wie ein Würfel
+      zum nächsten Bild.</p>
 
     <label style="margin-top:1rem;">Wechsel alle … Sekunden</label>
     <input type="number" id="welcomeImageSeconds" min="2" step="1" value="8" style="max-width:140px;">
 
     <label style="margin-top:1rem;">Bildunterschrift</label>
     <input type="text" id="welcomeCaption" placeholder="Gast-WLAN">
+
+    <label style="margin-top:1rem;">Bildunterschrift zweites Bild</label>
+    <input type="text" id="welcomeCaption2" placeholder="wie oben">
+    <p class="hint-text">Leer lassen, wenn für beide Bilder dieselbe Unterschrift gelten soll.
+      Sie wechselt mitten in der Drehung, während keine der beiden Seiten lesbar ist.</p>
 
     <label style="margin-top:1rem;">Anzeigedauer (Stunden)</label>
     <input type="number" id="welcomeHours" min="0" step="1" value="5" style="max-width:140px;">

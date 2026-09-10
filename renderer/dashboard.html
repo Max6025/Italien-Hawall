@@ -977,6 +977,7 @@ function ankunftsschirmPruefen() {
     ueberschrift: config.welcomeHeading || '',
     text: config.welcomeText || '',
     bildtext: config.welcomeCaption || '',
+    bildtext2: config.welcomeCaption2 || '',
     // Der Bildweg existiert bereits: /api/ha/media bedient auch image.*-Entitaeten.
     bildUrl: config.welcomeImageEntity
       ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity)}`

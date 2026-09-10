@@ -134,8 +134,16 @@
         '</div>' +
         '<div class="as-rechts">' +
           '<div class="as-bildrahmen">' +
-            '<img class="as-bild as-bild-a" alt="">' +
-            '<img class="as-bild as-bild-b" alt="">' +
+            // Vier Seiten, nicht zwei: Damit sich der Wuerfel IMMER in dieselbe Richtung
+            // dreht, muss nach einer Vierteldrehung die naechste Seite bereitstehen. Mit nur
+            // zwei Seiten muesste er zurueckdrehen -- das sieht aus wie ein Fehler, nicht wie
+            // ein Uebergang. Seite 0 und 2 zeigen Bild eins, Seite 1 und 3 Bild zwei.
+            '<div class="as-wuerfel">' +
+              '<img class="as-bild as-seite-0" alt="">' +
+              '<img class="as-bild as-seite-1" alt="">' +
+              '<img class="as-bild as-seite-2" alt="">' +
+              '<img class="as-bild as-seite-3" alt="">' +
+            '</div>' +
           '</div>' +
           '<div class="as-bildtext"></div>' +
         '</div>' +
@@ -209,20 +217,60 @@
    * Inhalte setzen. bildUrl darf leer sein -- dann verschwindet der Bildbereich ganz und
    * Überschrift und Text nehmen die Fläche ein. Kein Platzhalter, kein Hinweis.
    */
+  /**
+   * Was der Bildbereich zeigt -- ohne DOM, ohne Uhr, damit pruefbar.
+   *
+   * `kennung` ist der Kern der Sache: inhaltSetzen() wird bei JEDER Zustandsmeldung
+   * aufgerufen, nicht nur beim Aufbau. Ohne Vergleich begann der Bildwechsel jedes Mal von
+   * vorn -- Bild zwei erschien, die naechste Meldung ein paar Sekunden spaeter setzte hart
+   * zurueck und startete den Zaehler neu. Am Geraet sah das aus, als bliebe das zweite Bild
+   * nur drei Sekunden stehen, unabhaengig von der eingestellten Dauer.
+   */
+  function bildFolge(inhalt) {
+    const i = inhalt || {};
+    const bilder = [i.bildUrl, i.bildUrl2].filter(Boolean);
+    const texte = [i.bildtext || '', i.bildtext2 || i.bildtext || ''];
+    const sekunden = Number(i.wechselSekunden) > 0 ? Number(i.wechselSekunden) : 8;
+    // Vier Seiten: Bild eins auf 0 und 2, Bild zwei auf 1 und 3. So steht nach jeder
+    // Vierteldrehung die naechste Seite bereit und der Wuerfel dreht immer gleich herum.
+    const zweites = bilder[1] || bilder[0];
+    const seiten = bilder.length ? [bilder[0], zweites, bilder[0], zweites] : [];
+    return {
+      bilder,
+      seiten,
+      texte,
+      sekunden,
+      dreht: bilder.length > 1,
+      kennung: JSON.stringify([bilder, texte, sekunden])
+    };
+  }
+
+  /** Nach wie vielen Grad steht welche Seite vorn -- und welche Unterschrift gehoert dazu. */
+  function textFuerDrehung(texte, drehung) {
+    const t = Array.isArray(texte) && texte.length ? texte : [''];
+    const schritt = Math.round(-drehung / 90);
+    return t[((schritt % 2) + 2) % 2];
+  }
+
   Ankunftsschirm.prototype.inhaltSetzen = function (inhalt) {
     const esc = (global.DashboardRender && global.DashboardRender.esc) || (v => String(v == null ? '' : v));
     this.wurzel.querySelector('.as-ueberschrift').innerHTML = inlineMarkdown(inhalt.ueberschrift || '', esc);
     this.wurzel.querySelector('.as-text').innerHTML = markdown(inhalt.text || '', esc);
-    this.wurzel.querySelector('.as-bildtext').textContent = inhalt.bildtext || '';
 
     const rechts = this.wurzel.querySelector('.as-rechts');
-    const a = this.wurzel.querySelector('.as-bild-a');
-    const b = this.wurzel.querySelector('.as-bild-b');
-    const bilder = [inhalt.bildUrl, inhalt.bildUrl2].filter(Boolean);
+    const wuerfel = this.wurzel.querySelector('.as-wuerfel');
+    const bildtext = this.wurzel.querySelector('.as-bildtext');
+    const folge = bildFolge(inhalt);
+
+    // Siehe bildFolge(): unveraenderter Inhalt darf den laufenden Wechsel nicht zuruecksetzen.
+    if (this._bildKennung === folge.kennung && this._bildWechsel) return;
+    this._bildKennung = folge.kennung;
 
     clearInterval(this._bildWechsel);
-    if (!bilder.length) {
-      a.removeAttribute('src'); b.removeAttribute('src');
+    this._bildWechsel = null;
+
+    if (!folge.bilder.length) {
+      wuerfel.querySelectorAll('.as-bild').forEach(el => el.removeAttribute('src'));
       rechts.style.display = 'none';
       this.wurzel.classList.add('as-ohne-bild');
       return;
@@ -230,29 +278,34 @@
 
     rechts.style.display = '';
     this.wurzel.classList.remove('as-ohne-bild');
-    a.src = bilder[0];
-    b.src = bilder[1] || bilder[0];
-    a.classList.add('as-bild-vorn');
-    b.classList.remove('as-bild-vorn');
 
-    // Laedt ein Bild nicht (Entitaet weg, HA kurz nicht erreichbar), verschwindet der Bildbereich
-    // ganz -- kein Platzhalter, kein Hinweis.
-    const wegBeiFehler = () => {
-      if (!a.complete || a.naturalWidth === 0) {
-        rechts.style.display = 'none';
-        this.wurzel.classList.add('as-ohne-bild');
-      }
+    folge.seiten.forEach((url, i) => { wuerfel.querySelector('.as-seite-' + i).src = url; });
+
+    let drehung = 0;
+    wuerfel.style.setProperty('--drehung', '0deg');
+    bildtext.textContent = folge.texte[0];
+
+    // Laedt ein Bild nicht (Entitaet weg, HA kurz nicht erreichbar), verschwindet der
+    // Bildbereich ganz -- kein Platzhalter, kein Hinweis.
+    const erstes = wuerfel.querySelector('.as-seite-0');
+    erstes.onerror = () => {
+      rechts.style.display = 'none';
+      this.wurzel.classList.add('as-ohne-bild');
     };
-    a.onerror = wegBeiFehler;
 
-    if (bilder.length > 1) {
-      const sekunden = Number(inhalt.wechselSekunden) > 0 ? Number(inhalt.wechselSekunden) : 8;
-      let vorn = 0;
+    if (folge.dreht) {
       this._bildWechsel = setInterval(() => {
-        vorn = 1 - vorn;
-        a.classList.toggle('as-bild-vorn', vorn === 0);
-        b.classList.toggle('as-bild-vorn', vorn === 1);
-      }, sekunden * 1000);
+        drehung -= 90;
+        wuerfel.style.setProperty('--drehung', drehung + 'deg');
+        // Die Bildunterschrift wechselt in der Mitte der Drehung, wenn die alte Seite
+        // weggekippt und die neue noch nicht lesbar ist.
+        const naechster = textFuerDrehung(folge.texte, drehung);
+        bildtext.classList.add('as-bildtext-weg');
+        setTimeout(() => {
+          bildtext.textContent = naechster;
+          bildtext.classList.remove('as-bildtext-weg');
+        }, 450);
+      }, folge.sekunden * 1000);
     }
   };
 
@@ -267,6 +320,10 @@
   Ankunftsschirm.prototype.verbergen = function () {
     if (!this.sichtbar) return;
     clearInterval(this._bildWechsel);
+    // Ohne dies liefe der naechste inhaltSetzen()-Aufruf in die Kennungs-Abfrage und der
+    // Bildwechsel bliebe fuer immer stehen.
+    this._bildWechsel = null;
+    this._bildKennung = null;
     this.sichtbar = false;
     this.wurzel.classList.remove('as-sichtbar');
     this._animationStoppen();
@@ -324,7 +381,7 @@
     this.wurzel.classList.remove('ta-sichtbar');
   };
 
-  const api = { sollAnzeigen, markdown, inlineMarkdown, Ankunftsschirm, Terminankuendigung, ANZAHL_FORMEN, ANKUENDIGUNG_MS };
+  const api = { sollAnzeigen, markdown, inlineMarkdown, bildFolge, textFuerDrehung, Ankunftsschirm, Terminankuendigung, ANZAHL_FORMEN, ANKUENDIGUNG_MS };
   global.AnkunftsschirmModul = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
