@@ -574,7 +574,7 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .gate-title { font-size: clamp(.7rem, 2.2cqmin, 1.1rem); color: var(--muted); text-align: center; }
 .gate-buttons { display: flex; flex-wrap: wrap; gap: .6vh; justify-content: center; }
 .gate-btn {
-  flex: 1 1 40%; min-width: 0; padding: 1vh .6vh; border-radius: 12px; cursor: pointer;
+  flex: 1 1 40%; min-width: 0; min-height: 5vh; padding: 1vh .6vh; border-radius: 12px; cursor: pointer;
   border: 1px solid var(--card-border); background: var(--panel2); color: var(--text);
   font-family: inherit; font-size: clamp(.7rem, 2.4cqmin, 1.15rem); font-weight: 500;
 }
@@ -623,11 +623,15 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .night-overlay, .notify-overlay, #haErrorOverlay { transition: opacity .5s ease; }
 
 /* Klimakarte: Betriebsarten und Voreinstellungen */
-.climate-modes { display: flex; flex-wrap: wrap; gap: .4vh; justify-content: center; margin-top: .5vh; }
+.climate-modes { display: flex; flex-wrap: wrap; gap: .5vh; justify-content: stretch; margin-top: .6vh; }
 .climate-mode {
-  padding: .5vh .9vh; border-radius: 9px; cursor: pointer;
+  /* Fingergerecht statt zielgenau: Auf einem Wandpanel muss man Knoepfe treffen koennen, ohne
+     zu zielen. Mindesthoehe und Mindestbreite sorgen dafuer auch auf kleinen Karten. */
+  flex: 1 1 auto; min-width: 22%; min-height: 4.4vh;
+  padding: .7vh 1vh; border-radius: 11px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--card-border); background: var(--panel2); color: var(--muted);
-  font-family: inherit; font-size: clamp(.6rem, 2cqmin, .95rem);
+  font-family: inherit; font-size: clamp(.68rem, 2.4cqmin, 1.05rem); line-height: 1.1;
 }
 .climate-mode.aktiv { background: var(--text); color: var(--bg); border-color: transparent; font-weight: 600; }
 .climate-presets { margin-top: .5vh; display: flex; justify-content: center; }
@@ -665,3 +669,7 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   width: 100%; max-width: 12vh; height: 3.2vh; padding: 0; cursor: pointer;
   border: 1px solid var(--card-border); border-radius: 9px; background: transparent;
 }
+
+/* Alarmknoepfe ebenfalls fingergerecht -- sie standen bisher auf fester Schriftgroesse 1.1vh
+   in einem inline-Style und waren auf dem Panel kaum zu treffen. */
+.alarm-buttons button { min-height: 4.4vh; border-radius: 11px; font-size: clamp(.65rem, 2.2cqmin, 1rem) !important; }

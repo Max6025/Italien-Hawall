@@ -118,13 +118,20 @@ class Controller {
     const cfg = this.config();
     const inError = this.consecutiveFailures >= FAILURES_BEFORE_ERROR;
     const next = calendar.nextWindow(this.windows, now);
+    // Das laufende Anzeigefenster wird UNABHAENGIG von der Entscheidung ermittelt.
+    //
+    // Frueher stand hier decision.window -- und das ist nur gesetzt, wenn die Entscheidung
+    // tatsaechlich am Anzeigefenster haengt. Waehrend Karenzzeit, Pause oder Nachtsperre gewinnt
+    // eine andere Regel, und das Fenster verschwand aus dem Zustand, obwohl der Termin lief.
+    // Das Dashboard hielt es danach fuer einen neuen Termin und kuendigte ihn erneut an.
+    const aktiv = calendar.activeWindow(this.windows, now);
     return {
       configured: this.isConfigured(cfg),
       enabled: cfg.enabled,
       panelOn: decision.on,
       reason: decision.reason,
-      activeWindow: decision.window
-        ? { title: decision.window.title, start: decision.window.start.toISOString(), end: decision.window.end.toISOString() }
+      activeWindow: aktiv
+        ? { title: aktiv.title, start: aktiv.start.toISOString(), end: aktiv.end.toISOString() }
         : null,
       nextWindow: next
         ? { title: next.title, start: next.start.toISOString(), end: next.end.toISOString() }

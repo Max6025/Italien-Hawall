@@ -217,3 +217,32 @@ test('Ein fehlerhafter Leerlauf-Geber legt die Steuerung nicht lahm', () => {
   c.tick();
   assert.strictEqual(c.state.panelOn, false, 'faellt auf das normale Verhalten zurueck');
 });
+
+test('Das laufende Anzeigefenster steht auch waehrend Karenzzeit und Pause im Zustand', () => {
+  // Anlass: Waehrend der Karenzzeit haengt die Entscheidung nicht am Anzeigefenster, und der
+  // Zustand meldete deshalb activeWindow: null -- obwohl der Termin lief. Das Dashboard hielt
+  // es danach fuer einen neuen Termin und kuendigte ihn erneut an.
+  const now = new Date();
+  const fenster = windowAround(now, 120, 120);   // laeuft seit zwei Stunden
+  const c = controllerWith(FULL_CONFIG, fenster);
+
+  // Karenzzeit: Entscheidung ist "karenzzeit", nicht "anzeigefenster"
+  const zustandKarenz = c.buildState(c.decide(now), now);
+  assert.strictEqual(zustandKarenz.reason, 'karenzzeit');
+  assert.ok(zustandKarenz.activeWindow, 'das laufende Fenster fehlt im Zustand');
+  assert.strictEqual(zustandKarenz.activeWindow.title, 'Italien');
+
+  // Pause: dasselbe
+  c.startedAt = Date.now() - 2 * GRACE_MS;
+  c.pausedUntil = Date.now() + 60000;
+  const zustandPause = c.buildState(c.decide(now), now);
+  assert.strictEqual(zustandPause.reason, 'pause');
+  assert.ok(zustandPause.activeWindow, 'das laufende Fenster fehlt waehrend der Pause');
+});
+
+test('Ohne laufenden Termin bleibt activeWindow leer', () => {
+  const c = controllerWith(FULL_CONFIG, []);
+  c.startedAt = Date.now() - 2 * GRACE_MS;
+  const z = c.buildState(c.decide(new Date()), new Date());
+  assert.strictEqual(z.activeWindow, null);
+});

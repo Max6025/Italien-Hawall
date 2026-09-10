@@ -409,7 +409,12 @@ async function render() {
   const grid = $('grid');
   // Nicht neu aufbauen, waehrend jemand bedient -- sonst verschwindet der Regler unter dem
   // Finger. Der naechste Durchlauf holt es nach.
-  if (grid.children.length && wirdGeradeBedient()) return;
+  //
+  // ABER: Eine Bestaetigung nach dem Antippen muss durch. Sonst schaltet man auf "Kuehlen" und
+  // sieht zwoelf Sekunden lang weiter den alten Zustand -- der Schutz wuerde genau das
+  // verursachen, wogegen er gedacht war.
+  if (!aufbauErzwingen && grid.children.length && wirdGeradeBedient()) return;
+  aufbauErzwingen = false;
   grid.innerHTML = '';
   if (!layout.length) {
     grid.innerHTML = '<div class="empty">Keine Karten eingerichtet. /setup/editor.html auf einem anderen Gerät öffnen.</div>';
@@ -490,6 +495,7 @@ async function render() {
 // Statt eines grossen Umbaus auf punktuelles Aktualisieren: Solange jemand bedient, wird der
 // Neuaufbau verschoben. Nach zwoelf Sekunden Ruhe laeuft er nach.
 let bedienungBis = 0;
+let aufbauErzwingen = false;   // gesetzt nach einer Schaltaktion: diese Aktualisierung muss durch
 const BEDIEN_RUHE_MS = 12000;
 
 function bedienungGemerkt() { bedienungBis = Date.now() + BEDIEN_RUHE_MS; }
@@ -916,7 +922,12 @@ async function callService(domain, service, entity_id, service_data = {}) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ domain, service, service_data: { entity_id, ...service_data } })
   });
-  setTimeout(refresh, 400);
+  // Zweimal nachfassen: einmal schnell fuer die sofortige Rueckmeldung, einmal spaeter fuer
+  // Geraete, die traeger antworten (Klimaanlagen brauchen oft eine Sekunde, bis HA den neuen
+  // Zustand meldet). Beide Male erzwungen, damit der Bedienschutz sie nicht schluckt.
+  aufbauErzwingen = true;
+  setTimeout(() => { aufbauErzwingen = true; refresh(); }, 400);
+  setTimeout(() => { aufbauErzwingen = true; refresh(); }, 1600);
 }
 
 $('refreshBtn').addEventListener('click', refresh);
@@ -1003,7 +1014,13 @@ function applyControlState(state) {
     angekuendigtesFenster = start;
   } else if (start && start !== angekuendigtesFenster) {
     angekuendigtesFenster = start;
-    if (terminankuendigung) {
+    // Nur ankuendigen, wenn der Termin WIRKLICH gerade beginnt. Dass wir ein Fenster zum ersten
+    // Mal sehen, heisst nicht, dass es neu ist -- nach einem Update oder wenn eine andere Regel
+    // (Karenzzeit, Pause, Nachtsperre) es zwischenzeitlich verdeckt hat, ist der Beginn laengst
+    // vorbei. Eine Ankuendigung dafuer waere gelogen.
+    const beginn = new Date(start).getTime();
+    const geradeBegonnen = !isNaN(beginn) && Math.abs(Date.now() - beginn) < 3 * 60000;
+    if (terminankuendigung && geradeBegonnen) {
       ankunftsschirm && ankunftsschirm.verbergen();
       terminankuendigung.zeigen(fenster, ankunftsschirmPruefen);
       panelControlActive = !!state.configured;
