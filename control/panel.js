@@ -45,17 +45,35 @@ const ON_REASSERT_MS = 60 * 1000;
 
 const MOUSEEVENTF_MOVE = 0x0001;
 
+// Bricht die Zustellung an ein Fenster ab, das seine Nachrichtenschleife nicht bedient.
+const SMTO_ABORTIFHUNG = 0x0002;
+// Reichlich fuer ein antwortendes Fenster (gemessen: der gesamte Rundruf braucht ~55 ms) und
+// kurz genug, dass ein haengendes Fenster die Steuerung nicht sichtbar aufhaelt.
+const SMTO_TIMEOUT_MS = 1500;
+
 const MEMBERS = [
-  '[DllImport("user32.dll")] public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);',
+  '[DllImport("user32.dll")] public static extern int SendMessageTimeout(int hWnd, int hMsg, int wParam, int lParam, int fuFlags, int uTimeout, out int lpdwResult);',
   '[DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, System.IntPtr dwExtraInfo);'
 ].join(' ');
 
-const OFF_CALL = `[Wall.PanelCtl]::SendMessage(${HWND_BROADCAST}, ${WM_SYSCOMMAND}, ${SC_MONITORPOWER}, ${MONITOR_OFF}) | Out-Null`;
+// Der Rundruf an HWND_BROADCAST stellt die Nachricht JEDEM Fenster einzeln zu. Mit dem
+// gewoehnlichen SendMessage wartet der Aufruf dabei auf jede einzelne Antwort -- ein Fenster,
+// das gerade nicht pumpt, haelt ihn unbegrenzt fest. Das ist keine graue Theorie: Auf dem
+// Entwicklungsrechner lief `Panel-On` am 2026-09-10 reproduzierbar in die 30-Sekunden-Grenze
+// des Tests, waehrend derselbe Aufruf mit Zeitgrenze in 55 ms zurueckkam. Passiert das auf dem
+// Geraet, steht der dauerhaft offene PowerShell-Prozess in diesem einen Aufruf, und jeder
+// weitere Ein- und Ausschaltbefehl reiht sich dahinter ein, ohne je auszufuehren -- von aussen
+// nicht von 1.0.0 zu unterscheiden. Deshalb ausschliesslich SendMessageTimeout.
+const rundruf = (wert) => '$r = 0; [Wall.PanelCtl]::SendMessageTimeout('
+  + [HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, wert, SMTO_ABORTIFHUNG, SMTO_TIMEOUT_MS].join(', ')
+  + ', [ref]$r) | Out-Null';
+
+const OFF_CALL = rundruf(MONITOR_OFF);
 // Erst einschalten, dann echte Eingabe einspeisen, damit der Zustand haelt. Die Reihenfolge ist
 // wichtig: Die Eingabe setzt den Leerlaufzaehler zurueck und verhindert das sofortige erneute
 // Verdunkeln -- deshalb muss sie NACH dem Einschalten kommen.
 const ON_CALL = [
-  `[Wall.PanelCtl]::SendMessage(${HWND_BROADCAST}, ${WM_SYSCOMMAND}, ${SC_MONITORPOWER}, ${MONITOR_ON}) | Out-Null`,
+  rundruf(MONITOR_ON),
   `[Wall.PanelCtl]::mouse_event(${MOUSEEVENTF_MOVE}, 1, 0, 0, [System.IntPtr]::Zero)`,
   'Start-Sleep -Milliseconds 40',
   `[Wall.PanelCtl]::mouse_event(${MOUSEEVENTF_MOVE}, -1, 0, 0, [System.IntPtr]::Zero)`

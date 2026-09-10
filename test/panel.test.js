@@ -134,3 +134,41 @@ test('Einschalten wird wiederholt, Ausschalten bleibt unveraendert haeufig', () 
   assert.strictEqual(gesendet.filter(c => c === 'Panel-Off').length, 2,
     'das Nachschalten des Waechters muss bei JEDEM Aufruf senden');
 });
+
+// --- Der Rundruf braucht eine Zeitgrenze -------------------------------------------------------
+//
+// HWND_BROADCAST stellt die Nachricht jedem Fenster einzeln zu. `SendMessage` wartet dabei auf
+// jede Antwort; ein Fenster, das gerade nicht pumpt, haelt den Aufruf unbegrenzt fest. Gemessen
+// am 2026-09-10 auf dem Entwicklungsrechner: `SendMessage` kam nach 25 Sekunden nicht zurueck,
+// `SendMessageTimeout` mit SMTO_ABORTIFHUNG nach 55 Millisekunden. Auf dem Geraet wuerde das den
+// dauerhaft offenen PowerShell-Prozess in diesem Aufruf einfrieren -- alle weiteren Befehle
+// haengen dahinter, und das Panel reagiert nicht mehr.
+
+test('Der Rundruf laeuft nie ohne Zeitgrenze', () => {
+  assert.ok(!/SendMessage\(/.test(PRELUDE),
+    'SendMessage ohne Zeitgrenze kann am Rundruf haengenbleiben -- SendMessageTimeout verwenden');
+  assert.ok(PRELUDE.includes('SendMessageTimeout'), 'SendMessageTimeout fehlt');
+  assert.ok(!/SendMessage\(/.test(oneShotCommand(true)) && !/SendMessage\(/.test(oneShotCommand(false)),
+    'auch der Rueckfallweg darf nicht ohne Zeitgrenze rundrufen');
+});
+
+test('Die Zeitgrenze bricht bei einem haengenden Fenster ab', () => {
+  // SMTO_ABORTIFHUNG (2) -- ohne dieses Flag wartet Windows die volle Zeitgrenze bei JEDEM
+  // haengenden Fenster ab, statt sofort weiterzugehen.
+  const zeile = PRELUDE.split('\n').find(l => l.startsWith('function Panel-Off'));
+  const args = zeile.match(/SendMessageTimeout\(([^)]*)\)/)[1].split(',').map(a => a.trim());
+  assert.strictEqual(args[4], '2', 'SMTO_ABORTIFHUNG muss gesetzt sein');
+  const grenze = Number(args[5]);
+  assert.ok(grenze > 0 && grenze <= 5000, `unbrauchbare Zeitgrenze: ${args[5]}`);
+});
+
+test('Panel-Off kehrt in Sekundenbruchteilen zurueck', { skip: !isWindows && 'nur unter Windows' }, async () => {
+  // Der eigentliche Beweis: nicht der Text, sondern die Uhr. Gemessen wird Panel-OFF nicht --
+  // das wuerde den Bildschirm des Entwicklungsrechners schwarz machen -- sondern derselbe
+  // Rundruf mit MONITOR_ON, der gefahrlos ist.
+  const begonnen = Date.now();
+  const { out, err } = await runPowerShell(PRELUDE + '\nPanel-On\n"AUFRUF-OK"\n', 20000);
+  const gedauert = Date.now() - begonnen;
+  assert.match(out, /AUFRUF-OK/, `Der Aufruf brach ab. Fehler: ${JSON.stringify(err)}`);
+  assert.ok(gedauert < 10000, `Der Rundruf brauchte ${gedauert} ms -- das riecht nach einer fehlenden Zeitgrenze`);
+});

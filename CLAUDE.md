@@ -43,6 +43,16 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   es an. `panel.js` speist die Eingabe deshalb über `mouse_event` ein und bekräftigt das
   Einschalten jede Minute erneut. Beim **Ausschalten** darf keine Eingabe erzeugt werden, sonst
   weckt der Abschaltbefehl den Bildschirm sofort wieder.
+- **Rundruf nur mit Zeitgrenze.** `HWND_BROADCAST` stellt die Nachricht *jedem* Fenster einzeln
+  zu, und `SendMessage` wartet dabei auf jede einzelne Antwort. Ein Fenster, das gerade nicht
+  pumpt, haelt den Aufruf unbegrenzt fest. Gemessen am 2026-09-10 auf dem Entwicklungsrechner:
+  `SendMessage` kam nach 25 Sekunden nicht zurueck, `SendMessageTimeout` mit `SMTO_ABORTIFHUNG`
+  nach 55 Millisekunden. Auf dem Geraet friert das den dauerhaft offenen PowerShell-Prozess in
+  diesem einen Aufruf ein; jeder weitere Ein- und Ausschaltbefehl reiht sich dahinter ein und
+  wird nie ausgefuehrt -- von aussen nicht von 1.0.0 zu unterscheiden. `panel.js` verwendet
+  deshalb ausschliesslich `SendMessageTimeout`, und `test/panel.test.js` misst die Dauer, statt
+  nur den Text zu pruefen.
+
 - **Kein Here-String im PowerShell-Vorspann.** Über die Standardeingabe erkennt PowerShell das
   Ende von `@'...'@` nicht: Es puffert alles Folgende als Text, führt nie etwas aus und beendet
   sich am Dateiende mit Code 0 — ohne Ausgabe, ohne Fehlermeldung. Das Panel wird dann nie
@@ -90,7 +100,8 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-37 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz und den PowerShell-Vorspann.
+85 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
 Neue Regeln in `decide()` gehören durch einen Test abgedeckt — dort steckt die Logik. Aber die
