@@ -268,3 +268,59 @@ test('Unsinn im Zeitfenster laesst den Schirm nicht ewig stehen', () => {
       'erzwungenBis=' + JSON.stringify(v));
   });
 });
+
+// --- Testmodus --------------------------------------------------------------------------------
+//
+// Zum Ausprobieren: Nach ein paar Sekunden ohne Beruehrung kommt der Schirm von allein wieder,
+// so oft man will. Ohne das muesste man fuer jeden Blick in die Einstellungen gehen.
+
+const test_ = (ueberschreiben) => Object.assign({
+  aktiviert: false, anzeigefenster: null, testmodus: true, testSekunden: 10,
+  leerlaufSekunden: 0, jetzt: new Date()
+}, ueberschreiben);
+
+test('Im Testmodus kommt er nach der eingestellten Ruhezeit', () => {
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: 9.9 })), false);
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: 10 })), true);
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: 45 })), true);
+});
+
+test('Er kommt auch ohne Termin und ohne eingeschaltet zu sein', () => {
+  // Sonst braeuchte man zum Testen einen laufenden Termin -- und wer testen will, hat keinen.
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: 20, aktiviert: false, anzeigefenster: null })), true);
+});
+
+test('Ein Verworfen-Eintrag haelt ihn im Testmodus nicht auf', () => {
+  // Sonst waere der Testmodus nach dem ersten Antippen wirkungslos.
+  assert.strictEqual(sollAnzeigen(test_({
+    leerlaufSekunden: 20, anzeigefenster: FENSTER, verworfenFuer: START
+  })), true);
+});
+
+test('Frisch beruehrt bleibt er weg', () => {
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: 0 })), false);
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: 3 })), false);
+});
+
+test('Die Ruhezeit ist einstellbar', () => {
+  assert.strictEqual(sollAnzeigen(test_({ testSekunden: 30, leerlaufSekunden: 20 })), false);
+  assert.strictEqual(sollAnzeigen(test_({ testSekunden: 30, leerlaufSekunden: 31 })), true);
+});
+
+test('Ohne Angabe gelten zehn Sekunden', () => {
+  assert.strictEqual(sollAnzeigen(test_({ testSekunden: undefined, leerlaufSekunden: 11 })), true);
+  assert.strictEqual(sollAnzeigen(test_({ testSekunden: undefined, leerlaufSekunden: 5 })), false);
+});
+
+test('Ein fehlender Leerlaufwert zeigt nichts an, statt zu raten', () => {
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: undefined })), false);
+  assert.strictEqual(sollAnzeigen(test_({ leerlaufSekunden: NaN })), false);
+});
+
+test('Ohne Testmodus gilt weiter die normale Regel', () => {
+  // Der lange Leerlauf darf ausserhalb des Testmodus nichts bewirken.
+  assert.strictEqual(sollAnzeigen(basis({ testmodus: false, leerlaufSekunden: 9999 })), true);
+  assert.strictEqual(sollAnzeigen({
+    aktiviert: true, anzeigefenster: null, testmodus: false, leerlaufSekunden: 9999
+  }), false);
+});

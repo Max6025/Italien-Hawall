@@ -213,10 +213,22 @@
 
 
     <button id="showWelcomeBtn" style="margin-top:0.6rem; background:#6c757d;">Ankunftsschirm jetzt wieder anzeigen</button>
-    <p class="hint-text">Hebt das Wegtippen auf. Läuft gerade ein Termin und ist der Schirm
-      eingeschaltet, erscheint er innerhalb weniger Sekunden auf dem Display – zum Ausprobieren,
-      ohne auf den nächsten Termin zu warten.</p>
+    <p class="hint-text">Zeigt ihn sofort auf dem Display – auch ohne laufenden Termin und auch,
+      wenn er ausgeschaltet ist. Er bleibt zehn Minuten stehen oder bis jemand ihn wegtippt.</p>
     <div id="showWelcomeResult" class="result"></div>
+
+    <label style="display:flex; align-items:center; gap:0.6rem; margin-top:1.4rem;">
+      <input type="checkbox" id="welcomeTestmodus" style="width:auto; margin:0;">
+      Testmodus
+    </label>
+    <p class="hint-text">Solange der an ist, kommt der Ankunftsschirm nach jeder Ruhepause von
+      allein wieder – so oft man will, ohne laufenden Termin. Antippen blendet ihn aus, und
+      nach Ablauf der Zeit ist er wieder da.</p>
+    <label>Nach wie vielen Sekunden ohne Berührung</label>
+    <input type="number" id="welcomeTestSekunden" min="3" max="600" step="1" value="10" style="max-width:140px;">
+    <p class="hint-text"><strong>Nicht für den Dauerbetrieb.</strong> Solange der Testmodus läuft,
+      legt sich der Schirm immer wieder über das Dashboard – man kommt an die Karten nur in den
+      Pausen dazwischen. Nach dem Ausprobieren wieder abschalten.</p>
       </div>
     </details>
 

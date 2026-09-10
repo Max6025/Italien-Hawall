@@ -262,6 +262,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeHours: store.get('welcomeHours') === undefined ? 5 : store.get('welcomeHours'),
       welcomeDismissedFor: store.get('welcomeDismissedFor') || '',
       welcomeErzwungenBis: store.get('welcomeErzwungenBis') || 0,
+      welcomeTestmodus: !!store.get('welcomeTestmodus'),
+      welcomeTestSekunden: store.get('welcomeTestSekunden') || 10,
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
       hasSetupCode: !!store.get('setupCode')
       // Token bewusst NICHT an den Dashboard-Client zurueckgeben; HA-Aufrufe laufen ueber /api/ha/*
@@ -278,7 +280,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
-      welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle
+      welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle,
+      welcomeTestmodus, welcomeTestSekunden
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -316,6 +319,13 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (welcomeHours !== undefined) store.set('welcomeHours', Math.max(0, Number(welcomeHours) || 0));
     if (welcomeImageEntity2 !== undefined) store.set('welcomeImageEntity2', String(welcomeImageEntity2 || ''));
     if (welcomeImage2Quelle !== undefined) store.set('welcomeImage2Quelle', String(welcomeImage2Quelle || ''));
+    if (welcomeTestmodus !== undefined) store.set('welcomeTestmodus', !!welcomeTestmodus);
+    if (welcomeTestSekunden !== undefined) {
+      // Unter drei Sekunden liesse sich der Schirm nicht mehr wegtippen -- er waere
+      // sofort wieder da, und der Testmodus liesse sich nur noch von aussen abschalten.
+      const v = Math.max(3, Math.min(600, parseInt(welcomeTestSekunden, 10) || 10));
+      store.set('welcomeTestSekunden', v);
+    }
     if (welcomeImageSeconds !== undefined) store.set('welcomeImageSeconds', Math.max(2, Number(welcomeImageSeconds) || 8));
 
     // Mindestlaenge, damit das Feld nicht versehentlich leer bleibt und der Schutz still ausfaellt.

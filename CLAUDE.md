@@ -102,6 +102,11 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   rechts, obwohl beide auf `hidden` standen. Deshalb steht ganz oben in `dashboard.css` ein
   `[hidden] { display: none !important; }`. Wer diese Zeile entfernt, bricht jede
   Sichtbarkeitssteuerung, die über `hidden` läuft — und zwar lautlos.
+- **Eine neue Karte darf nie auf einer bestehenden landen.** `findFreeSpot()` gab bei vollem
+  Raster früher „die letzte Zeile als Notlösung" zurück — die neue Karte lag dann halb unter
+  einer anderen, und man musste erst merken, dass da zwei sind. Jetzt liefert es `null`, und
+  jeder Aufrufer muss das behandeln. Vorher wird noch mit kleineren Maßen gesucht, damit eine
+  große Vorgabegröße nicht daran scheitert, dass nur ein Feld frei ist.
 - **Das Raster hat feste sechs Zeilen, kein `flex: 1`.** Nur so ist der Streifen darunter
   (`.unterleiste`) vorhersagbar groß: Was das Raster übrig lässt, bekommt er. Mit `flex: 1`
   nähme das Raster die ganze Höhe und der Streifen wäre mal da, mal nicht. Die Karte dort
@@ -187,7 +192,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-187 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+195 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

@@ -168,6 +168,7 @@ async function loadConfig() {
   // Ohne eigenes Design greift das eingebaute "Ankunft" -- ab Werk aktiv, aber kein Zwang:
   // ein importiertes Design gewinnt, und "Design zuruecksetzen" landet wieder hier.
   DashboardRender.applyCustomTheme(config.customTheme || DashboardRender.DEFAULT_THEME);
+  testmodusTaktAnpassen();
   await loadDashboardOrder();
   ankunftsschirmPruefen();
 }
@@ -1029,6 +1030,9 @@ function ankunftsschirmPruefen() {
     verworfenFuer: config.welcomeDismissedFor || '',
     stunden: config.welcomeHours,
     erzwungenBis: config.welcomeErzwungenBis || 0,
+    testmodus: !!config.welcomeTestmodus,
+    testSekunden: config.welcomeTestSekunden,
+    leerlaufSekunden: (Date.now() - letzteBeruehrung) / 1000,
     jetzt: new Date()
   });
   if (!zeigen) return ankunftsschirm.verbergen();
@@ -1064,6 +1068,9 @@ function ankunftsschirmAufbauen() {
       // Auch ohne Fensterbeginn muss das Wegtippen gemeldet werden: Beim erzwungenen Anzeigen
       // gibt es keinen Termin, und ohne diese Meldung kaeme der Schirm beim naechsten
       // Konfigurationsabruf sofort zurueck -- er liesse sich nicht wegtippen.
+      // Im Testmodus wird NICHTS gemerkt: Der Schirm soll ja gleich wiederkommen. Wuerde
+      // hier verworfen, waere der Testmodus nach dem ersten Antippen wirkungslos.
+      if (config.welcomeTestmodus) { letzteBeruehrung = Date.now(); return; }
       if (fensterStart) config.welcomeDismissedFor = fensterStart;
       config.welcomeErzwungenBis = 0;
       try {
@@ -1080,6 +1087,30 @@ function ankunftsschirmAufbauen() {
 // Zeigt bei einem mehrtaegigen Termin, der wievielte Tag laeuft -- und hebt den letzten
 // hervor. Bei eintaegigen Terminen erscheint nichts: Da waere "Tag 1 von 1" kein Hinweis,
 // sondern Rauschen auf einer Wand, die man den ganzen Tag ansieht.
+// --- Testmodus fuer den Ankunftsschirm ---------------------------------------------------------
+//
+// Nach ein paar Sekunden ohne Beruehrung kommt der Schirm von allein wieder. Zum Ausprobieren
+// gedacht: So laesst sich das Aussehen immer wieder ansehen, ohne jedes Mal in die
+// Einstellungen zu gehen.
+//
+// Gezaehlt werden NUR echte Beruehrungen (pointerdown), keine Mausbewegungen. Das Aufwecken
+// des Panels wackelt mit dem Mauszeiger (panel.js) -- ein mousemove-Zaehler wuerde sich davon
+// selbst dauernd zuruecksetzen und der Schirm kaeme nie.
+let letzteBeruehrung = Date.now();
+let testmodusTakt = null;
+
+document.addEventListener('pointerdown', () => { letzteBeruehrung = Date.now(); }, { capture: true, passive: true });
+
+// Im Testmodus muss oft genug nachgesehen werden, damit "nach zehn Sekunden" auch ungefaehr
+// zehn Sekunden heisst -- der normale Takt liegt bei einer Minute. Ausserhalb des Testmodus
+// laeuft dieser Takt nicht: eine Sekunde Takt fuer nichts waere auf einem Wandpanel
+// verschwendete Rechenzeit.
+function testmodusTaktAnpassen() {
+  const anAn = !!(config && config.welcomeTestmodus);
+  if (anAn && !testmodusTakt) testmodusTakt = setInterval(ankunftsschirmPruefen, 1000);
+  if (!anAn && testmodusTakt) { clearInterval(testmodusTakt); testmodusTakt = null; }
+}
+
 function verlaufAnzeigen(verlauf) {
   const el = $('terminverlauf');
   if (!el) return;

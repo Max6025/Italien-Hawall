@@ -63,6 +63,8 @@ async function load() {
   $('welcomeCaption').value = configRes.welcomeCaption || '';
   $('welcomeCaption2').value = configRes.welcomeCaption2 || '';
   $('welcomeImageSeconds').value = configRes.welcomeImageSeconds === undefined ? 8 : configRes.welcomeImageSeconds;
+  $('welcomeTestmodus').checked = !!configRes.welcomeTestmodus;
+  $('welcomeTestSekunden').value = configRes.welcomeTestSekunden || 10;
   $('welcomeHours').value = configRes.welcomeHours === undefined ? 5 : configRes.welcomeHours;
 
   const bildRes = await fetch('/api/entities?domain=image').then(r => r.json()).catch(() => ({ ok: false }));
@@ -282,6 +284,8 @@ function alleFelder() {
     welcomeImage2Quelle: $('welcomeImage2Quelle').value,
     welcomeImageEntity2: $('welcomeImage2Quelle').value === 'entity' ? $('welcomeImageEntity2').value : '',
     welcomeImageSeconds: zahl('welcomeImageSeconds', 8),
+    welcomeTestmodus: $('welcomeTestmodus').checked,
+    welcomeTestSekunden: zahl('welcomeTestSekunden', 10),
 
     motionWakeEnabled: $('motionEnabled').checked,
     motionThreshold: zahl('motionThreshold', 0),

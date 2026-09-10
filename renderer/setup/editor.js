@@ -63,12 +63,19 @@ async function loadAll() {
 // festen Arbeitsflaeche liegt.
 function assignMissingPositions() {
   currentLayout.forEach(entry => {
+    // Die Karte der unteren Leiste hat absichtlich KEIN x/y. Bekaeme sie hier eines
+    // zugewiesen, waere sie ploetzlich eine Rasterkarte mit einem Platz, den sie nie
+    // benutzt -- und den sie niemandem wegnimmt, aber der Eintrag waere trotzdem falsch.
+    if (entry.unterleiste) return;
     if (!Number.isInteger(entry.x) || !Number.isInteger(entry.y)) {
       const type = entry.card_type || defaultCardType(entry.entity_id, statesById[entry.entity_id]);
       const span = clampSpan(entry.cols && entry.rows ? { cols: entry.cols, rows: entry.rows } : sizeToSpan(defaultSize(type)), type);
       const pos = findFreeSpot(span.cols, span.rows, type);
-      entry.cols = span.cols;
-      entry.rows = span.rows;
+      // Kein Platz mehr: Die Karte bleibt ohne Position stehen, statt eine andere zu
+      // ueberdecken. Beim naechsten Aufraeumen bekommt sie eine.
+      if (!pos) return;
+      entry.cols = pos.cols;
+      entry.rows = pos.rows;
       entry.x = pos.x;
       entry.y = pos.y;
     }
@@ -260,13 +267,34 @@ function collidesAt(entityId, x, y, cols, rows, type) {
   });
 }
 
+/**
+ * Der erste freie Platz fuer eine Karte dieser Groesse, oder null.
+ *
+ * Frueher wurde bei vollem Raster die letzte Zeile als "Notloesung" zurueckgegeben. Das legte
+ * die neue Karte einfach AUF eine vorhandene -- man druckte auf +, bekam eine Karte, die halb
+ * unter einer anderen lag, und musste erst merken, dass da zwei sind. Lieber ehrlich sagen,
+ * dass kein Platz mehr ist.
+ *
+ * Zweiter Versuch mit einer kleineren Karte: Eine grosse Vorgabegroesse soll nicht daran
+ * scheitern, dass nur noch ein Feld frei ist.
+ */
 function findFreeSpot(cols, rows, type) {
-  for (let y = 0; y <= MAX_ROWS - rows; y++) {
-    for (let x = 0; x <= 4 - cols; x++) {
-      if (!collidesAt(null, x, y, cols, rows, type)) return { x, y };
+  const suche = (c, r) => {
+    for (let y = 0; y <= MAX_ROWS - r; y++) {
+      for (let x = 0; x <= 4 - c; x++) {
+        if (!collidesAt(null, x, y, c, r, type)) return { x, y, cols: c, rows: r };
+      }
+    }
+    return null;
+  };
+  const min = minSpanFor(type);
+  for (let c = cols; c >= Math.max(1, min.cols); c--) {
+    for (let r = rows; r >= Math.max(1, min.rows); r--) {
+      const platz = suche(c, r);
+      if (platz) return platz;
     }
   }
-  return { x: 0, y: Math.max(0, MAX_ROWS - rows) }; // kein Platz mehr frei -- letzte Zeile als Notloesung
+  return null;
 }
 
 function clampAgainstOthers(entityId, x, y, cols, rows, type) {
@@ -1321,9 +1349,15 @@ function kartenEintragAnlegen(entity_id, type, settings) {
   } else {
     const span = clampSpan(sizeToSpan(defaultSize(type)), type);
     const pos = findFreeSpot(span.cols, span.rows, type);
+    if (!pos) {
+      $('picker').classList.remove('show');
+      alert('Kein Platz mehr im Raster. Erst eine Karte entfernen oder verkleinern – '
+        + 'oder die Karte in die untere Leiste legen.');
+      return;
+    }
     currentLayout.push({
       entity_id, order: currentLayout.length, card_type: type,
-      cols: span.cols, rows: span.rows, x: pos.x, y: pos.y, settings: settings || {}
+      cols: pos.cols, rows: pos.rows, x: pos.x, y: pos.y, settings: settings || {}
     });
   }
   markDirty();

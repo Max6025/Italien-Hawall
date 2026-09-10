@@ -45,6 +45,20 @@
     const jetztMs = (p.jetzt || new Date()).getTime();
     if (erzwungenBis && jetztMs < erzwungenBis) return true;
 
+    // Testmodus: Nach ein paar Sekunden ohne Beruehrung kommt der Schirm von allein wieder.
+    // Zum Ausprobieren gedacht -- so laesst sich das Aussehen immer wieder ansehen, ohne
+    // jedes Mal in die Einstellungen zu gehen. Schlaegt wie das erzwungene Anzeigen alles
+    // andere, sonst braeuchte man zum Testen einen laufenden Termin.
+    if (p.testmodus) {
+      const leerlauf = Number(p.leerlaufSekunden);
+      const schwelle = Number(p.testSekunden) > 0 ? Number(p.testSekunden) : 10;
+      if (Number.isFinite(leerlauf) && leerlauf >= schwelle) return true;
+      // Im Testmodus wird der Schirm NICHT dauerhaft verworfen -- er soll ja wiederkommen.
+      // Ohne dieses vorzeitige Ende griffe unten der Verworfen-Zustand und der Schirm bliebe
+      // fuer den Rest des Termins weg.
+      return false;
+    }
+
     if (!p.aktiviert) return false;
     const fenster = p.anzeigefenster;
     if (!fenster || !fenster.start) return false;
