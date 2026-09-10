@@ -126,3 +126,47 @@ test('Von Natur aus momentane Entitaeten werden nicht gepulst', () => {
   assert.strictEqual(D.serviceFuerEntitaet('cover.garagentor').impuls, false,
     'ein Rollladen faehrt und darf nicht mittendrin gestoppt werden');
 });
+
+// --- Muellfarben ------------------------------------------------------------------------------
+//
+// Die eingebauten Regeln raten deutsche Tonnenbezeichnungen. Wer einen Kalender mit anderen
+// Woertern hat, bekam ausnahmslos Grau und hatte kein Gegenmittel -- deshalb eigene Regeln.
+
+test('Die eingebauten Tonnenarten werden erkannt', () => {
+  assert.strictEqual(D.wasteColor('Biotonne'), '#6b8e23');
+  assert.strictEqual(D.wasteColor('Papier / Pappe'), '#4f7cff');
+  assert.strictEqual(D.wasteColor('Gelber Sack'), '#f0b429');
+  assert.strictEqual(D.wasteColor('Restmüll'), '#6b7280');
+});
+
+test('Grossschreibung ist egal', () => {
+  assert.strictEqual(D.wasteColor('BIOTONNE'), D.wasteColor('biotonne'));
+});
+
+test('Eine unbekannte Tonnenart bleibt grau', () => {
+  assert.strictEqual(D.wasteColor('Grüngut'), '#9ca3af');
+});
+
+test('Eine eigene Regel faengt genau die auf', () => {
+  const eigene = [{ muster: 'grüngut', farbe: '#123456' }];
+  assert.strictEqual(D.wasteColor('Grüngut Abfuhr', eigene), '#123456');
+});
+
+test('Eigene Regeln gehen vor den eingebauten', () => {
+  // Sonst waere "Biotonne Süd" nicht umfaerbbar -- die eingebaute bio-Regel griffe zuerst.
+  const eigene = [{ muster: 'biotonne süd', farbe: '#abcdef' }];
+  assert.strictEqual(D.wasteColor('Biotonne Süd', eigene), '#abcdef');
+  assert.strictEqual(D.wasteColor('Biotonne Nord', eigene), '#6b8e23');
+});
+
+test('Eine kaputte Regel legt die Karte nicht lahm', () => {
+  // Die Muster kommen aus einem Eingabefeld. Frueher waeren das regulaere Ausdruecke
+  // gewesen -- "(" haette dann eine Ausnahme geworfen und die ganze Karte verschluckt.
+  assert.doesNotThrow(() => D.wasteColor('Bio', [{ muster: '(' }, null, { farbe: '#fff' }]));
+  assert.strictEqual(D.wasteColor('Bio', [{ muster: '(' }]), '#6b8e23');
+});
+
+test('Ohne Titel wird nichts erraten', () => {
+  assert.strictEqual(D.wasteColor(''), '#9ca3af');
+  assert.strictEqual(D.wasteColor(null), '#9ca3af');
+});

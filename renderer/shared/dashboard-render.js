@@ -277,15 +277,35 @@
   // Ordnet einem Kalender-Termin-Titel eine Farbe nach deutscher Tonnenart zu -- rein
   // stichwortbasiert, damit es ohne Konfiguration mit den gaengigen Muellkalender-
   // Integrationen (z.B. Abfall.io) funktioniert.
-  function wasteColor(summary) {
+  // Die eingebauten Regeln decken die gaengigen Muellkalender ab. Sie sind aber nur eine
+  // Vermutung ueber deutsche Tonnenbezeichnungen: Wer "Gruengut" oder "Biotonne Sued" im
+  // Kalender stehen hat, bekam bisher ausnahmslos Grau und hatte kein Gegenmittel. Eigene
+  // Regeln werden deshalb ZUERST geprueft und gewinnen gegen die eingebauten.
+  const WASTE_REGELN = [
+    { muster: 'bio', farbe: '#6b8e23' },
+    { muster: 'papier', farbe: '#4f7cff' },
+    { muster: 'pappe', farbe: '#4f7cff' },
+    { muster: 'blau', farbe: '#4f7cff' },
+    { muster: 'gelb', farbe: '#f0b429' },
+    { muster: 'verpackung', farbe: '#f0b429' },
+    { muster: 'wertstoff', farbe: '#f0b429' },
+    { muster: 'glas', farbe: '#22c55e' },
+    { muster: 'sperrm', farbe: '#ef4444' },
+    { muster: 'rest', farbe: '#6b7280' }
+  ];
+  const WASTE_UNBEKANNT = '#9ca3af';
+
+  // Absichtlich Teilzeichenkette statt regulaerem Ausdruck: Die Muster kommen aus einem
+  // Eingabefeld. Ein Klammerfehler darf dort keine Ausnahme werfen, die die ganze Karte
+  // verschluckt -- und niemand tippt in ein Feld "Tonnenart" einen Ausdruck.
+  function wasteColor(summary, eigene) {
     const s = (summary || '').toLowerCase();
-    if (/bio/.test(s)) return '#6b8e23';
-    if (/papier|pappe|blau/.test(s)) return '#4f7cff';
-    if (/gelb|verpackung|wertstoff/.test(s)) return '#f0b429';
-    if (/glas/.test(s)) return '#22c55e';
-    if (/sperrm/.test(s)) return '#ef4444';
-    if (/rest/.test(s)) return '#6b7280';
-    return '#9ca3af';
+    const regeln = (Array.isArray(eigene) ? eigene : []).concat(WASTE_REGELN);
+    for (const r of regeln) {
+      const m = String((r && r.muster) || '').trim().toLowerCase();
+      if (m && s.includes(m)) return (r && r.farbe) || WASTE_UNBEKANNT;
+    }
+    return WASTE_UNBEKANNT;
   }
 
   // Formatiert ein Datum relativ ("Heute", "Morgen", sonst Wochentag + Datum)
@@ -659,7 +679,7 @@
       card.innerHTML = `
         <div class="row"><span class="icon">${ICONS.temperature}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${isNaN(numVal) ? (rawVal ?? '–') : numVal}${unit}</div>`;
+        <div class="value">${fmt(isNaN(numVal) ? (rawVal ?? '–') : numVal, unit)}</div>`;
     } else if (type === 'wind') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'km/h');
       const val = state ? state.state : '–';
@@ -727,15 +747,31 @@
       const solarW = toW(numOf(en.solar), unitOf(en.solar));
       const battRaw = toW(numOf(en.battery), unitOf(en.battery));
       const battSoc = en.batterySoc ? parseFloat(en.batterySoc.state) : null;
-      const battCharging = battRaw !== null && battRaw < 0;
+      // Welches Vorzeichen "laedt" bedeutet, ist keine Norm, sondern eine Entscheidung der
+      // jeweiligen Anlage. Passt sie nicht, floss die Energie auf dem Display in die falsche
+      // Richtung -- sichtbar, aber nicht als Fehler erkennbar.
+      const battInvers = !!settings.energyBatteryInvert;
+      const battCharging = battRaw !== null && (battInvers ? battRaw > 0 : battRaw < 0);
       const battW = battRaw !== null ? Math.abs(battRaw) : null;
       const fmtW = v => v === null ? '–' : (v >= 1000 ? (v / 1000).toFixed(2) + ' kW' : Math.round(v) + ' W');
       const homeW = (solarW || 0) + (gridW || 0) - (gridRetW || 0) + (battCharging ? -(battW || 0) : (battW || 0));
       const hasSolar = en.solar !== undefined;
       const hasBattery = en.battery !== undefined;
-      const solarActive = solarW !== null && solarW > 5;
-      const gridActive = (gridW !== null && gridW > 5) || (gridRetW !== null && gridRetW > 5);
-      const battActive = battW !== null && battW > 5;
+      // Ab wann eine Leitung als "fliesst" gilt. 5 W passten zu einem Zaehler mit ruhigem
+      // Nullpunkt; ein Wechselrichter, der nachts 30 W Eigenverbrauch meldet, laesst die
+      // Linie sonst die ganze Nacht leuchten.
+      const schwelleW = (settings.energyThreshold !== undefined && settings.energyThreshold !== ''
+        && Number.isFinite(Number(settings.energyThreshold)))
+        ? Math.abs(Number(settings.energyThreshold)) : 5;
+      const solarActive = solarW !== null && Math.abs(solarW) > schwelleW;
+      const gridActive = (gridW !== null && Math.abs(gridW) > schwelleW) || (gridRetW !== null && Math.abs(gridRetW) > schwelleW);
+      const battActive = battW !== null && battW > schwelleW;
+      const bez = {
+        solar: settings.energyLabelSolar || 'Solar',
+        netz: settings.energyLabelGrid || 'Netz',
+        haus: settings.energyLabelHome || settings.name || 'Haus',
+        batterie: settings.energyLabelBattery || 'Batterie'
+      };
       card.innerHTML = `
         <div class="ef-wrap">
           <svg class="ef-lines" viewBox="0 0 300 220" preserveAspectRatio="none">
@@ -747,23 +783,23 @@
           <div class="ef-node ef-solar">
             <span class="ef-icon">${ICONS.sun2}</span>
             <span class="ef-val">${fmtW(solarW)}</span>
-            <span class="ef-label">Solar</span>
+            <span class="ef-label">${esc(bez.solar)}</span>
           </div>` : ''}
           <div class="ef-node ef-grid">
             <span class="ef-icon">${ICONS.grid}</span>
             <span class="ef-val">${fmtW(gridW)}</span>
-            <span class="ef-label">Netz${gridRetW !== null && gridRetW > 5 ? ` (↑${fmtW(gridRetW)})` : ''}</span>
+            <span class="ef-label">${esc(bez.netz)}${gridRetW !== null && gridRetW > schwelleW ? ` (↑${fmtW(gridRetW)})` : ''}</span>
           </div>
           <div class="ef-node ef-home">
             <span class="ef-icon">${ICONS.home2}</span>
             <span class="ef-val">${fmtW(homeW)}</span>
-            <span class="ef-label">${esc(settings.name || 'Haus')}</span>
+            <span class="ef-label">${esc(bez.haus)}</span>
           </div>
           ${hasBattery ? `
           <div class="ef-node ef-battery">
             <span class="ef-icon">${ICONS.battery2}</span>
             <span class="ef-val">${fmtW(battW)}${battSoc !== null ? ' · ' + Math.round(battSoc) + '%' : ''}</span>
-            <span class="ef-label">${battW !== null ? (battCharging ? 'Lädt' : 'Entlädt') : 'Batterie'}</span>
+            <span class="ef-label">${battW !== null ? (battCharging ? 'Lädt' : 'Entlädt') : esc(bez.batterie)}</span>
           </div>` : ''}
         </div>`;
     } else if (type === 'media_player') {
@@ -783,7 +819,20 @@
       const sourceList = Array.isArray(attrs.source_list) ? attrs.source_list : [];
       const showSource = settings.mediaShowSource !== false && sourceList.length > 1;
       const duration = attrs.media_duration; // Sekunden, nur vorhanden wenn die Quelle das liefert
-      const position = attrs.media_position;
+      // media_position ist der Stand ZUM ZEITPUNKT media_position_updated_at, nicht jetzt.
+      // Ohne diese Korrektur zeigte der Balken bis zu 15 Sekunden Rueckstand -- so lange
+      // dauert es bis zum naechsten Aufbau -- und sprang dann.
+      const positionRoh = attrs.media_position;
+      const seitStand = (() => {
+        if (st !== 'playing' || !attrs.media_position_updated_at) return 0;
+        const t = new Date(attrs.media_position_updated_at).getTime();
+        if (!Number.isFinite(t)) return 0;
+        const d = (Date.now() - t) / 1000;
+        return d > 0 && d < 86400 ? d : 0;   // Unsinnige Zeitstempel lieber ignorieren
+      })();
+      const position = typeof positionRoh === 'number'
+        ? Math.min(typeof duration === 'number' ? duration : positionRoh + seitStand, positionRoh + seitStand)
+        : positionRoh;
       const showProgress = settings.mediaShowProgress !== false && typeof duration === 'number' && duration > 0 && typeof position === 'number';
       const fmtTime = s => { s = Math.max(0, Math.round(s)); const m = Math.floor(s / 60); const sec = s % 60; return `${m}:${String(sec).padStart(2, '0')}`; };
       const progressPct = showProgress ? Math.min(100, Math.round((position / duration) * 100)) : 0;
@@ -1014,13 +1063,15 @@
         });
       }
     } else if (type === 'waste') {
-      const events = (opts.waste || []).slice(0, 4);
+      const anzahlMuell = Math.max(1, Math.min(12, Number(settings.wasteCount) || 4));
+      const eigeneFarben = Array.isArray(settings.wasteColors) ? settings.wasteColors : [];
+      const events = (opts.waste || []).slice(0, anzahlMuell);
       const next = events[0];
       card.innerHTML = `
         <div class="row"><span class="icon">${ICONS.trash}</span><span class="name">${name}</span></div>
         ${next ? `
           <div class="waste-next">
-            <span class="waste-dot" style="background:${wasteColor(next.summary)}"></span>
+            <span class="waste-dot" style="background:${wasteColor(next.summary, eigeneFarben)}"></span>
             <div>
               <div class="waste-next-title">${esc(next.summary)}</div>
               <div class="waste-next-date">${wasteDateLabel(next.start)}</div>
@@ -1029,7 +1080,7 @@
           <div class="waste-list">
             ${events.slice(1).map(e => `
               <div class="waste-item">
-                <span class="waste-dot" style="background:${wasteColor(e.summary)}"></span>
+                <span class="waste-dot" style="background:${wasteColor(e.summary, eigeneFarben)}"></span>
                 <span class="waste-item-title">${esc(e.summary)}</span>
                 <span class="waste-item-date">${wasteDateLabel(e.start)}</span>
               </div>`).join('')}
@@ -1095,7 +1146,20 @@
       }
     } else if (type === 'forecast') {
       const isHourly = settings.forecastType === 'hourly';
-      const days = (opts.forecast || []).slice(0, isHourly ? 6 : 5);
+      // Fest 5 Tage / 6 Stunden passte zu genau einer Kartenbreite. Eine xl-Karte hat Platz
+      // fuer mehr, eine schmale fuer weniger.
+      const anzahlVorschau = Math.max(2, Math.min(12, Number(settings.forecastCount) || (isHourly ? 6 : 5)));
+      const days = (opts.forecast || []).slice(0, anzahlVorschau);
+      const zeigeRegen = !!settings.forecastRain;
+      const zeigeWind = !!settings.forecastWind;
+      // Home Assistant liefert je nach Integration mal precipitation, mal
+      // precipitation_probability -- und manchmal beides nicht.
+      const regenVon = (d) => {
+        if (typeof d.precipitation === 'number' && d.precipitation > 0) return Math.round(d.precipitation * 10) / 10 + ' mm';
+        if (typeof d.precipitation_probability === 'number') return Math.round(d.precipitation_probability) + '%';
+        return '';
+      };
+      const windVon = (d) => (typeof d.wind_speed === 'number' ? Math.round(d.wind_speed) + ' km/h' : '');
       const dayFmt = d => {
         const dt = new Date(d.datetime || d.date || d);
         return isHourly ? dt.toLocaleTimeString('de-DE', { hour: '2-digit' }) : dt.toLocaleDateString('de-DE', { weekday: 'short' });
@@ -1108,6 +1172,8 @@
               <div class="fc-label">${dayFmt(d)}</div>
               <span class="fc-icon">${ICONS[conditionIcon(d.condition)] || ICONS.cloudy}</span>
               <div class="fc-temps"><span class="fc-hi">${d.temperature !== undefined ? Math.round(d.temperature) + '°' : '–'}</span>${d.templow !== undefined ? `<span class="fc-lo">${Math.round(d.templow)}°</span>` : ''}</div>
+              ${zeigeRegen && regenVon(d) ? `<div class="fc-extra fc-rain">${esc(regenVon(d))}</div>` : ''}
+              ${zeigeWind && windVon(d) ? `<div class="fc-extra fc-wind">${esc(windVon(d))}</div>` : ''}
             </div>`).join('') : `<div class="graph-empty">${opts.forecastError || 'Keine Vorhersagedaten'}</div>`}
         </div>`;
     } else {
@@ -1343,6 +1409,7 @@
     sizeToSpan, minSpanFor, clampSpan, resolveSpan, thresholdColor,
     domainsForType, typesForEntity, renderClockNow, canOverlayOnPhoto, applyCustomTheme, esc,
     serviceFuerEntitaet,
+    wasteColor,
     DEFAULT_THEME
   };
   // Auch ausserhalb eines Browsers ladbar machen. Ohne das konnte kein einziger Test dieses

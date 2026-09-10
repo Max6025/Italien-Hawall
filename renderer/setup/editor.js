@@ -355,6 +355,11 @@ function onResizeStart(entityId, cardEl, startEvent) {
 }
 
 // --- Karten-Einstellungen ----------------------------------------------------------------
+// Der Farbwaehler kann kein "leer" darstellen. Dieser Merker haelt fest, dass der Nutzer
+// den Standard-Knopf gedrueckt hat -- sonst waere die Grundfarbe nach dem ersten Oeffnen der
+// Einstellungen unwiderruflich auf den Vorgabewert festgenagelt.
+let settingsBaseColorEntfernt = false;
+
 function settingsFieldsForType(type) {
   // humidity und climate fehlten hier, obwohl beide settings.suffix lesen -- das Feld war im
   // Editor schlicht nicht erreichbar.
@@ -373,7 +378,8 @@ function settingsFieldsForType(type) {
     climateOpts: type === 'climate',
     graphOpts: type === 'graph',
     coverOpts: type === 'cover',
-    lightOpts: type === 'light'
+    lightOpts: type === 'light',
+    wasteOpts: type === 'waste'
   };
 }
 
@@ -411,6 +417,7 @@ function openSettings(entityId) {
   settingsEntityId = entityId;
   settingsFields = fields;
   settingsThresholds = (settings.thresholds || []).map(t => ({ ...t }));
+  settingsBaseColorEntfernt = !settings.baseColor;
 
   $('settingsTitle').textContent = 'Einstellungen: ' + (settings.name || attrs.friendly_name || entityId);
 
@@ -432,6 +439,14 @@ function openSettings(entityId) {
       <label>Farbschwellen (z.B. ab 10 grün, ab 28 gelb)</label>
       <div id="thresholdList"></div>
       <button type="button" class="add-threshold" id="addThresholdBtn">+ Schwelle hinzufügen</button>
+      <label style="margin-top:0.8rem;">Grundfarbe (unterhalb der ersten Schwelle)</label>
+      <div style="display:flex; align-items:center; gap:0.8vh;">
+        <input type="color" id="setBaseColor" value="${settings.baseColor || '#4f7cff'}" style="width:6vh;">
+        <button type="button" id="baseColorReset" style="width:auto; padding:0 1.2vh; margin:0; background:#6c757d;">Standard</button>
+        <span style="font-size:1.1vh; color:var(--muted);">${settings.baseColor ? settings.baseColor : 'Standard (Themenfarbe)'}</span>
+      </div>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Die Karte las diese Farbe schon immer aus – nur schrieb sie bisher kein Feld.</p>
     `;
   }
   if (fields.navigateTarget) {
@@ -448,7 +463,21 @@ function openSettings(entityId) {
       <select id="setForecastType">
         <option value="daily" ${settings.forecastType !== 'hourly' ? 'selected' : ''}>Täglich</option>
         <option value="hourly" ${settings.forecastType === 'hourly' ? 'selected' : ''}>Stündlich</option>
-      </select>`;
+      </select>
+      <label>Anzahl Spalten (leer = 5 Tage bzw. 6 Stunden)</label>
+      <input type="number" id="setForecastCount" min="2" max="12" placeholder="automatisch" value="${settings.forecastCount ?? ''}">
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
+        <input type="checkbox" id="setForecastRain" style="width:auto; margin:0;" ${settings.forecastRain ? 'checked' : ''}>
+        Niederschlag anzeigen
+      </label>
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.4rem;">
+        <input type="checkbox" id="setForecastWind" style="width:auto; margin:0;" ${settings.forecastWind ? 'checked' : ''}>
+        Wind anzeigen
+      </label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Beides erscheint nur, wenn die Wetter-Integration die Werte auch liefert. Beim
+        Niederschlag zeigt die Karte Millimeter, falls vorhanden – sonst die
+        Wahrscheinlichkeit in Prozent.</p>`;
   }
   if (fields.energyEntities) {
     html += `
@@ -467,6 +496,47 @@ function openSettings(entityId) {
       <datalist id="entityList">
         ${allEntities.map(e => `<option value="${e.entity_id}">${e.name}</option>`).join('')}
       </datalist>
+      <label style="margin-top:1rem;">Ab welcher Leistung eine Linie leuchtet (W)</label>
+      <input type="number" id="setEnergyThreshold" min="0" step="any" placeholder="5" value="${settings.energyThreshold ?? ''}">
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        War fest auf 5 W. Meldet der Wechselrichter nachts Eigenverbrauch, leuchtet die Linie
+        sonst durch – dann hier höher setzen.</p>
+      <label style="display:flex; align-items:center; gap:0.6vh;">
+        <input type="checkbox" id="setEnergyBatteryInvert" style="width:auto; margin:0;" ${settings.energyBatteryInvert ? 'checked' : ''}>
+        Batterie-Vorzeichen umdrehen (positiv = lädt)
+      </label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Nur anhaken, wenn der Pfeil in die falsche Richtung zeigt. Welches Vorzeichen „lädt“
+        heißt, entscheidet jede Anlage selbst.</p>
+      <label>Beschriftungen (leer = Standard)</label>
+      <div class="row2">
+        <div><label style="font-size:1.1vh;">Solar</label>
+          <input type="text" id="setEnergyLabelSolar" placeholder="Solar" value="${(settings.energyLabelSolar || '').replace(/"/g, '&quot;')}"></div>
+        <div><label style="font-size:1.1vh;">Netz</label>
+          <input type="text" id="setEnergyLabelGrid" placeholder="Netz" value="${(settings.energyLabelGrid || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+      <div class="row2">
+        <div><label style="font-size:1.1vh;">Haus</label>
+          <input type="text" id="setEnergyLabelHome" placeholder="Haus" value="${(settings.energyLabelHome || '').replace(/"/g, '&quot;')}"></div>
+        <div><label style="font-size:1.1vh;">Batterie</label>
+          <input type="text" id="setEnergyLabelBattery" placeholder="Batterie" value="${(settings.energyLabelBattery || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Bisher diente der Anzeigename oben doppelt als Haus-Beschriftung – wer die Karte
+        umbenannte, benannte damit ungewollt das Haus um.</p>
+    `;
+  }
+  if (fields.wasteOpts) {
+    html += `
+      <label>Wie viele Termine anzeigen</label>
+      <input type="number" id="setWasteCount" min="1" max="12" placeholder="4" value="${settings.wasteCount ?? ''}">
+      <label style="margin-top:0.8rem;">Eigene Tonnenfarben</label>
+      <div id="wasteColorList"></div>
+      <button type="button" id="wasteAddColorBtn" style="margin-top:0.6rem;">+ Tonnenart hinzufügen</button>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.6vh 0 1vh;">
+        Ein Stichwort aus dem Termintitel genügt – Groß- und Kleinschreibung ist egal.
+        Eigene Regeln gehen vor den eingebauten (Bio, Papier, Gelb, Glas, Sperrmüll, Rest).
+        Was zu keiner Regel passt, bleibt grau.</p>
     `;
   }
   if (fields.mediaPlayerOpts) {
@@ -594,6 +664,45 @@ function openSettings(entityId) {
     $('addThresholdBtn').addEventListener('click', () => {
       settingsThresholds.push({ value: '', color: '#4f7cff' });
       renderThresholdList();
+    });
+    // Ein Farbwaehler kann nicht "nichts" bedeuten -- er zeigt immer irgendeine Farbe. Ohne
+    // diesen Knopf gaebe es keinen Weg zurueck zur Themenfarbe.
+    $('baseColorReset').addEventListener('click', () => {
+      settingsBaseColorEntfernt = true;
+      $('setBaseColor').value = '#4f7cff';
+      $('baseColorReset').nextElementSibling.textContent = 'Standard (Themenfarbe)';
+    });
+    $('setBaseColor').addEventListener('input', () => {
+      settingsBaseColorEntfernt = false;
+      $('baseColorReset').nextElementSibling.textContent = $('setBaseColor').value;
+    });
+  }
+
+  if (fields.wasteOpts) {
+    if (!Array.isArray(settings.wasteColors)) settings.wasteColors = [];
+    function renderWasteColorRows() {
+      const list = $('wasteColorList');
+      list.innerHTML = settings.wasteColors.map((r, i) => `
+        <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.6vh;">
+          <input type="text" class="wc-muster" data-idx="${i}" placeholder="Stichwort, z.B. Grüngut" value="${(r.muster || '').replace(/"/g, '&quot;')}" style="flex:1;">
+          <input type="color" class="wc-farbe" data-idx="${i}" value="${r.farbe || '#6b8e23'}" style="width:5vh; flex-shrink:0;">
+          <button type="button" class="wc-remove" data-idx="${i}" style="width:auto; padding:0 1.2vh; margin:0; background:#dc3545; flex-shrink:0;">×</button>
+        </div>
+      `).join('') || `<p style="font-size:1.1vh; color:var(--muted);">Keine eigenen Regeln – es gelten die eingebauten.</p>`;
+      list.querySelectorAll('.wc-muster').forEach(el => el.addEventListener('input', () => {
+        settings.wasteColors[+el.dataset.idx].muster = el.value; markDirty();
+      }));
+      list.querySelectorAll('.wc-farbe').forEach(el => el.addEventListener('input', () => {
+        settings.wasteColors[+el.dataset.idx].farbe = el.value; markDirty();
+      }));
+      list.querySelectorAll('.wc-remove').forEach(el => el.addEventListener('click', () => {
+        settings.wasteColors.splice(+el.dataset.idx, 1); markDirty(); renderWasteColorRows();
+      }));
+    }
+    renderWasteColorRows();
+    $('wasteAddColorBtn').addEventListener('click', () => {
+      settings.wasteColors.push({ muster: '', farbe: '#6b8e23' });
+      markDirty(); renderWasteColorRows();
     });
   }
 
@@ -840,6 +949,16 @@ $('settingsSave').addEventListener('click', () => {
     if (maxV !== '') settings.max = maxV; else delete settings.max;
     const cleaned = settingsThresholds.filter(t => t.value !== '' && t.value !== null && t.value !== undefined && !isNaN(t.value));
     if (cleaned.length) settings.thresholds = cleaned; else delete settings.thresholds;
+    if (settingsBaseColorEntfernt || !$('setBaseColor')) delete settings.baseColor;
+    else settings.baseColor = $('setBaseColor').value;
+  }
+  if (settingsFields.wasteOpts) {
+    const anz = $('setWasteCount') ? $('setWasteCount').value.trim() : '';
+    if (anz !== '') settings.wasteCount = Math.max(1, Math.min(12, parseInt(anz, 10) || 4));
+    else delete settings.wasteCount;
+    // Regeln ohne Stichwort wuerden auf jeden Titel passen bzw. auf keinen -- beides nutzlos.
+    const regeln = (settings.wasteColors || []).filter(r => String(r.muster || '').trim());
+    if (regeln.length) settings.wasteColors = regeln; else delete settings.wasteColors;
   }
   if (settingsFields.navigateTarget) {
     const targetSel = $('setTarget');
@@ -852,6 +971,11 @@ $('settingsSave').addEventListener('click', () => {
   }
   if (settingsFields.forecastType) {
     settings.forecastType = $('setForecastType') ? $('setForecastType').value : 'daily';
+    const anz = $('setForecastCount') ? $('setForecastCount').value.trim() : '';
+    if (anz !== '') settings.forecastCount = Math.max(2, Math.min(12, parseInt(anz, 10) || 5));
+    else delete settings.forecastCount;
+    settings.forecastRain = !!($('setForecastRain') && $('setForecastRain').checked);
+    settings.forecastWind = !!($('setForecastWind') && $('setForecastWind').checked);
   }
   if (settingsFields.energyEntities) {
     const grab = id => (($(id) && $(id).value.trim()) || '');
@@ -862,6 +986,13 @@ $('settingsSave').addEventListener('click', () => {
     if (solar) settings.solarEntity = solar; else delete settings.solarEntity;
     if (batt) settings.batteryEntity = batt; else delete settings.batteryEntity;
     if (battSoc) settings.batterySocEntity = battSoc; else delete settings.batterySocEntity;
+    const schwelle = grab('setEnergyThreshold');
+    if (schwelle !== '' && !isNaN(parseFloat(schwelle))) settings.energyThreshold = Math.abs(parseFloat(schwelle));
+    else delete settings.energyThreshold;
+    settings.energyBatteryInvert = !!($('setEnergyBatteryInvert') && $('setEnergyBatteryInvert').checked);
+    [['setEnergyLabelSolar', 'energyLabelSolar'], ['setEnergyLabelGrid', 'energyLabelGrid'],
+     ['setEnergyLabelHome', 'energyLabelHome'], ['setEnergyLabelBattery', 'energyLabelBattery']]
+      .forEach(([id, feld]) => { const v = grab(id); if (v) settings[feld] = v; else delete settings[feld]; });
   }
   if (settingsFields.mediaPlayerOpts) {
     settings.mediaArtBg = $('setMediaArtBg') ? $('setMediaArtBg').checked : true;

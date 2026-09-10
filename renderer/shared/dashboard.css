@@ -302,6 +302,11 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .card.type-forecast .fc-icon svg { width: clamp(1.8vh, 12cqmin, 4vh); height: clamp(1.8vh, 12cqmin, 4vh); }
 .card.type-forecast .fc-temps { font-size: clamp(1vh, 8cqmin, 2vh); }
 .card.type-forecast .fc-lo { color: var(--muted); margin-left: 0.4vh; }
+/* Niederschlag und Wind sind optional zugeschaltet. Bewusst klein und gedaempft: Sie sind
+   Beiwerk zu Symbol und Temperatur, nicht die Hauptaussage der Spalte. */
+.card.type-forecast .fc-extra { font-size: clamp(0.8vh, 5.5cqmin, 1.3vh); color: var(--muted);
+  line-height: 1.3; white-space: nowrap; }
+.card.type-forecast .fc-rain { color: #6ea8ff; }
 
 /* Screensaver: reduzierte Ansicht bei Inaktivitaet, grosse Uhrzeit + grosse Wetterkarten.
    Einblenden weich (Opacity-Transition nur in .show vorhanden), Ausblenden bewusst hart/
