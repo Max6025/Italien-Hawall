@@ -69,6 +69,22 @@
       <button id="createBtn">+ Anlegen</button>
     </div>
     <div id="result" class="result"></div>
+
+    <h1 style="margin-top:2.4rem;">Dashboard einspielen</h1>
+    <p class="note">Eine Datei aus „Exportieren“ – oder eine, die du selbst geschrieben hast.
+      Die Datei erklärt ihr Format selbst: Wer sie in einen Chat wirft und „bau mir noch eine
+      Karte für die Waschmaschine dazu“ sagt, hat damit alles beisammen, was zum Schreiben
+      einer gültigen Datei nötig ist.</p>
+    <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
+      <button id="importFileBtn" style="width:auto;">Datei wählen</button>
+      <button id="formatBtn" style="width:auto; background:#6c757d;">Format-Anleitung kopieren</button>
+    </div>
+    <label style="margin-top:0.9rem;">…oder hier einfügen</label>
+    <textarea id="importText" rows="6" placeholder='{ "format": "italien-wall-display/dashboard", … }'
+      style="width:100%; box-sizing:border-box; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.8rem;"></textarea>
+    <button id="importBtn">Einspielen</button>
+    <div id="importResult" class="result"></div>
   </div>
   </div>
   <script src="/shared/nav.js"></script>

@@ -24,6 +24,7 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `control/panel.js` | Panel per `SC_MONITORPOWER` schalten, über einen dauerhaft offenen PowerShell-Prozess |
 | `control/controller.js` | Zustandsautomat; die Rangfolge steht vollständig in `decide()` |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
+| `server/dashboard-austausch.js` | Dashboards als Datei aus- und eingeben; Prüfung beim Import |
 | `renderer/dashboard.html` | Anzeige; empfängt den Steuerungszustand per IPC, entscheidet nichts selbst |
 | `renderer/shared/ankunftsschirm.js` | Ankunftsschirm: `sollAnzeigen()` ist reine Entscheidung ohne DOM und ohne Uhr, der Rest ist Anzeige |
 | `renderer/shared/dashboard-render.js` | Kartenkatalog und Rendering; enthält auch das eingebaute Design `DEFAULT_THEME` |
@@ -94,6 +95,17 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   standardmäßig leer und lassen den Wert unverändert. Wer hier später auf „zwei Stellen ab
   Werk" umstellt, ändert stillschweigend jede Karte, die seit Jahren so hängt.
 
+- **Ein Export darf nichts enthalten, was nicht mitreist.** Foto-Karten speichern nur eine
+  Versionsnummer, das Bild liegt auf dem Gerät. Wer solche Felder mitexportiert, erzeugt
+  woanders Karten mit kaputten Bildverweisen — lautlos. `dashboard-austausch.js` entfernt sie
+  und **gibt zurück, was es entfernt hat**; diese Liste gehört dem Nutzer angezeigt, nicht
+  verschluckt. Beim Import gilt dasselbe in die andere Richtung.
+- **Die Austauschdatei trägt ihre Anleitung in sich.** Sie ist allein unterwegs — in einem
+  Chatfenster, in einer Mail, auf einem Stick; was dort nicht drinsteht, ist nicht da. Die
+  Liste der Kartenarten kommt aus `CARD_TYPES` und nicht aus einer zweiten Aufzählung, und ein
+  Test prüft, dass die Anleitung **genau** die Arten nennt, die der Import akzeptiert. Eine
+  Anleitung, die etwas vorschlägt, das beim Einspielen abgelehnt wird, ist schlimmer als keine.
+
 ## Design
 
 **Farbe ist Akzent, nicht Fläche.** Eine Karte bekommt Farbe ausschließlich über
@@ -133,7 +145,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-141 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+163 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

@@ -4,6 +4,11 @@ const fs = require('fs');
 const WebSocket = require('ws');
 const crypto = require('crypto');
 const calendar = require('../control/calendar');
+const austausch = require('./dashboard-austausch');
+// Das Render-Modul kennt die Kartenarten. Es laesst sich in Node laden (dafuer wurde es
+// seinerzeit vom Fenster geloest) -- so gibt es die Liste nur EINMAL, statt sie hier ein
+// zweites Mal zu pflegen und beim naechsten neuen Kartentyp zu vergessen.
+const { CARD_TYPES } = require('../renderer/shared/dashboard-render.js');
 
 // Domains, die keine sinnvollen Wall-Display-Karten sind (Helfer/System-Entitaeten)
 // -- werden weder im Editor angeboten noch als Karten dargestellt.
@@ -760,6 +765,45 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     store.set('dashboards', list);
     res.json({ ok: true });
     if (onConfigSaved) onConfigSaved();
+  });
+
+  // --- Dashboards aus- und eingeben ------------------------------------------------------------
+  //
+  // Eine Datei, die man weitergeben, sichern und in einem Chatfenster bearbeiten kann. Das
+  // Format und die Gruende stehen in server/dashboard-austausch.js.
+
+  app.get('/api/dashboards/:id/export', (req, res) => {
+    const list = store.get('dashboards') || [];
+    const d = list.find(x => x.id === req.params.id);
+    if (!d) return res.status(404).json({ ok: false, error: 'Dashboard nicht gefunden' });
+    const { datei, hinweise } = austausch.exportieren(d, CARD_TYPES);
+    res.json({ ok: true, datei, hinweise });
+  });
+
+  // Das Hauptdashboard liegt nicht in der Dashboard-Liste, sondern als 'layout' in der
+  // Konfiguration. Fuer den Export ist das ein Sonderfall, sonst waere ausgerechnet das
+  // wichtigste Dashboard das einzige, das man nicht mitnehmen kann.
+  app.get('/api/dashboard-haupt/export', (req, res) => {
+    const d = { name: store.get('title') || 'Hauptdashboard', type: 'cards', layout: store.get('layout') || [] };
+    const { datei, hinweise } = austausch.exportieren(d, CARD_TYPES);
+    res.json({ ok: true, datei, hinweise });
+  });
+
+  app.post('/api/dashboards/import', (req, res) => {
+    const ergebnis = austausch.importieren(req.body && req.body.datei, CARD_TYPES);
+    if (!ergebnis.ok) return res.status(400).json({ ok: false, fehler: ergebnis.fehler, warnungen: ergebnis.warnungen });
+    const list = store.get('dashboards') || [];
+    const id = 'db_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    list.push(Object.assign({ id }, ergebnis.dashboard));
+    store.set('dashboards', list);
+    res.json({ ok: true, id, name: ergebnis.dashboard.name, anzahl: ergebnis.dashboard.layout.length, warnungen: ergebnis.warnungen });
+    if (onConfigSaved) onConfigSaved();
+  });
+
+  // Die Anleitung auch einzeln -- wer ein Dashboard von Grund auf schreiben lassen will,
+  // braucht sie, ohne vorher eines exportiert zu haben.
+  app.get('/api/dashboard-format', (req, res) => {
+    res.json({ ok: true, format: austausch.FORMAT, version: austausch.VERSION, anleitung: austausch.anleitung(CARD_TYPES) });
   });
 
   // Liest HA's Energie-Dashboard-Konfiguration aus (Netz-/Solar-/Batterie-Entitaeten,
