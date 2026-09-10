@@ -95,6 +95,13 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   standardmäßig leer und lassen den Wert unverändert. Wer hier später auf „zwei Stellen ab
   Werk" umstellt, ändert stillschweigend jede Karte, die seit Jahren so hängt.
 
+- **`el.hidden` allein blendet hier nichts aus.** Der Browser bringt `[hidden] { display: none }`
+  nur im Benutzeragenten-Stylesheet mit, und das verliert gegen **jede** Regel in
+  `dashboard.css` — schon gegen eine Klassenregel mit `display: flex`. Genau so stand der
+  Zurück-Knopf auf dem Hauptdashboard und die Termin-Anzeige als leerer Glaskasten oben
+  rechts, obwohl beide auf `hidden` standen. Deshalb steht ganz oben in `dashboard.css` ein
+  `[hidden] { display: none !important; }`. Wer diese Zeile entfernt, bricht jede
+  Sichtbarkeitssteuerung, die über `hidden` läuft — und zwar lautlos.
 - **Der Weg zurück darf nie verschwinden.** Der Zurück-Knopf in der Kopfzeile ist seit dem
   Redesign ausgeblendet (`.statusbar { display: none }`), und die Reiter-Leiste am unteren Rand
   ist entfallen. Übrig bleibt `#zurueckKnopf` — er ist die **einzige** Rückkehr von einem
