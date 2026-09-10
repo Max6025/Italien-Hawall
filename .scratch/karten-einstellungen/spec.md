@@ -1,63 +1,89 @@
 # Karten: Einstellungen und Fehler
 
-Bestandsaufnahme vom 2026-09-10 ueber alle 27 Kartentypen. Fuer den zweiten Rutsch --
-im ersten wurden Theme, Ankunftsschirm, Groessenmodell, Kopfzeile und Tor-Card gebaut.
+Bestandsaufnahme vom 2026-09-10 ueber alle 28 Kartentypen. **Abgearbeitet in 1.5.0 bis 1.7.0.**
 
-## Ausgangslage
+## Ausgangslage (historisch)
 
-`settingsFieldsForType()` in `renderer/setup/editor.js:355` ist die EINZIGE Stelle, die je
-Kartentyp Felder aufbaut. Es gibt dort nur neun Feldgruppen: name, suffix, gaugeExtras,
+`settingsFieldsForType()` in `renderer/setup/editor.js` war die EINZIGE Stelle, die je
+Kartentyp Felder aufbaut, und kannte nur neun Feldgruppen: name, suffix, gaugeExtras,
 navigateTarget, forecastType, energyEntities, mediaPlayerOpts, photoUpload, quickTiles.
-Alles andere ist fest verdrahtet.
+Alles andere war fest verdrahtet. Heute sind es zwanzig.
 
-## Das sind FEHLER, keine fehlenden Einstellungen
+## Fehler — alle behoben
 
-Diese Punkte gehoeren getrennt behandelt -- sie kosten wenig und wirken sofort:
+| # | Fehler | Behoben in |
+|---|---|---|
+| 1 | Kein Escaping in Karteninhalten (`settings.name`, Muell-`summary`, Kachel-Beschriftungen, Select-Optionen gingen roh ins `innerHTML`; ein Termintitel mit `<` zerlegte die Karte) | 1.5.0 |
+| 2 | Schloss-Karte ohne Rueckfrage — ein Fehlgriff auf dem Wandpanel schloss die Tuer auf | 1.5.0 |
+| 3 | `waste` und `forecast`: Zwischenspeicher wurden nie geleert, froren beim App-Start ein | 1.5.0 |
+| 4 | `humidity`: las `settings.suffix`, fehlte aber in `withSuffix` — Feld im Editor unerreichbar | 1.5.0 |
+| 5 | `gauge`: `settings.baseColor` wurde gelesen, aber von keinem Feld je geschrieben | 1.6.0 |
+| 6 | Vollstaendiger Neuaufbau alle 15 s zerstoerte jede laufende Bedienung | 1.4.0/1.4.1 |
+| 7 | `media_player`: Fortschrittsbalken ignorierte `media_position_updated_at`, hinkte bis zu 15 s | 1.6.0 |
+| 8 | `light`: Regler auf 0 sendete `turn_on` mit 0 % statt `turn_off` | 1.5.0 |
+| 9 | `temperature`: Einheit ohne Leerzeichen angehaengt, als einzige Karte | 1.6.0 |
+| 10 | `photo`: beim Typwechsel und beim Loeschen blieb die Bilddatei verwaist liegen | 1.7.0 |
+| 11 | Ankunftsschirm: `inhaltSetzen()` setzte bei jeder Zustandsmeldung den Bildwechsel zurueck | 1.6.1 |
 
-1. **Kein Escaping in Karteninhalten.** `settings.name`, Muell-`summary`, Kachel-Beschriftungen
-   und Select-Optionen gehen roh in `innerHTML`. Ein Kalendertitel mit `<` zerlegt die Karte.
-   Betrifft direkt die Kalendersteuerung, wo Termintitel angezeigt werden.
-2. **Schloss-Karte ohne Rueckfrage.** Ein Fehlgriff auf dem Wandpanel schliesst die Tuer auf.
-   Auf einem Geraet, das Gaesten zugaenglich ist, ist das keine Kleinigkeit.
-3. **`waste` und `forecast`: Zwischenspeicher werden NIE geleert.** Nur `historyCache` laeuft
-   im 5-Minuten-Takt ab. Muelltermine und Wettervorhersage frieren beim App-Start ein und
-   veralten ueber Tage -- bei einem Geraet, das jetzt durchlaeuft, garantiert sichtbar.
-4. **`humidity`: Einzeiler.** Die Karte liest `settings.suffix`, aber `humidity` fehlt in der
-   `withSuffix`-Liste (`editor.js:356`) -- das Feld ist im Editor nicht erreichbar.
-5. **`gauge`: tote Einstellung.** `buildCard` liest `settings.baseColor`, kein Editor-Feld
-   schreibt es je.
-6. **Vollstaendiger Neuaufbau alle 15 s** (`grid.innerHTML = ''`). Jede Interaktion --
-   Lautstaerkeregler, offenes Auswahlmenue, Positions-Slider -- wird mittendrin zerstoert.
+## Einstellungen — alle nachgeruestet
 
-## Die fuenf groessten Luecken bei den Einstellungen
+**waste** (1.6.0) — eigene Tonnenfarben, gehen den eingebauten vor; Anzahl der Termine.
+Bewusst Teilzeichenkette statt regulaerem Ausdruck: Die Muster kommen aus einem Eingabefeld.
 
-1. **waste** -- Zeitraum (60 Tage), Anzahl (4) und Tonnenfarben hart codiert; unbekannte
-   Tonnenarten werden ausnahmslos grau, ohne Gegenmittel.
-2. **graph** -- `hours=24` an zwei Stellen fest; keine Achsengrenzen, keine Zeitachse, keine
-   Farbwahl. Die Bereichsbeschriftung stammt aus Rohdaten, die Kurve ist geglaettet.
-3. **alarm** -- drei feste Knoepfe, kein Code-Feld. Bei `code_arm_required` passiert beim
-   Druck nichts, ohne Fehlermeldung. `armed_night` wird angezeigt, aber nicht schaltbar.
-4. **climate** -- Schrittweite fest 0,5, Einheit hart `'°C'`; `target_temp_step`, `min_temp`
-   und `max_temp` werden ignoriert. Kein HVAC-Modus, kein Preset.
-5. **energy** -- Aktiv-Schwelle 5 W, nur kW-Umrechnung, feste Beschriftungen, kein
-   Vorzeichen-Umschalter. Passt die Konvention der Anlage nicht, fliesst die Energie auf dem
-   Display in die falsche Richtung.
+**graph** (1.5.0) — Zeitraum, Achsengrenzen, Zeitangabe in der Bildunterschrift.
 
-## Weitere Karten mit Handlungsbedarf
+**alarm** (1.5.0) — Code-Eingabe abhaengig von `code_format`/`code_arm_required`, Knoepfe
+abhaengig von `supported_features`.
 
-- **cover**: kein Positions-Slider, obwohl `current_position` angezeigt wird
-- **media_player**: Fortschrittsbalken ignoriert `media_position_updated_at`, bis zu 15 s falsch
-- **fan**: Slider-Schritt fest 10, ignoriert `percentage_step`
-- **light**: kein Farb-/Farbtemperaturregler; Slider auf 0 sendet `turn_on` mit 0 % statt `turn_off`
-- **select**: Dropdown wird bei jedem Refresh neu gebaut, schliesst sich unter der Hand
-- **temperature**: Einheit ohne Leerzeichen angehaengt, inkonsistent zu allen anderen Karten
-- **radar**: Bildwechsel fest 5 Minuten, keine Animation
-- **forecast**: Anzahl fest 5 Tage / 6 Stunden, kein Niederschlag, kein Wind
-- **clock**: im Editor gar nicht waehlbar (`PICKER_TYPES` filtert sie raus), Locale hart `de-DE`
-- **photo**: nur ein Bild, keine Diashow; beim Typwechsel bleibt die Datei verwaist liegen
-- **quicktiles**: nur `media_player.select_source`, kein Skript, keine Szene
+**climate** (1.5.0) — `hvac_modes`, `preset_modes`, `target_temp_step`, `min_temp`, `max_temp`
+kommen vom Geraet statt fest verdrahtet.
 
-## Querschnitt
+**energy** (1.6.0) — Aktiv-Schwelle, Batterie-Vorzeichen umschaltbar, vier freie
+Beschriftungen. Der Anzeigename diente vorher doppelt als Haus-Beschriftung.
 
-Kein einziger Kartentyp hat eine Einstellung fuer Nachkommastellen, Symbol oder
-Aktualisierungsintervall.
+**cover** (1.5.0) — Positions- und Neigungsregler, abhaengig von `supported_features`.
+
+**light** (1.5.0) — Farbtemperatur und Farbwahl, abhaengig von `supported_color_modes`.
+
+**forecast** (1.6.0) — Spaltenzahl, Niederschlag, Wind.
+
+**fan** (1.5.0) — Schrittweite aus `percentage_step`.
+
+**select** (1.6.0) — durch den Bedien-Schutz abgedeckt: Ein fokussiertes Auswahlmenue haelt
+den Neuaufbau auf.
+
+**radar** (1.7.0) — Bildwechsel-Intervall, war fest auf fuenf Minuten.
+
+**clock** (1.7.0) — Sprache/Region, 12/24 Stunden, Sekunden, Datum ausblendbar. Vorher hart
+`de-DE`. Im Editor waehlbar seit 1.5.0.
+
+**photo** (1.7.0) — bis zu acht Bilder als Diashow mit einstellbarem Wechsel. Bild 1 behaelt
+die Speicher-ID ohne Nummer, damit bestehende Karten ihr Bild behalten.
+
+**quicktiles** (1.7.0) — Kacheln loesen auch Skripte und Szenen aus, nicht nur
+`media_player.select_source`. Kacheln ohne `art`-Feld gelten weiter als Quellenwahl.
+
+**gate** (1.5.0) — freie Knopfliste, Meldetext, Taster-Verhalten mit Schalter-Ausnahme.
+
+## Querschnitt (1.7.0)
+
+- **Nachkommastellen** fuer alle Karten mit einem grossen Zahlenwert. Ohne Einstellung bleibt
+  der Wert unveraendert — bewusst kein Standard-Runden, sonst haette dieses Update
+  stillschweigend jede bestehende Karte geaendert. Gesetzt wird deutsch formatiert.
+- **Symbol** frei waehlbar mit Vorschau, ausser bei Karten ohne eigenes Symbol (Uhr, Foto,
+  Kacheln, Energiefluss, Media Player, Schalter mit eigenem Zustandssymbol).
+
+## Bewusst NICHT gebaut
+
+**Aktualisierungsintervall je Karte.** Das Raster ruft alle Zustaende in einer einzigen
+Abfrage ab und baut sich als Ganzes neu auf; eine Karte, die fuer sich pollt, gaebe es dafuer
+nicht. Ein Feld „alle X Sekunden" waere an den meisten Karten wirkungslos — eine Einstellung,
+die nichts tut, ist schlimmer als keine. Wo ein eigener Takt wirklich existiert, ist er
+einstellbar: Regenradar (Bild), Foto (Diashow), Ankunftsschirm (Bildwechsel). Muelltermine und
+Wettervorhersage haben feste Zwischenspeicher-Zeiten (6 h bzw. 30 min), die zu den Daten
+passen und keinen Regler brauchen.
+
+**Reihenfolge der Fotos aendern.** Die Bilder haengen an ihrer Position, nicht an einer
+eigenen Kennung. Umsortieren hiesse serverseitig umhaengen, und dafuer gibt es keine Route.
+Entfernen laesst sich deshalb nur das letzte Bild — ein Knopf, der still Bilder verliert,
+waere schlimmer als keiner.

@@ -744,3 +744,18 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 /* Alarmknoepfe ebenfalls fingergerecht -- sie standen bisher auf fester Schriftgroesse 1.1vh
    in einem inline-Style und waren auf dem Panel kaum zu treffen. */
 .alarm-buttons button { min-height: 4.4vh; border-radius: 11px; font-size: clamp(.65rem, 2.2cqmin, 1rem) !important; }
+
+
+/* Foto-Diashow: zwei oder mehr Ebenen, von denen immer genau eine sichtbar ist. Ein harter
+   Wechsel des background-image blitzt weiss auf, solange das naechste Bild noch laedt. */
+.card.type-photo .foto-ebene {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+  opacity: 0; transition: opacity 1.4s ease;
+  border-radius: inherit;
+}
+.card.type-photo .foto-ebene.foto-vorn { opacity: 1; }
+.card.type-photo .photo-card-label { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .card.type-photo .foto-ebene { transition: none; }
+}

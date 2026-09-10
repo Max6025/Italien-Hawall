@@ -231,7 +231,26 @@ function clampAgainstOthers(entityId, x, y, cols, rows, type) {
   return { cols: c, rows: r };
 }
 
+// Die Bilder einer Foto-Karte liegen auf der Platte, nicht im Layout. Verschwindet die Karte
+// -- geloescht oder auf einen anderen Typ umgestellt -- blieben sie bisher liegen: unsichtbar,
+// unauffindbar, und bei Urlaubsfotos in voller Aufloesung schnell dreistellig in Megabyte.
+async function fotosWegraeumen(entry) {
+  if (!entry || entry.card_type !== 'photo') return;
+  const st = entry.settings || {};
+  const anzahl = Array.isArray(st.photoBilder) ? st.photoBilder.length : (st.photoVersion ? 1 : 0);
+  for (let n = 0; n < anzahl; n++) {
+    const id = n === 0 ? entry.entity_id : entry.entity_id + '__' + (n + 1);
+    // Fehler hier duerfen den Loeschvorgang nicht aufhalten -- die Karte soll weg, auch wenn
+    // die Datei schon nicht mehr da war.
+    try {
+      await fetch(`/api/photo-card/${encodeURIComponent(id)}/background/remove`, { method: 'POST' });
+    } catch (e) { /* Datei war ohnehin nicht mehr da */ }
+  }
+}
+
 function removeEntity(id) {
+  const entry = currentLayout.find(l => l.entity_id === id);
+  fotosWegraeumen(entry);
   currentLayout = currentLayout.filter(l => l.entity_id !== id);
   markDirty();
   render();
@@ -240,6 +259,7 @@ function removeEntity(id) {
 function changeType(id, newType) {
   const entry = currentLayout.find(l => l.entity_id === id);
   if (!entry) return;
+  if (entry.card_type === 'photo' && newType !== 'photo') fotosWegraeumen(entry);
   entry.card_type = newType;
   const span = clampAgainstOthers(id, entry.x || 0, entry.y || 0, sizeToSpan(defaultSize(newType)).cols, sizeToSpan(defaultSize(newType)).rows, newType);
   entry.cols = span.cols;
@@ -364,7 +384,16 @@ function settingsFieldsForType(type) {
   // humidity und climate fehlten hier, obwohl beide settings.suffix lesen -- das Feld war im
   // Editor schlicht nicht erreichbar.
   const withSuffix = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure', 'humidity', 'climate'];
+  // Nachkommastellen ergeben nur dort Sinn, wo ueberhaupt eine Zahl gross dasteht.
+  const mitZahl = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure', 'humidity'];
+  // Karten ohne eigenes Symbol (Uhr, Foto, Kacheln, Energiefluss, Media Player) haben nichts
+  // zu tauschen -- ein Auswahlfeld dort waere eine Einstellung ohne Wirkung.
+  const ohneSymbol = ['clock', 'photo', 'quicktiles', 'energy', 'media_player', 'navigate', 'gate', 'light', 'switch', 'climate', 'cover', 'lock', 'alarm'];
   return {
+    decimals: mitZahl.includes(type),
+    iconWahl: !ohneSymbol.includes(type),
+    radarOpts: type === 'radar',
+    clockOpts: type === 'clock',
     name: type !== 'navigate',
     suffix: withSuffix.includes(type),
     gaugeExtras: type === 'gauge',
@@ -429,6 +458,50 @@ function openSettings(entityId) {
   if (fields.suffix) {
     html += `<label>Einheit / Suffix (leer = automatisch${attrs.unit_of_measurement ? ': ' + attrs.unit_of_measurement : ''})</label>
       <input type="text" id="setSuffix" value="${settings.suffix || ''}" placeholder="${attrs.unit_of_measurement || ''}">`;
+  }
+  if (fields.decimals) {
+    html += `<label>Nachkommastellen (leer = Wert unverändert übernehmen)</label>
+      <input type="number" id="setDecimals" min="0" max="6" placeholder="unverändert" value="${settings.decimals ?? ''}">
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Bisher stand ein Sensor, der 21.34567 meldet, genau so auf der Wand. Leer bedeutet
+        weiterhin unverändert – damit sich mit diesem Update keine bestehende Karte still ändert.
+        Gesetzt wird deutsch formatiert: 1.234,5 statt 1234.5.</p>`;
+  }
+  if (fields.iconWahl) {
+    const namen = (window.DashboardRender && DashboardRender.symbolNamen) ? DashboardRender.symbolNamen() : [];
+    html += `<label>Symbol (leer = passend zum Kartentyp)</label>
+      <select id="setIcon">
+        <option value="">Standard</option>
+        ${namen.map(n => `<option value="${n}" ${settings.icon === n ? 'selected' : ''}>${n}</option>`).join('')}
+      </select>
+      <div id="iconVorschau" style="margin:0.6vh 0 1vh; width:3.4vh; height:3.4vh; color:var(--fg);"></div>`;
+  }
+  if (fields.radarOpts) {
+    html += `<label>Bild neu laden alle … Sekunden</label>
+      <input type="number" id="setRadarSeconds" min="5" max="3600" placeholder="300" value="${settings.radarSeconds ?? ''}">
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        War fest auf 5 Minuten – passend zu Regenradar-Bildern, die genau so oft erneuert
+        werden. Eine Kamera am Tor will man häufiger sehen.</p>`;
+  }
+  if (fields.clockOpts) {
+    html += `<label>Sprache / Region</label>
+      <input type="text" id="setClockLocale" placeholder="de-DE" value="${settings.clockLocale || ''}">
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        War fest auf de-DE. Beispiele: <code>de-DE</code>, <code>it-IT</code>, <code>en-GB</code>.</p>
+      <label>Stundenformat</label>
+      <select id="setClockHour12">
+        <option value="" ${settings.clockHour12 === undefined || settings.clockHour12 === '' ? 'selected' : ''}>Automatisch (nach Sprache)</option>
+        <option value="false" ${settings.clockHour12 === false ? 'selected' : ''}>24 Stunden</option>
+        <option value="true" ${settings.clockHour12 === true ? 'selected' : ''}>12 Stunden (AM/PM)</option>
+      </select>
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
+        <input type="checkbox" id="setClockSeconds" style="width:auto; margin:0;" ${settings.clockSeconds ? 'checked' : ''}>
+        Sekunden anzeigen
+      </label>
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.4rem;">
+        <input type="checkbox" id="setClockNoDate" style="width:auto; margin:0;" ${settings.clockNoDate ? 'checked' : ''}>
+        Datum ausblenden
+      </label>`;
   }
   if (fields.gaugeExtras) {
     html += `
@@ -546,15 +619,15 @@ function openSettings(entityId) {
   }
   if (fields.photoUpload) {
     html += `
-      <label>Bild</label>
-      <div class="bg-upload-bar" id="photoUploadBar" style="display:flex; align-items:center; gap:0.8vh;">
-        <img id="photoPreview" class="bg-preview" style="display:none; height:5vh; border-radius:6px;">
-        <span id="photoNoneText" style="font-size:1.2vh; color:var(--muted);">Kein Bild gesetzt</span>
-        <input type="file" id="photoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
-        <button type="button" id="photoUploadBtn">Bild wählen</button>
-        <button type="button" id="photoRemoveBtn" style="display:none; background:#6c757d;">Entfernen</button>
-        <span id="photoResult" style="font-size:1.2vh;"></span>
-      </div>
+      <label>Bilder</label>
+      <div id="photoSlots"></div>
+      <button type="button" id="photoAddBtn" style="margin-top:0.6rem;">+ Bild hinzufügen</button>
+      <input type="file" id="photoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+      <span id="photoResult" style="font-size:1.2vh;"></span>
+      <label style="margin-top:1rem;">Bildwechsel alle … Sekunden</label>
+      <input type="number" id="setPhotoSeconds" min="3" max="3600" placeholder="20" value="${settings.photoSeconds ?? ''}">
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Gilt erst ab dem zweiten Bild. Mit einem Bild bleibt es stehen wie bisher.</p>
       <p style="font-size:1.1vh; color:var(--muted);">Auf diesem Foto dürfen Media-Player- und Wetter-Karten überlappend platziert werden (bekommen dabei automatisch einen Glas-Effekt).</p>
     `;
   }
@@ -563,8 +636,15 @@ function openSettings(entityId) {
       <label>Kacheln</label>
       <div id="qtTileList"></div>
       <button type="button" id="qtAddTileBtn" style="margin-top:0.6rem;">+ Kachel hinzufügen</button>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.6vh 0 1vh;">
+        Eine Kachel wählt entweder eine Quelle an einem Media Player, oder sie startet ein
+        Skript oder eine Szene. Nur die Quellenwahl leuchtet, wenn sie gerade läuft – ein
+        Skript hat keinen „läuft“-Zustand.</p>
       <datalist id="mpEntityList">
         ${allEntities.filter(e => e.domain === 'media_player').map(e => `<option value="${e.entity_id}">${e.name}</option>`).join('')}
+      </datalist>
+      <datalist id="qtScriptList">
+        ${allEntities.filter(e => e.domain === 'script' || e.domain === 'scene').map(e => `<option value="${e.entity_id}">${e.name}</option>`).join('')}
       </datalist>
     `;
   }
@@ -659,6 +739,17 @@ function openSettings(entityId) {
 
   $('settingsBody').innerHTML = html;
 
+  if (fields.iconWahl) {
+    // Eine Liste von Namen ohne Bild waere Raten. Die Vorschau zeigt sofort, was man waehlt.
+    const zeigeSymbol = () => {
+      const n = $('setIcon').value;
+      const svg = (window.DashboardRender && DashboardRender.ICONS) ? DashboardRender.ICONS[n] : '';
+      $('iconVorschau').innerHTML = svg || '';
+    };
+    $('setIcon').addEventListener('change', zeigeSymbol);
+    zeigeSymbol();
+  }
+
   if (fields.gaugeExtras) {
     renderThresholdList();
     $('addThresholdBtn').addEventListener('click', () => {
@@ -734,53 +825,84 @@ function openSettings(entityId) {
 
   if (fields.photoUpload) {
     const cardId = entityId;
-    if (settings.photoVersion) {
-      $('photoPreview').src = `/api/photo-card/${encodeURIComponent(cardId)}/background?v=${settings.photoVersion}`;
-      $('photoPreview').style.display = 'inline-block';
-      $('photoNoneText').style.display = 'none';
-      $('photoRemoveBtn').style.display = 'inline-block';
+    // Bild 1 behaelt die ID OHNE Nummer -- bestehende Karten sollen nach dem Update ihr Bild
+    // behalten und nicht auf einen leeren Rahmen schauen.
+    const bildId = (n) => (n === 0 ? cardId : cardId + '__' + (n + 1));
+
+    if (!Array.isArray(settings.photoBilder)) {
+      settings.photoBilder = settings.photoVersion ? [settings.photoVersion] : [];
     }
-    $('photoUploadBtn').addEventListener('click', () => $('photoFileInput').click());
+
+    const meldung = (text, gut) => {
+      const el = $('photoResult');
+      el.textContent = text;
+      el.style.color = gut === undefined ? 'var(--muted)' : (gut ? '#7fd68a' : '#ff8a8a');
+    };
+
+    function renderPhotoSlots() {
+      const liste = $('photoSlots');
+      liste.innerHTML = settings.photoBilder.map((v, i) => `
+        <div style="display:flex; align-items:center; gap:0.8vh; margin-bottom:0.6vh;">
+          <img src="/api/photo-card/${encodeURIComponent(bildId(i))}/background?v=${v}"
+               style="height:5vh; width:8vh; object-fit:cover; border-radius:6px; background:var(--bg); flex-shrink:0;">
+          <span style="font-size:1.2vh; color:var(--muted); flex:1;">Bild ${i + 1}</span>
+          <button type="button" class="photo-del" data-idx="${i}" style="width:auto; padding:0 1.2vh; margin:0; background:#dc3545; flex-shrink:0;">×</button>
+        </div>
+      `).join('') || `<p style="font-size:1.1vh; color:var(--muted);">Noch kein Bild.</p>`;
+
+      // Nur das LETZTE Bild laesst sich entfernen. Die Bilder haengen an ihrer Position, nicht
+      // an einer eigenen Kennung; wer aus der Mitte loescht, muesste die nachfolgenden
+      // umhaengen -- und dafuer braeuchte es die Originaldateien, die hier nicht mehr
+      // vorliegen. Ein Knopf, der still Bilder verliert, waere schlimmer als keiner.
+      liste.querySelectorAll('.photo-del').forEach(el => el.addEventListener('click', async () => {
+        const i = +el.dataset.idx;
+        if (i !== settings.photoBilder.length - 1) {
+          return meldung('Es lässt sich nur das letzte Bild entfernen – die Bilder hängen an ihrer Position.', false);
+        }
+        meldung('Entferne...');
+        await fetch(`/api/photo-card/${encodeURIComponent(bildId(i))}/background/remove`, { method: 'POST' });
+        settings.photoBilder.pop();
+        if (!settings.photoBilder.length) delete settings.photoVersion;
+        markDirty();
+        renderPhotoSlots();
+        meldung('Entfernt.', true);
+      }));
+    }
+
+    renderPhotoSlots();
+
+    $('photoAddBtn').addEventListener('click', () => {
+      if (settings.photoBilder.length >= 8) return meldung('Mehr als acht Bilder nimmt eine Karte nicht.', false);
+      $('photoFileInput').click();
+    });
+
     $('photoFileInput').addEventListener('change', async () => {
       const file = $('photoFileInput').files[0];
       if (!file) return;
-      const resultEl = $('photoResult');
-      resultEl.textContent = 'Lade hoch...';
-      resultEl.style.color = 'var(--muted)';
+      const n = settings.photoBilder.length;
+      meldung('Lade hoch...');
       try {
         const dataUrl = await resizeImageFile(file, 1920);
-        const r = await fetch(`/api/photo-card/${encodeURIComponent(cardId)}/background`, {
+        const r = await fetch(`/api/photo-card/${encodeURIComponent(bildId(n))}/background`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dataUrl })
         });
         const data = await r.json();
         if (data.ok) {
-          settings.photoVersion = Date.now();
+          settings.photoBilder.push(Date.now());
+          // photoVersion bleibt fuer Bild 1 gesetzt: So zeigt eine aeltere Fassung der App
+          // dieselbe Karte weiterhin an, statt einen leeren Rahmen.
+          if (n === 0) settings.photoVersion = settings.photoBilder[0];
           markDirty();
-          resultEl.textContent = 'Gespeichert.';
-          resultEl.style.color = '#7fd68a';
-          $('photoPreview').src = `/api/photo-card/${encodeURIComponent(cardId)}/background?v=${settings.photoVersion}`;
-          $('photoPreview').style.display = 'inline-block';
-          $('photoNoneText').style.display = 'none';
-          $('photoRemoveBtn').style.display = 'inline-block';
+          renderPhotoSlots();
+          meldung('Gespeichert.', true);
         } else {
-          resultEl.textContent = 'Fehler: ' + data.error;
-          resultEl.style.color = '#ff8a8a';
+          meldung('Fehler: ' + data.error, false);
         }
       } catch (e) {
-        resultEl.textContent = 'Fehler: ' + e.message;
-        resultEl.style.color = '#ff8a8a';
+        meldung('Fehler: ' + e.message, false);
       }
       $('photoFileInput').value = '';
-    });
-    $('photoRemoveBtn').addEventListener('click', async () => {
-      await fetch(`/api/photo-card/${encodeURIComponent(cardId)}/background/remove`, { method: 'POST' });
-      delete settings.photoVersion;
-      markDirty();
-      $('photoPreview').style.display = 'none';
-      $('photoNoneText').style.display = 'inline';
-      $('photoRemoveBtn').style.display = 'none';
-      $('photoResult').textContent = '';
     });
   }
 
@@ -860,15 +982,33 @@ function openSettings(entityId) {
     if (!Array.isArray(settings.tiles)) settings.tiles = [];
     function renderTileRows() {
       const list = $('qtTileList');
-      list.innerHTML = settings.tiles.map((t, i) => `
+      list.innerHTML = settings.tiles.map((t, i) => {
+        // Kacheln aus der Zeit vor den Skripten haben kein art-Feld -- die bleiben Quellenwahl.
+        const art = t.art || 'media';
+        return `
         <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.6vh;">
           <img class="qt-thumb" src="${t.imageDataUrl || ''}" style="width:4vh; height:4vh; border-radius:6px; object-fit:cover; background:var(--bg); flex-shrink:0; display:${t.imageDataUrl ? 'block' : 'none'};">
           <button type="button" class="qt-img-btn" data-idx="${i}" style="width:auto; padding:0 1vh; margin:0; flex-shrink:0;">Bild</button>
-          <input type="text" class="qt-mp-input" data-idx="${i}" list="mpEntityList" placeholder="media_player.xxx" value="${t.mediaPlayerEntity || ''}" style="flex:1.4;">
-          <input type="text" class="qt-source-input" data-idx="${i}" placeholder="Quelle, z.B. Netflix" value="${t.source || ''}" style="flex:1;">
+          <select class="qt-art-input" data-idx="${i}" style="flex:0 0 auto; width:auto; margin:0;">
+            <option value="media" ${art === 'media' ? 'selected' : ''}>Quelle</option>
+            <option value="script" ${art === 'script' ? 'selected' : ''}>Skript</option>
+            <option value="scene" ${art === 'scene' ? 'selected' : ''}>Szene</option>
+          </select>
+          ${art === 'media' ? `
+            <input type="text" class="qt-mp-input" data-idx="${i}" list="mpEntityList" placeholder="media_player.xxx" value="${(t.mediaPlayerEntity || '').replace(/"/g, '&quot;')}" style="flex:1.4;">
+            <input type="text" class="qt-source-input" data-idx="${i}" placeholder="Quelle, z.B. Netflix" value="${(t.source || '').replace(/"/g, '&quot;')}" style="flex:1;">
+          ` : `
+            <input type="text" class="qt-entity-input" data-idx="${i}" list="qtScriptList" placeholder="${art === 'scene' ? 'scene.xxx' : 'script.xxx'}" value="${(t.entity || '').replace(/"/g, '&quot;')}" style="flex:1.4;">
+            <input type="text" class="qt-label-input" data-idx="${i}" placeholder="Beschriftung" value="${(t.label || '').replace(/"/g, '&quot;')}" style="flex:1;">
+          `}
           <button type="button" class="qt-remove-btn" data-idx="${i}" style="width:auto; padding:0 1.2vh; margin:0; background:#dc3545; flex-shrink:0;">×</button>
-        </div>
-      `).join('') || `<p style="font-size:1.1vh; color:var(--muted);">Noch keine Kacheln.</p>`;
+        </div>`;
+      }).join('') || `<p style="font-size:1.1vh; color:var(--muted);">Noch keine Kacheln.</p>`;
+      list.querySelectorAll('.qt-art-input').forEach(el => el.addEventListener('change', () => {
+        settings.tiles[+el.dataset.idx].art = el.value; markDirty(); renderTileRows();
+      }));
+      list.querySelectorAll('.qt-entity-input').forEach(el => el.addEventListener('input', () => { settings.tiles[+el.dataset.idx].entity = el.value; markDirty(); }));
+      list.querySelectorAll('.qt-label-input').forEach(el => el.addEventListener('input', () => { settings.tiles[+el.dataset.idx].label = el.value; markDirty(); }));
       list.querySelectorAll('.qt-mp-input').forEach(el => el.addEventListener('input', () => { settings.tiles[+el.dataset.idx].mediaPlayerEntity = el.value; markDirty(); }));
       list.querySelectorAll('.qt-source-input').forEach(el => el.addEventListener('input', () => {
         const t = settings.tiles[+el.dataset.idx]; t.source = el.value; t.label = el.value; markDirty();
@@ -892,7 +1032,7 @@ function openSettings(entityId) {
     }
     renderTileRows();
     $('qtAddTileBtn').addEventListener('click', () => {
-      settings.tiles.push({ id: 'tile_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), mediaPlayerEntity: '', source: '', label: '' });
+      settings.tiles.push({ id: 'tile_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), art: 'media', mediaPlayerEntity: '', source: '', label: '' });
       markDirty();
       renderTileRows();
     });
@@ -941,6 +1081,30 @@ $('settingsSave').addEventListener('click', () => {
   if (settingsFields.suffix) {
     const v = ($('setSuffix') && $('setSuffix').value.trim()) || '';
     if (v) settings.suffix = v; else delete settings.suffix;
+  }
+  if (settingsFields.decimals) {
+    const v = ($('setDecimals') && $('setDecimals').value.trim()) || '';
+    if (v !== '' && !isNaN(parseInt(v, 10))) settings.decimals = Math.max(0, Math.min(6, parseInt(v, 10)));
+    else delete settings.decimals;
+  }
+  if (settingsFields.iconWahl) {
+    const v = ($('setIcon') && $('setIcon').value) || '';
+    if (v) settings.icon = v; else delete settings.icon;
+  }
+  if (settingsFields.radarOpts) {
+    const v = ($('setRadarSeconds') && $('setRadarSeconds').value.trim()) || '';
+    if (v !== '' && !isNaN(parseInt(v, 10))) settings.radarSeconds = Math.max(5, Math.min(3600, parseInt(v, 10)));
+    else delete settings.radarSeconds;
+  }
+  if (settingsFields.clockOpts) {
+    const loc = ($('setClockLocale') && $('setClockLocale').value.trim()) || '';
+    if (loc) settings.clockLocale = loc; else delete settings.clockLocale;
+    const h12 = ($('setClockHour12') && $('setClockHour12').value) || '';
+    if (h12 === 'true') settings.clockHour12 = true;
+    else if (h12 === 'false') settings.clockHour12 = false;
+    else delete settings.clockHour12;
+    settings.clockSeconds = !!($('setClockSeconds') && $('setClockSeconds').checked);
+    settings.clockNoDate = !!($('setClockNoDate') && $('setClockNoDate').checked);
   }
   if (settingsFields.gaugeExtras) {
     const minV = $('setMin') ? $('setMin').value : '';
@@ -993,6 +1157,11 @@ $('settingsSave').addEventListener('click', () => {
     [['setEnergyLabelSolar', 'energyLabelSolar'], ['setEnergyLabelGrid', 'energyLabelGrid'],
      ['setEnergyLabelHome', 'energyLabelHome'], ['setEnergyLabelBattery', 'energyLabelBattery']]
       .forEach(([id, feld]) => { const v = grab(id); if (v) settings[feld] = v; else delete settings[feld]; });
+  }
+  if (settingsFields.photoUpload) {
+    const v = ($('setPhotoSeconds') && $('setPhotoSeconds').value.trim()) || '';
+    if (v !== '' && !isNaN(parseInt(v, 10))) settings.photoSeconds = Math.max(3, Math.min(3600, parseInt(v, 10)));
+    else delete settings.photoSeconds;
   }
   if (settingsFields.mediaPlayerOpts) {
     settings.mediaArtBg = $('setMediaArtBg') ? $('setMediaArtBg').checked : true;

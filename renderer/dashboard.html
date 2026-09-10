@@ -484,7 +484,7 @@ async function render() {
         // Feld weg, statt ein leeres mitzusenden.
         onAlarmControl: (entityId, service, code) =>
           callService('alarm_control_panel', service, entityId, code ? { code } : undefined),
-        onQuickTile: (mediaPlayerEntity, source) => callService('media_player', 'select_source', mediaPlayerEntity, { source }),
+        onQuickTile: (a) => callService(a.domain, a.service, a.entity_id, a.daten),
         onNavigate: (targetId) => navigateTo(targetId)
       }
     }));

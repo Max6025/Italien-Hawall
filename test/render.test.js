@@ -170,3 +170,150 @@ test('Ohne Titel wird nichts erraten', () => {
   assert.strictEqual(D.wasteColor(''), '#9ca3af');
   assert.strictEqual(D.wasteColor(null), '#9ca3af');
 });
+
+// --- Querschnitt: Nachkommastellen ------------------------------------------------------------
+//
+// Bis 1.6.x hatte KEIN Kartentyp eine Einstellung dafuer. Ein Sensor, der 21.34567 meldet,
+// stand genau so auf der Wand.
+
+test('Ohne Einstellung bleibt der Wert unveraendert', () => {
+  // Wichtig: kein Standard-Runden. Sonst aendert dieses Update stillschweigend jede
+  // bestehende Karte.
+  assert.strictEqual(D.zahlFormatieren('21.34567'), '21.34567');
+  assert.strictEqual(D.zahlFormatieren('21.34567', ''), '21.34567');
+  assert.strictEqual(D.zahlFormatieren('21.34567', null), '21.34567');
+});
+
+test('Gerundet wird deutsch formatiert', () => {
+  assert.strictEqual(D.zahlFormatieren('21.34567', 1), '21,3');
+  assert.strictEqual(D.zahlFormatieren('21.34567', 0), '21');
+  assert.strictEqual(D.zahlFormatieren(1234.5, 1), '1.234,5');
+});
+
+test('Stellen werden aufgefuellt, damit die Anzeige nicht springt', () => {
+  // 21 und 21,00 nebeneinander sehen aus wie ein Fehler.
+  assert.strictEqual(D.zahlFormatieren(21, 2), '21,00');
+});
+
+test('Ein Text bleibt ein Text', () => {
+  // "an", "unavailable", "Fährt zur Basis" -- nicht jede Karte zeigt eine Zahl.
+  assert.strictEqual(D.zahlFormatieren('an', 2), 'an');
+  assert.strictEqual(D.zahlFormatieren('–', 1), '–');
+});
+
+test('Unsinnige Stellenzahlen werden gebaendigt', () => {
+  assert.strictEqual(D.zahlFormatieren(1.23456789, 99), D.zahlFormatieren(1.23456789, 6));
+  assert.strictEqual(D.zahlFormatieren(1.5, -3), '2');
+});
+
+// --- Querschnitt: Symbol ----------------------------------------------------------------------
+
+test('Ohne Wahl bleibt das Symbol des Kartentyps', () => {
+  assert.strictEqual(D.symbolFuer({}, D.ICONS.sensor), D.ICONS.sensor);
+  assert.strictEqual(D.symbolFuer(null, D.ICONS.sensor), D.ICONS.sensor);
+});
+
+test('Ein gewaehltes Symbol gewinnt', () => {
+  assert.strictEqual(D.symbolFuer({ icon: 'trash' }, D.ICONS.sensor), D.ICONS.trash);
+});
+
+test('Ein Symbolname, den es nicht gibt, faellt zurueck statt zu verschwinden', () => {
+  // Sonst stuende nach einem Tippfehler eine Karte ohne Symbol da.
+  assert.strictEqual(D.symbolFuer({ icon: 'gibtsnicht' }, D.ICONS.sensor), D.ICONS.sensor);
+});
+
+test('Die Symbolliste ist nicht leer und enthaelt nur bekannte Namen', () => {
+  const namen = D.symbolNamen();
+  assert.ok(namen.length > 10, 'zu wenige Symbole zur Auswahl');
+  namen.forEach(n => assert.ok(D.ICONS[n], `Symbol ${n} steht in der Liste, existiert aber nicht`));
+});
+
+// --- Schnellzugriff ---------------------------------------------------------------------------
+//
+// Die Kacheln konnten AUSSCHLIESSLICH eine Quelle am Media Player waehlen.
+
+test('Eine Kachel ohne Art gilt weiter als Quellenwahl', () => {
+  // Bestehende Kacheln haben kein art-Feld. Waeren sie nach dem Update stumm, waere das
+  // schlimmer als die fehlende Funktion davor.
+  const a = D.quickTileAktion({ mediaPlayerEntity: 'media_player.tv', source: 'Netflix' });
+  assert.deepStrictEqual(a, {
+    domain: 'media_player', service: 'select_source',
+    entity_id: 'media_player.tv', daten: { source: 'Netflix' }
+  });
+});
+
+test('Ein Skript wird ueber script.turn_on ausgeloest', () => {
+  // turn_on statt des Dienstes mit dem Skriptnamen: funktioniert fuer jedes Skript gleich,
+  // ohne den Dienstnamen aus der Entitaets-ID zu basteln.
+  const a = D.quickTileAktion({ art: 'script', entity: 'script.gute_nacht' });
+  assert.strictEqual(a.domain, 'script');
+  assert.strictEqual(a.service, 'turn_on');
+  assert.strictEqual(a.entity_id, 'script.gute_nacht');
+});
+
+test('Eine Szene wird ueber scene.turn_on ausgeloest', () => {
+  const a = D.quickTileAktion({ art: 'scene', entity: 'scene.abendessen' });
+  assert.strictEqual(a.domain, 'scene');
+  assert.strictEqual(a.service, 'turn_on');
+});
+
+test('Eine leere Kachel erzeugt keinen Aufruf ins Nichts', () => {
+  assert.strictEqual(D.quickTileAktion({}).entity_id, '');
+  assert.strictEqual(D.quickTileAktion(null).entity_id, '');
+});
+
+test('Nur die Quellenwahl kann leuchten', () => {
+  const zustaende = {
+    'media_player.tv': { state: 'playing', attributes: { source: 'Netflix' } }
+  };
+  assert.strictEqual(D.quickTileAktiv({ mediaPlayerEntity: 'media_player.tv', source: 'Netflix' }, zustaende), true);
+  assert.strictEqual(D.quickTileAktiv({ mediaPlayerEntity: 'media_player.tv', source: 'ARD' }, zustaende), false);
+  // Ein Skript hat keinen "laeuft"-Zustand -- es darf nie leuchten.
+  assert.strictEqual(D.quickTileAktiv({ art: 'script', entity: 'script.x' }, zustaende), false);
+});
+
+test('Steht der Player still, leuchtet nichts', () => {
+  const zustaende = { 'media_player.tv': { state: 'paused', attributes: { source: 'Netflix' } } };
+  assert.strictEqual(D.quickTileAktiv({ mediaPlayerEntity: 'media_player.tv', source: 'Netflix' }, zustaende), false);
+});
+
+test('Die Beschriftung faellt sinnvoll zurueck', () => {
+  assert.strictEqual(D.quickTileText({ label: 'Kino' }), 'Kino');
+  assert.strictEqual(D.quickTileText({ source: 'Netflix' }), 'Netflix');
+  assert.strictEqual(D.quickTileText({ art: 'script', entity: 'script.x' }), 'script.x');
+  assert.strictEqual(D.quickTileText({}), '?');
+});
+
+// --- Foto-Diashow -----------------------------------------------------------------------------
+
+test('Bild eins behaelt die ID ohne Nummer', () => {
+  // Sonst schauten alle bestehenden Foto-Karten nach dem Update auf einen leeren Rahmen.
+  assert.strictEqual(D.fotoBildId('photo:17123', 0), 'photo:17123');
+  assert.strictEqual(D.fotoBildId('photo:17123', 1), 'photo:17123__2');
+  assert.strictEqual(D.fotoBildId('photo:17123', 2), 'photo:17123__3');
+});
+
+test('Eine alte Einzelbild-Karte wird weiter angezeigt', () => {
+  assert.deepStrictEqual(D.fotoVersionen({ photoVersion: 111 }), [111]);
+});
+
+test('Die Bildliste gewinnt gegen das alte Einzelfeld', () => {
+  assert.deepStrictEqual(D.fotoVersionen({ photoVersion: 111, photoBilder: [222, 333] }), [222, 333]);
+});
+
+test('Ohne Bild bleibt die Liste leer', () => {
+  assert.deepStrictEqual(D.fotoVersionen({}), []);
+  assert.deepStrictEqual(D.fotoVersionen(null), []);
+});
+
+test('Die Adressen zeigen auf die richtigen Bilder', () => {
+  const urls = D.fotoUrls('photo:1', { photoBilder: [10, 20] }, 'http://x');
+  assert.strictEqual(urls.length, 2);
+  assert.ok(urls[0].includes('photo%3A1/background?v=10'), urls[0]);
+  assert.ok(urls[1].includes('photo%3A1__2/background?v=20'), urls[1]);
+});
+
+test('Mehr als acht Bilder nimmt eine Karte nicht', () => {
+  const viele = Array.from({ length: 20 }, (_, i) => i + 1);
+  assert.strictEqual(D.fotoVersionen({ photoBilder: viele }).length, 8);
+});

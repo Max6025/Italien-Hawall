@@ -83,6 +83,17 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   Kalendersteuerung aktiv ist (`panelControlActive` in `dashboard.html`). Beide gleichzeitig
   laufen zu lassen führt zu Flackern.
 
+- **Karten-Einstellungen leben an genau zwei Stellen.** `settingsFieldsForType()` in
+  `editor.js` entscheidet, welche Felder ein Typ bekommt; `buildCard()` in
+  `dashboard-render.js` liest sie. Wer eine Einstellung nur an einer der beiden Stellen
+  anlegt, bekommt keinen Fehler, sondern ein Feld ohne Wirkung — genau so war
+  `gauge.baseColor` über Monate tot. Die vollständige Bestandsaufnahme steht in
+  `.scratch/karten-einstellungen/spec.md`, samt der Punkte, die bewusst **nicht** gebaut
+  wurden und warum.
+- **Neue Standardwerte ändern bestehende Anzeigen.** Die Nachkommastellen sind deshalb
+  standardmäßig leer und lassen den Wert unverändert. Wer hier später auf „zwei Stellen ab
+  Werk" umstellt, ändert stillschweigend jede Karte, die seit Jahren so hängt.
+
 ## Design
 
 Das eingebaute Design `DEFAULT_THEME` in `dashboard-render.js` ist ab Werk aktiv; ein
@@ -100,7 +111,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-85 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+123 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

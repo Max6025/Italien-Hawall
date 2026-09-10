@@ -274,6 +274,103 @@
 
   function fmt(val, unit) { return unit ? `${val} ${unit}` : `${val}`; }
 
+  // --- Querschnitt ueber alle Karten ------------------------------------------------------------
+  //
+  // Bis hierher hatte KEIN Kartentyp eine Einstellung fuer Nachkommastellen oder Symbol. Ein
+  // Sensor, der 21.34567 meldet, stand genau so auf der Wand.
+
+  /**
+   * Rundet auf die eingestellte Stellenzahl. Ohne Einstellung bleibt der Wert unveraendert --
+   * bewusst kein Standard-Runden, sonst aendert sich mit diesem Update stillschweigend jede
+   * bestehende Karte.
+   */
+  function zahlFormatieren(roh, stellen) {
+    if (stellen === undefined || stellen === null || stellen === '') return roh;
+    const n = parseFloat(roh);
+    if (!Number.isFinite(n)) return roh;
+    const k = Math.max(0, Math.min(6, parseInt(stellen, 10)));
+    // toLocaleString statt toFixed: 1234.5 gehoert auf einem deutschen Panel als 1.234,5
+    // dargestellt, nicht als 1234.5.
+    return n.toLocaleString('de-DE', { minimumFractionDigits: k, maximumFractionDigits: k });
+  }
+
+  /** Das gewaehlte Symbol, sonst das vom Kartentyp vorgesehene. */
+  function symbolFuer(settings, standard) {
+    const w = settings && settings.icon;
+    return (w && ICONS[w]) ? ICONS[w] : standard;
+  }
+
+  // --- Schnellzugriff ---------------------------------------------------------------------------
+  //
+  // Die Kacheln konnten bisher AUSSCHLIESSLICH eine Quelle an einem Media Player waehlen. Damit
+  // war die Karte an einen einzigen Anwendungsfall genagelt, obwohl sie wie eine allgemeine
+  // Schnellwahl aussieht. Jetzt kann eine Kachel auch ein Skript oder eine Szene ausloesen.
+  //
+  // Alte Kacheln haben kein `art`-Feld -- die gelten weiter als Quellenwahl, sonst waeren sie
+  // nach dem Update stumm.
+
+  /** Was beim Druck auf die Kachel passieren soll: {domain, service, entity_id, daten}. */
+  function quickTileAktion(t) {
+    const kachel = t || {};
+    const art = kachel.art || 'media';
+    if (art === 'script') {
+      const id = kachel.entity || '';
+      // script.turn_on statt script.<name>: funktioniert fuer jedes Skript gleich, ohne
+      // den Dienstnamen aus der Entitaets-ID zu basteln.
+      return { domain: 'script', service: 'turn_on', entity_id: id, daten: {} };
+    }
+    if (art === 'scene') {
+      return { domain: 'scene', service: 'turn_on', entity_id: kachel.entity || '', daten: {} };
+    }
+    return {
+      domain: 'media_player', service: 'select_source',
+      entity_id: kachel.mediaPlayerEntity || '', daten: { source: kachel.source || '' }
+    };
+  }
+
+  /** Leuchtet die Kachel gerade? Nur die Quellenwahl kennt einen "laeuft"-Zustand. */
+  function quickTileAktiv(t, statesById) {
+    const kachel = t || {};
+    if ((kachel.art || 'media') !== 'media') return false;
+    const st = (statesById || {})[kachel.mediaPlayerEntity];
+    return !!(st && st.state === 'playing' && st.attributes && st.attributes.source === kachel.source);
+  }
+
+  /** Beschriftung, wenn kein Bild hinterlegt ist. */
+  function quickTileText(t) {
+    const kachel = t || {};
+    return kachel.label || kachel.source || kachel.entity || '?';
+  }
+
+  // --- Foto-Bereich -----------------------------------------------------------------------------
+  //
+  // Eine Karte konnte genau ein Bild zeigen. Fuer eine Diashow werden weitere Bilder unter
+  // derselben Route mit angehaengter Nummer abgelegt -- kein neuer Server-Code noetig, dieselbe
+  // Loesung wie beim zweiten Bild des Ankunftsschirms.
+  //
+  // Bild 1 behaelt die ID OHNE Nummer: Bestehende Karten sollen nach dem Update ihr Bild
+  // behalten, nicht auf einen leeren Rahmen schauen.
+
+  /** Speicher-ID des n-ten Bildes (n ab 0). */
+  function fotoBildId(cardId, n) { return n === 0 ? String(cardId) : String(cardId) + '__' + (n + 1); }
+
+  /** Die Versionsnummern aller Bilder einer Foto-Karte, alte Einzelbild-Karten eingeschlossen. */
+  function fotoVersionen(settings) {
+    const st = settings || {};
+    if (Array.isArray(st.photoBilder) && st.photoBilder.length) return st.photoBilder.slice(0, 8);
+    return st.photoVersion ? [st.photoVersion] : [];
+  }
+
+  /** Bild-Adressen der Karte, in der Reihenfolge der Diashow. */
+  function fotoUrls(cardId, settings, apiBase) {
+    const base = apiBase || '';
+    return fotoVersionen(settings).map((v, i) =>
+      `${base}/api/photo-card/${encodeURIComponent(fotoBildId(cardId, i))}/background?v=${v}`);
+  }
+
+  /** Namen aller Symbole, die zur Auswahl stehen -- der Editor baut daraus die Liste. */
+  function symbolNamen() { return Object.keys(ICONS); }
+
   // Ordnet einem Kalender-Termin-Titel eine Farbe nach deutscher Tonnenart zu -- rein
   // stichwortbasiert, damit es ohne Konfiguration mit den gaengigen Muellkalender-
   // Integrationen (z.B. Abfall.io) funktioniert.
@@ -333,12 +430,29 @@
 
   // Aktualisiert Uhrzeit/Datum einer Uhr-Karte -- wird beim Bauen einmal aufgerufen
   // und kann von aussen periodisch erneut aufgerufen werden (Karte bleibt bestehen).
+  // Das Format haengt an der Karte, nicht am Modul. renderClockNow wird auch als
+  // forEach-Rueckruf uebergeben (dashboard.html, screensaver.js) -- deshalb liest die Funktion
+  // die Einstellungen aus dem Element statt aus einem zweiten Argument, das dort niemand
+  // uebergeben koennte.
   function renderClockNow(card) {
+    let opt = {};
+    try { opt = JSON.parse(card.dataset.uhr || '{}'); } catch (e) { opt = {}; }
+    const sprache = opt.locale || 'de-DE';
     const now = new Date();
     const timeEl = card.querySelector('.clock-time');
     const dateEl = card.querySelector('.clock-date');
-    if (timeEl) timeEl.textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    if (dateEl) dateEl.textContent = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+    const zeitFormat = { hour: '2-digit', minute: '2-digit' };
+    if (opt.sekunden) zeitFormat.second = '2-digit';
+    // hour12 nur setzen, wenn ausdruecklich gewaehlt -- sonst entscheidet die Sprache, und
+    // genau das will man bei "automatisch".
+    if (opt.stunden12 === true) zeitFormat.hour12 = true;
+    if (opt.stunden12 === false) zeitFormat.hour12 = false;
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString(sprache, zeitFormat);
+    if (dateEl) {
+      dateEl.textContent = opt.ohneDatum ? ''
+        : now.toLocaleDateString(sprache, { weekday: 'long', day: '2-digit', month: 'long' });
+      dateEl.style.display = opt.ohneDatum ? 'none' : '';
+    }
   }
 
   // Farbverlauf blau (kalt) -> rot (warm) je nach Temperaturwert, fuer die Temperatur-Karte
@@ -662,7 +776,7 @@
         card.addEventListener('click', () => cb.onToggle(domain, entity_id, state ? state.state : 'off'));
       }
     } else if (type === 'button') {
-      card.innerHTML = `<span class="icon">${ICONS.button}</span><span class="name">${name}</span><span class="badge">Drücken</span>`;
+      card.innerHTML = `<span class="icon">${symbolFuer(settings, ICONS.button)}</span><span class="name">${name}</span><span class="badge">Drücken</span>`;
       if (!editable && cb.onPress) {
         card.style.cursor = 'pointer';
         card.addEventListener('click', () => {
@@ -677,35 +791,38 @@
       const numVal = rawVal !== null ? parseFloat(rawVal) : NaN;
       card.style.background = tempGradient(isNaN(numVal) ? null : numVal, attrs.unit_of_measurement);
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.temperature}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.temperature)}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${fmt(isNaN(numVal) ? (rawVal ?? '–') : numVal, unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(isNaN(numVal) ? (rawVal ?? '–') : numVal, settings.decimals), unit)}</div>`;
     } else if (type === 'wind') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'km/h');
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.wind}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.wind)}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${fmt(val, unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
     } else if (type === 'rain') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'mm');
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.rain}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.rain)}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${fmt(val, unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
     } else if (type === 'pressure') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'hPa');
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.pressure}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.pressure)}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${fmt(val, unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
     } else if (type === 'radar') {
       const base = opts.apiBase || '';
-      const bust = Math.floor(Date.now() / 300000); // Bild max. alle 5 Min neu laden
+      // Fest fuenf Minuten passte zu Regenradar-Bildern, die genau so oft erneuert werden.
+      // Eine Kamera am Tor will man haeufiger sehen, ein Satellitenbild seltener.
+      const radarSek = Math.max(5, Math.min(3600, Number(settings.radarSeconds) || 300));
+      const bust = Math.floor(Date.now() / (radarSek * 1000));
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.radar}</span><span class="name">${name}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.radar)}</span><span class="name">${name}</span></div>
         <div class="radar-wrap"><img src="${base}/api/ha/media?entity_id=${encodeURIComponent(entity_id)}&t=${bust}" alt="${name}"></div>`;
     } else if (type === 'gauge') {
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : attrs.unit_of_measurement;
@@ -716,7 +833,7 @@
         : gaugeRange(attrs, opts.history);
       let pct = null;
       if (range && !isNaN(numVal)) pct = ((numVal - range[0]) / (range[1] - range[0])) * 100;
-      const displayVal = rawVal === null || rawVal === undefined ? '–' : (isNaN(numVal) ? rawVal : numVal);
+      const displayVal = rawVal === null || rawVal === undefined ? '–' : (isNaN(numVal) ? rawVal : zahlFormatieren(numVal, settings.decimals));
       const color = thresholdColor(numVal, settings.thresholds, settings.baseColor);
       card.innerHTML = gaugeSvg2(pct, displayVal, unit, name, color);
     } else if (type === 'graph') {
@@ -730,11 +847,17 @@
         ? (stundenGraph / 24) + (stundenGraph === 24 ? ' Tag' : ' Tage')
         : stundenGraph + ' h';
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.graph}</span><span class="badge">${fmt(val, unit)}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.graph)}</span><span class="badge">${fmt(zahlFormatieren(val, settings.decimals), unit)}</span></div>
         <div class="name">${name}</div>
         <div class="graph-wrap">${svg}</div>
         <div class="graph-caption">${caption ? esc(caption) + (unit ? ' ' + esc(unit) : '') + ' · ' : ''}${zeitraumText}</div>`;
     } else if (type === 'clock') {
+      card.dataset.uhr = JSON.stringify({
+        locale: settings.clockLocale || 'de-DE',
+        sekunden: !!settings.clockSeconds,
+        ohneDatum: !!settings.clockNoDate,
+        stunden12: settings.clockHour12 === undefined || settings.clockHour12 === '' ? undefined : settings.clockHour12 === true || settings.clockHour12 === 'true'
+      });
       card.innerHTML = `<div class="clock-time">--:--</div><div class="clock-date">-</div>`;
       renderClockNow(card);
     } else if (type === 'energy') {
@@ -947,7 +1070,7 @@
       const isOn = state && state.state === 'on';
       const pct = attrs.percentage !== undefined && attrs.percentage !== null ? attrs.percentage : (isOn ? 100 : 0);
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.fan}</span><span class="badge">${isOn ? 'AN' : 'AUS'}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.fan)}</span><span class="badge">${isOn ? 'AN' : 'AUS'}</span></div>
         <div class="name">${name}</div>
         <div class="value">${isOn ? pct + '%' : '–'}</div>
         <div class="controls slider-row">
@@ -965,7 +1088,7 @@
       const label = { docked: 'Docke', cleaning: 'Reinigt', paused: 'Pausiert', returning: 'Fährt zur Basis', idle: 'Bereit', error: 'Fehler' }[s] || s;
       const battery = attrs.battery_level !== undefined ? attrs.battery_level + '%' : '';
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.vacuum}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.vacuum)}</span></div>
         <div class="name">${name}</div>
         <div class="value" style="font-size:clamp(1vh,7cqmin,1.8vh);">${label}${battery ? ' · ' + battery : ''}</div>
         <div class="controls" style="display:flex; gap:0.6vh; margin-top:0.4vh;">
@@ -982,9 +1105,9 @@
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : '%';
       const val = state ? state.state : '–';
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.humidity}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.humidity)}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${fmt(val, unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
     } else if (type === 'alarm') {
       const s = state ? state.state : 'disarmed';
       const isArmed = s.startsWith('armed');
@@ -1068,7 +1191,7 @@
       const events = (opts.waste || []).slice(0, anzahlMuell);
       const next = events[0];
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.trash}</span><span class="name">${name}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.trash)}</span><span class="name">${name}</span></div>
         ${next ? `
           <div class="waste-next">
             <span class="waste-dot" style="background:${wasteColor(next.summary, eigeneFarben)}"></span>
@@ -1086,18 +1209,32 @@
               </div>`).join('')}
           </div>` : `<div class="graph-empty">${opts.wasteError || 'Keine Termine gefunden'}</div>`}`;
     } else if (type === 'photo') {
-      const base = opts.apiBase || '';
       const cardId = entity_id; // z.B. "photo:1712345678" -- eindeutig pro Karte
-      const pictureUrl = opts.photoVersion
-        ? `${base}/api/photo-card/${encodeURIComponent(cardId)}/background?v=${opts.photoVersion}`
-        : '';
+      const urls = fotoUrls(cardId, settings, opts.apiBase);
       card.classList.add('photo-card');
-      if (pictureUrl) {
-        card.style.backgroundImage = `url('${pictureUrl}')`;
+
+      if (urls.length === 1) {
+        // Ein Bild: wie bisher als Kartenhintergrund, ohne zusaetzliche Ebenen.
+        card.style.backgroundImage = `url('${urls[0]}')`;
+      } else if (urls.length > 1) {
+        // Diashow: zwei Ebenen, die sich ueberblenden. Ein harter Wechsel des
+        // background-image blitzt weiss auf, solange das naechste Bild noch laedt.
+        card.innerHTML = urls.map((u, i) =>
+          `<div class="foto-ebene${i === 0 ? ' foto-vorn' : ''}" style="background-image:url('${u}')"></div>`).join('');
+        const sek = Math.max(3, Math.min(3600, Number(settings.photoSeconds) || 20));
+        let vorn = 0;
+        const ebenen = card.querySelectorAll('.foto-ebene');
+        const wechsel = setInterval(() => {
+          if (!card.isConnected) return clearInterval(wechsel);   // Karte weggeraeumt
+          ebenen[vorn].classList.remove('foto-vorn');
+          vorn = (vorn + 1) % ebenen.length;
+          ebenen[vorn].classList.add('foto-vorn');
+        }, sek * 1000);
       }
+
       if (settings.name) {
-        card.innerHTML = `<div class="photo-card-label">${esc(settings.name)}</div>`;
-      } else if (!pictureUrl) {
+        card.insertAdjacentHTML('beforeend', `<div class="photo-card-label">${esc(settings.name)}</div>`);
+      } else if (!urls.length) {
         card.innerHTML = `<div class="photo-card-empty">Kein Bild – in den Karten-Einstellungen hochladen</div>`;
       }
     } else if (type === 'quicktiles') {
@@ -1108,11 +1245,10 @@
         ${settings.name ? `<div class="qt-title">${esc(settings.name)}</div>` : ''}
         <div class="qt-row">
           ${tiles.map(t => {
-            const st = statesById[t.mediaPlayerEntity];
-            const isActive = !!(st && st.state === 'playing' && st.attributes && st.attributes.source === t.source);
+            const isActive = quickTileAktiv(t, statesById);
             const bg = t.imageDataUrl ? ` style="background-image:url('${t.imageDataUrl}')"` : '';
             return `<button class="qt-tile ${isActive ? 'active' : ''}" data-tile-id="${t.id}" ${dis}${bg}>
-              ${!t.imageDataUrl ? `<span class="qt-tile-label">${esc(t.label || t.source || '?')}</span>` : ''}
+              ${!t.imageDataUrl ? `<span class="qt-tile-label">${esc(quickTileText(t))}</span>` : ''}
             </button>`;
           }).join('')}
           ${!tiles.length ? `<div class="graph-empty">Noch keine Kacheln – in den Karten-Einstellungen hinzufügen</div>` : ''}
@@ -1120,14 +1256,14 @@
       if (!editable && cb.onQuickTile) {
         tiles.forEach(t => {
           const el = card.querySelector(`[data-tile-id="${t.id}"]`);
-          if (el) el.addEventListener('click', e => { e.stopPropagation(); cb.onQuickTile(t.mediaPlayerEntity, t.source); });
+          if (el) el.addEventListener('click', e => { e.stopPropagation(); cb.onQuickTile(quickTileAktion(t)); });
         });
       }
     } else if (type === 'select') {
       const options = attrs.options || [];
       const current = state ? state.state : '';
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.select}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.select)}</span></div>
         <div class="name">${name}</div>
         <select class="select-input" ${dis}>
           ${options.map(o => `<option value="${esc(o)}" ${o === current ? 'selected' : ''}>${esc(o)}</option>`).join('')}
@@ -1165,7 +1301,7 @@
         return isHourly ? dt.toLocaleTimeString('de-DE', { hour: '2-digit' }) : dt.toLocaleDateString('de-DE', { weekday: 'short' });
       };
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.forecast}</span><span class="name">${name}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.forecast)}</span><span class="name">${name}</span></div>
         <div class="forecast-row">
           ${days.length ? days.map(d => `
             <div class="forecast-day">
@@ -1181,9 +1317,9 @@
       const val = state ? state.state : '–';
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : attrs.unit_of_measurement;
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS[domain] || ICONS.sensor}</span></div>
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS[domain] || ICONS.sensor)}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${fmt(val, unit)}</div>`;
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>`;
     }
 
     if (editable) {
@@ -1409,7 +1545,9 @@
     sizeToSpan, minSpanFor, clampSpan, resolveSpan, thresholdColor,
     domainsForType, typesForEntity, renderClockNow, canOverlayOnPhoto, applyCustomTheme, esc,
     serviceFuerEntitaet,
-    wasteColor,
+    wasteColor, zahlFormatieren, symbolFuer, symbolNamen,
+    quickTileAktion, quickTileAktiv, quickTileText,
+    fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };
   // Auch ausserhalb eines Browsers ladbar machen. Ohne das konnte kein einziger Test dieses
