@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Zwischenablage-Probe</title>
+<!--
+  Prueft den Rueckfallweg der Zwischenablage in einem UNSICHEREN Kontext.
+
+  Ueber localhost aufgerufen ist der Kontext sicher, navigator.clipboard existiert, und der
+  Rueckfallweg wird nie betreten -- man testet dann genau den Fall nicht, der kaputt war.
+  Deshalb muss diese Seite ueber die LAN-Adresse geladen werden.
+
+  Nur zum Nachmessen waehrend der Arbeit, nicht Teil der App.
+-->
+<style>
+  body { font-family: system-ui, sans-serif; background:#111; color:#eee; padding:2rem; }
+  .zeile { margin:.5rem 0; }
+  .ja { color:#7fd68a; } .nein { color:#ff8a8a; }
+  code { background:#222; padding:.1rem .3rem; border-radius:4px; }
+</style>
+</head>
+<body>
+<h2>Zwischenablage-Probe</h2>
+<div id="ausgabe"></div>
+<script>
+// Wortgleich aus renderer/setup/dashboards.js -- wer dort etwas aendert, aendert es hier mit.
+async function inZwischenablage(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* unten weiter */ }
+  }
+  const feld = document.createElement('textarea');
+  feld.value = text;
+  feld.setAttribute('readonly', '');
+  feld.style.cssText = 'position:fixed; top:0; left:0; width:1px; height:1px; opacity:0;';
+  document.body.appendChild(feld);
+  feld.select();
+  feld.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(feld);
+  return ok;
+}
+
+const raus = document.getElementById('ausgabe');
+const zeile = (t, gut) => {
+  const d = document.createElement('div');
+  d.className = 'zeile ' + (gut === undefined ? '' : (gut ? 'ja' : 'nein'));
+  d.innerHTML = t;
+  raus.appendChild(d);
+};
+
+zeile('Adresse: <code>' + location.origin + '</code>');
+zeile('Sicherer Kontext: <code>' + window.isSecureContext + '</code>',
+      window.isSecureContext === false);
+zeile('navigator.clipboard vorhanden: <code>' + (!!navigator.clipboard) + '</code>');
+
+// Der eigentliche Nachweis: Der ALTE Code haette hier geworfen.
+try {
+  navigator.clipboard.writeText('x');
+  zeile('Alter Code (navigator.clipboard.writeText direkt): kein Fehler', true);
+} catch (e) {
+  zeile('Alter Code wirft: <code>' + e.message + '</code> — genau der gemeldete Fehler', false);
+}
+
+// Drei Faelle, weil sie sich unterschiedlich verhalten und nur einer davon dem entspricht,
+// was die App tut.
+inZwischenablage('ohne Geste').then(ok => {
+  zeile('A) beim Laden, ohne Klick: <code>' + ok + '</code>', ok);
+
+  const knopf = document.createElement('button');
+  knopf.textContent = 'B und C ausloesen';
+  knopf.id = 'los';
+  knopf.style.cssText = 'padding:.6rem 1rem; margin:1rem 0; font-size:1rem;';
+  document.body.appendChild(knopf);
+
+  knopf.addEventListener('click', async () => {
+    // B) direkt im Klick -- Geste noch frisch
+    const b = await inZwischenablage('mit frischer Geste');
+    zeile('B) direkt im Klick: <code>' + b + '</code>', b);
+
+    // C) NACH einem await -- genau das macht die App gerade
+    await fetch(location.href).then(r => r.text());
+    const c = await inZwischenablage('nach await fetch');
+    zeile('C) nach einem await fetch (so macht es die App): <code>' + c + '</code>', c);
+    document.title = 'fertig';
+  });
+  document.title = 'bereit';
+});
+</script>
+</body>
+</html>

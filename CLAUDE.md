@@ -95,6 +95,17 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   standardmäßig leer und lassen den Wert unverändert. Wer hier später auf „zwei Stellen ab
   Werk" umstellt, ändert stillschweigend jede Karte, die seit Jahren so hängt.
 
+- **Die Setup-Oberfläche läuft im UNSICHEREN Kontext.** Sie wird über `http://<ip>:8788`
+  aufgerufen, nicht über HTTPS. Alles, was der Browser nur im sicheren Kontext freigibt, ist
+  dort schlicht nicht da: `navigator.clipboard` ist `undefined`, und der Zugriff darauf wirft.
+  Nachgemessen über die LAN-Adresse: `isSecureContext = false`. Auf dem Gerät selbst
+  (localhost) funktioniert es — **deshalb versteckt sich so ein Fehler beim Entwickeln und
+  zeigt sich erst beim Benutzen.** Wer hier eine Browser-Schnittstelle einsetzt, prüft sie
+  über die LAN-Adresse, nicht über localhost; `.scratch/karten-design/zwischenablage-probe.html`
+  macht genau das. Für die Zwischenablage gilt zusätzlich: `execCommand('copy')` braucht eine
+  frische Benutzergeste, ein `await` davor kann sie verfallen lassen. Verlass ist auf keinen
+  von beiden — es braucht immer einen Weg, der ohne auskommt (Text zum Selbstmarkieren, Datei
+  zum Herunterladen).
 - **Neue Routen nicht unter einen `:id`-Pfad legen.** Express nimmt die erste passende Route.
   `/api/dashboards/import` wurde von `app.post('/api/dashboards/:id')` verschluckt — `import`
   war für sie eine Dashboard-Kennung, und jeder Import antwortete „Dashboard nicht gefunden".

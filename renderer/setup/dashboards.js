@@ -166,20 +166,95 @@ $('importBtn').addEventListener('click', () => {
   einspielen(text);
 });
 
+/**
+ * Text in die Zwischenablage, so weit der Browser das hergibt.
+ *
+ * `navigator.clipboard` gibt es NUR im sicheren Kontext -- HTTPS oder localhost. Diese
+ * Oberflaeche wird ueber einfaches HTTP im Netzwerk aufgerufen; dort ist die Eigenschaft
+ * schlicht undefined, und der Zugriff darauf wirft "Cannot read properties of undefined".
+ * Genau das ist passiert. Auf dem Geraet selbst (localhost) haette es funktioniert -- ein
+ * Fehler, der sich beim Entwickeln versteckt und erst beim Benutzen zeigt. Nachgemessen ueber
+ * die LAN-Adresse: isSecureContext = false, navigator.clipboard = undefined.
+ *
+ * Der aeltere Weg (`execCommand`) braucht eine frische Benutzergeste. Deshalb wird der Text
+ * VORHER geholt und hier nur noch verwendet -- ein `await` zwischen Klick und Kopieren kann
+ * die Geste verfallen lassen. Er ist trotzdem nur ein Versuch, kein Verlass.
+ */
+function inZwischenablage(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(() => true, () => versuchAelterenWeg(text));
+  }
+  return Promise.resolve(versuchAelterenWeg(text));
+}
+
+function versuchAelterenWeg(text) {
+  // Das Feld muss WIRKLICH im Dokument stehen und auswaehlbar sein -- display:none laesst
+  // sich nicht selektieren.
+  const feld = document.createElement('textarea');
+  feld.value = text;
+  feld.setAttribute('readonly', '');
+  feld.style.cssText = 'position:fixed; top:0; left:0; width:1px; height:1px; opacity:0;';
+  document.body.appendChild(feld);
+  feld.select();
+  feld.setSelectionRange(0, text.length);   // iOS ignoriert select() allein
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(feld);
+  return ok;
+}
+
+// Die Anleitung wird beim Laden geholt, nicht erst beim Klick. Zwei Gruende: Der Kopierversuch
+// braucht den Text sofort (siehe oben), und der Knopf antwortet ohne Wartezeit.
+let formatText = '';
+fetch('/api/dashboard-format')
+  .then(r => r.json())
+  .then(d => { if (d && d.ok) formatText = JSON.stringify(d.anleitung, null, 2); })
+  .catch(() => { /* der Knopf holt sie dann eben doch selbst */ });
+
 // Wer ein Dashboard von Grund auf schreiben lassen will, hat noch keines zum Exportieren --
 // und damit auch die Anleitung nicht. Deshalb gibt es sie einzeln.
 $('formatBtn').addEventListener('click', async () => {
   const el = $('importResult');
   try {
-    const r = await fetch('/api/dashboard-format');
-    const data = await r.json();
-    const text = JSON.stringify(data.anleitung, null, 2);
-    await navigator.clipboard.writeText(text);
-    el.className = 'result ok';
-    el.textContent = 'Anleitung kopiert. In einen Chat einfügen und beschreiben, was auf das Dashboard soll.';
+    if (!formatText) {
+      const d = await (await fetch('/api/dashboard-format')).json();
+      formatText = JSON.stringify(d.anleitung, null, 2);
+    }
+
+    if (await inZwischenablage(formatText)) {
+      el.className = 'result ok';
+      el.textContent = 'Anleitung kopiert. In einen Chat einfügen und beschreiben, was auf das Dashboard soll.';
+      return;
+    }
+
+    // Kein Verlass auf die Zwischenablage. Statt einer Fehlermeldung, mit der niemand etwas
+    // anfangen kann, zwei Wege, die IMMER funktionieren: der Text zum Selbstkopieren --
+    // schon markiert, Strg+C genügt -- und dieselbe Anleitung als Datei zum Anhängen.
+    el.className = 'result';
+    el.innerHTML = 'Der Browser gibt die Zwischenablage hier nicht frei (die geht nur über '
+      + 'HTTPS oder direkt auf dem Gerät). Zwei Wege, die trotzdem gehen:'
+      + '<p style="margin:.6rem 0 .3rem;"><strong>1.</strong> Markiert – <kbd>Strg</kbd>+<kbd>C</kbd> drücken:</p>'
+      + '<textarea id="formatText" readonly rows="7" style="width:100%; box-sizing:border-box; '
+      + 'font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.75rem;"></textarea>'
+      + '<p style="margin:.6rem 0 .3rem;"><strong>2.</strong> Oder als Datei, die sich an einen Chat anhängen lässt:</p>'
+      + '<button type="button" id="formatDownload" style="width:auto;">dashboard-format.json herunterladen</button>';
+
+    const feld = document.getElementById('formatText');
+    feld.value = formatText;
+    feld.focus();
+    feld.select();
+
+    document.getElementById('formatDownload').addEventListener('click', () => {
+      const blob = new Blob([formatText], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'dashboard-format.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
   } catch (e) {
     el.className = 'result err';
-    el.textContent = 'Kopieren ging nicht: ' + (e.message || e);
+    el.textContent = 'Fehler: ' + (e.message || e);
   }
 });
 
