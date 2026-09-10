@@ -53,6 +53,24 @@
   }
 
   /**
+   * Auszeichnungen innerhalb einer Zeile. Wird sowohl vom Fliesstext als auch von der
+   * Ueberschrift genutzt -- damit laesst sich "Herzlich **willkommen**" schreiben und man
+   * bekommt dieselbe Zweiteilung wie in der Entwurfsvorlage.
+   */
+  function inlineMarkdown(roh, escFn) {
+    const esc = escFn || (v => String(v == null ? '' : v));
+    let t = esc(roh);
+    t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+    t = t.replace(/_([^_]+)_/g, '<em>$1</em>');
+    // Nur http und https -- alles andere waere ein Einfallstor.
+    t = t.replace(/\[([^\]]+)\]\((https?:&#x2F;&#x2F;[^)\s]+|https?:\/\/[^)\s]+)\)/g,
+      (m, txt, url) => `<a href="${url.replace(/&#x2F;/g, '/')}" rel="noopener">${txt}</a>`);
+    return t;
+  }
+
+  /**
    * Kleiner Markdown-Satz fuer den Text des Ankunftsschirms.
    *
    * Sicherheitsprinzip: Erst wird ALLES maskiert, danach werden ausschliesslich die eigenen
@@ -69,17 +87,7 @@
     const raus = [];
     let liste = false;
 
-    const inline = (roh) => {
-      let t = esc(roh);
-      t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
-      t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      t = t.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
-      t = t.replace(/_([^_]+)_/g, '<em>$1</em>');
-      // Nur http und https -- alles andere waere ein Einfallstor.
-      t = t.replace(/\[([^\]]+)\]\((https?:&#x2F;&#x2F;[^)\s]+|https?:\/\/[^)\s]+)\)/g,
-        (m, txt, url) => `<a href="${url.replace(/&#x2F;/g, '/')}" rel="noopener">${txt}</a>`);
-      return t;
-    };
+    const inline = (roh) => inlineMarkdown(roh, esc);
 
     const listeSchliessen = () => { if (liste) { raus.push('</ul>'); liste = false; } };
 
@@ -203,7 +211,7 @@
    */
   Ankunftsschirm.prototype.inhaltSetzen = function (inhalt) {
     const esc = (global.DashboardRender && global.DashboardRender.esc) || (v => String(v == null ? '' : v));
-    this.wurzel.querySelector('.as-ueberschrift').innerHTML = esc(inhalt.ueberschrift || '');
+    this.wurzel.querySelector('.as-ueberschrift').innerHTML = inlineMarkdown(inhalt.ueberschrift || '', esc);
     this.wurzel.querySelector('.as-text').innerHTML = markdown(inhalt.text || '', esc);
     this.wurzel.querySelector('.as-bildtext').textContent = inhalt.bildtext || '';
 
@@ -316,7 +324,7 @@
     this.wurzel.classList.remove('ta-sichtbar');
   };
 
-  const api = { sollAnzeigen, markdown, Ankunftsschirm, Terminankuendigung, ANZAHL_FORMEN, ANKUENDIGUNG_MS };
+  const api = { sollAnzeigen, markdown, inlineMarkdown, Ankunftsschirm, Terminankuendigung, ANZAHL_FORMEN, ANKUENDIGUNG_MS };
   global.AnkunftsschirmModul = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

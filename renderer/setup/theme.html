@@ -120,7 +120,10 @@
     <label><input type="checkbox" id="welcomeEnabled" style="width:auto; margin-right:0.5rem;">Ankunftsschirm verwenden</label>
 
     <label style="margin-top:1rem;">Überschrift</label>
-    <input type="text" id="welcomeHeading" placeholder="Herzlich willkommen">
+    <input type="text" id="welcomeHeading" placeholder="Herzlich **willkommen**">
+    <p class="hint-text">Mit <code>**…**</code> ausgezeichneter Text wird fett und rückt auf eine
+      eigene Zeile. <code>Herzlich **willkommen**</code> ergibt genau die Aufteilung aus dem
+      Entwurf: erste Zeile schlank, zweite kräftig.</p>
 
     <label style="margin-top:1rem;">Text</label>
     <textarea id="welcomeText" rows="3" placeholder="Schön, dass Sie da sind. Alles Wichtige zu Ihrem Aufenthalt finden Sie auf dem Ankunftszettel."></textarea>
@@ -136,8 +139,27 @@
       es erscheint kein Platzhalter.</p>
 
     <label style="margin-top:1rem;">Zweites Bild (optional)</label>
-    <select id="welcomeImageEntity2"><option value="">– kein zweites Bild –</option></select>
-    <p class="hint-text">Ist eines gewählt, wechseln die beiden Bilder mit einer weichen
+    <select id="welcomeImage2Quelle">
+      <option value="">– kein zweites Bild –</option>
+      <option value="entity">Entität aus Home Assistant</option>
+      <option value="upload">Bild hochladen</option>
+    </select>
+
+    <div id="welcomeImage2Entity" style="display:none; margin-top:0.6rem;">
+      <select id="welcomeImageEntity2"><option value="">– wird geladen –</option></select>
+    </div>
+
+    <div id="welcomeImage2Upload" style="display:none; margin-top:0.6rem;">
+      <div style="display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
+        <img id="welcomeImage2Preview" style="width:8vh; height:8vh; object-fit:contain; border-radius:8px; background:var(--bg); display:none;">
+        <input type="file" id="welcomeImage2File" accept="image/*" style="display:none;">
+        <button type="button" id="welcomeImage2Btn" style="width:auto;">Bild wählen</button>
+        <button type="button" id="welcomeImage2Remove" style="width:auto; background:#dc3545; display:none;">Entfernen</button>
+      </div>
+      <div id="welcomeImage2Result" class="result"></div>
+    </div>
+
+    <p class="hint-text">Ist ein zweites Bild gesetzt, wechseln die beiden mit einer weichen
       Überblendung ab.</p>
 
     <label style="margin-top:1rem;">Wechsel alle … Sekunden</label>

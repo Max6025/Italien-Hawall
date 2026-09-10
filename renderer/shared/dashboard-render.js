@@ -861,7 +861,7 @@
       if (!editable && cb.onGatePress) {
         knoepfe.forEach((b, i) => {
           const el = card.querySelector(`[data-gate="${i}"]`);
-          if (el && b.entity) el.addEventListener('click', (e) => { e.stopPropagation(); cb.onGatePress(b.entity); });
+          if (el && b.entity) el.addEventListener('click', (e) => { e.stopPropagation(); cb.onGatePress(b.entity, b.alsSchalter === true); });
         });
       }
     } else if (type === 'lock') {
@@ -1266,16 +1266,24 @@
   // Welcher Dienst gehoert zu welcher Entitaet? Damit laesst sich in der Tor-Card ein
   // input_button neben einem cover und einem script verwenden, ohne dass der Nutzer wissen
   // muss, was HA dahinter aufruft.
+  //
+  // "impuls" heisst: Die Entitaet muss wie ein TASTER wirken, nicht wie ein Schalter. Ein
+  // Torantrieb haengt an einem Relais -- schaltet man es nur ein, bleibt es ein. Solche
+  // Entitaeten werden kurz eingeschaltet und gleich wieder aus.
+  //
+  // input_button, button, script, scene und automation sind von Natur aus momentan; dort waere
+  // ein Impuls sinnlos. cover faehrt ohnehin und darf nicht gestoppt werden.
   function serviceFuerEntitaet(entity_id) {
     const domain = String(entity_id || '').split('.')[0];
     switch (domain) {
-      case 'input_button': case 'button': return { domain, service: 'press' };
-      case 'script': return { domain: 'script', service: 'turn_on' };
-      case 'scene': return { domain: 'scene', service: 'turn_on' };
-      case 'automation': return { domain: 'automation', service: 'trigger' };
-      case 'cover': return { domain: 'cover', service: 'open_cover' };
-      case 'lock': return { domain: 'lock', service: 'unlock' };
-      case 'switch': case 'input_boolean': case 'light': return { domain, service: 'turn_on' };
+      case 'input_button': case 'button': return { domain, service: 'press', impuls: false };
+      case 'script': return { domain: 'script', service: 'turn_on', impuls: false };
+      case 'scene': return { domain: 'scene', service: 'turn_on', impuls: false };
+      case 'automation': return { domain: 'automation', service: 'trigger', impuls: false };
+      case 'cover': return { domain: 'cover', service: 'open_cover', impuls: false };
+      case 'lock': return { domain: 'lock', service: 'unlock', impuls: false };
+      case 'switch': case 'input_boolean': case 'light':
+        return { domain, service: 'turn_on', aus: 'turn_off', impuls: true };
       default: return null;
     }
   }

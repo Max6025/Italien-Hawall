@@ -460,10 +460,16 @@ async function render() {
         onSetColor: (entityId, rgb) => callService('light', 'turn_on', entityId, { rgb_color: rgb }),
         onSetHvacMode: (entityId, modus) => callService('climate', 'set_hvac_mode', entityId, { hvac_mode: modus }),
         onSetPreset: (entityId, preset) => callService('climate', 'set_preset_mode', entityId, { preset_mode: preset }),
-        onGatePress: (entityId) => {
+        onGatePress: (entityId, alsSchalter) => {
           const dienst = DashboardRender.serviceFuerEntitaet(entityId);
           if (!dienst) return;
           callService(dienst.domain, dienst.service, entityId);
+          // Ein Torantrieb haengt an einem Relais: Ein reines Einschalten laesst es eingeschaltet.
+          // Deshalb kurz halten und wieder ausschalten -- Taster statt Schalter. Wer die Entitaet
+          // wirklich als Schalter will, setzt das je Knopf in den Karten-Einstellungen.
+          if (dienst.impuls && !alsSchalter) {
+            setTimeout(() => callService(dienst.domain, dienst.aus, entityId), 800);
+          }
         },
         onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
         onCover: (entityId, service) => callService('cover', service, entityId),
@@ -975,9 +981,11 @@ function ankunftsschirmPruefen() {
     bildUrl: config.welcomeImageEntity
       ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity)}`
       : '',
-    bildUrl2: config.welcomeImageEntity2
-      ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity2)}`
-      : '',
+    // Das zweite Bild kommt entweder aus Home Assistant oder wurde hochgeladen. Fuers Hochladen
+    // werden die vorhandenen Foto-Routen mitbenutzt, mit fester Kennung statt einer Karten-ID.
+    bildUrl2: config.welcomeImage2Quelle === 'upload'
+      ? (config.welcomeImage2Version ? `${API}/api/photo-card/welcome-2/background?v=${config.welcomeImage2Version}` : '')
+      : (config.welcomeImageEntity2 ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity2)}` : ''),
     wechselSekunden: config.welcomeImageSeconds
   });
   ankunftsschirm.zeigen(zustand.activeWindow.start);

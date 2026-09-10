@@ -127,3 +127,17 @@ test('Leerer Text ergibt nichts', () => {
   assert.strictEqual(markdown('', esc), '');
   assert.strictEqual(markdown(null, esc), '');
 });
+
+test('Die Ueberschrift kann fett gesetzt werden', () => {
+  // "Herzlich **willkommen**" ergibt dieselbe Zweiteilung wie in der Entwurfsvorlage:
+  // erste Zeile schlank, zweite kraeftig (das Umbrechen macht das CSS).
+  const { inlineMarkdown } = require('../renderer/shared/ankunftsschirm.js');
+  assert.strictEqual(inlineMarkdown('Herzlich **willkommen**', esc),
+    'Herzlich <strong>willkommen</strong>');
+});
+
+test('Auch in der Ueberschrift wird HTML maskiert', () => {
+  const { inlineMarkdown } = require('../renderer/shared/ankunftsschirm.js');
+  const h = inlineMarkdown('<b>roh</b>', esc);
+  assert.ok(!h.includes('<b>'), 'rohes HTML darf nicht durchkommen');
+});

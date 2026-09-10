@@ -81,13 +81,51 @@ async function load() {
     });
   };
   bildListe('welcomeImageEntity', '– kein Bild –', configRes.welcomeImageEntity);
-  bildListe('welcomeImageEntity2', '– kein zweites Bild –', configRes.welcomeImageEntity2);
+  bildListe('welcomeImageEntity2', '– keine Entität gewählt –', configRes.welcomeImageEntity2);
+
+  $('welcomeImage2Quelle').value = configRes.welcomeImage2Quelle || '';
+  if (configRes.welcomeImage2Version) {
+    $('welcomeImage2Preview').src = `/api/photo-card/welcome-2/background?v=${configRes.welcomeImage2Version}`;
+    $('welcomeImage2Preview').style.display = 'block';
+    $('welcomeImage2Remove').style.display = 'inline-block';
+  }
+  zweiteBildQuelleAnzeigen();
 
   $('codeState').textContent = configRes.hasSetupCode
     ? 'Es ist ein Zugangscode gesetzt. Leer lassen, um ihn nicht zu ändern.'
     : 'Es ist noch KEIN Zugangscode gesetzt – diese Seite ist derzeit für jeden im Netzwerk offen.';
 
   refreshCalStatus();
+}
+
+// Zeigt je nach gewaehlter Quelle das Entitaets-Auswahlfeld oder den Hochladen-Bereich.
+function zweiteBildQuelleAnzeigen() {
+  const q = $('welcomeImage2Quelle').value;
+  $('welcomeImage2Entity').style.display = q === 'entity' ? '' : 'none';
+  $('welcomeImage2Upload').style.display = q === 'upload' ? '' : 'none';
+}
+
+// Verkleinert ein gewaehltes Bild im Browser, bevor es hochgeladen wird -- ein Handyfoto mit
+// zwoelf Megapixeln hat auf einem Wandpanel nichts verloren und blaeht die Konfiguration auf.
+function bildVerkleinern(datei, maxKante) {
+  return new Promise((fertig, fehler) => {
+    const leser = new FileReader();
+    leser.onerror = () => fehler(new Error('Datei nicht lesbar'));
+    leser.onload = () => {
+      const bild = new Image();
+      bild.onerror = () => fehler(new Error('Kein gültiges Bild'));
+      bild.onload = () => {
+        const faktor = Math.min(1, maxKante / Math.max(bild.width, bild.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(bild.width * faktor);
+        c.height = Math.round(bild.height * faktor);
+        c.getContext('2d').drawImage(bild, 0, 0, c.width, c.height);
+        fertig(c.toDataURL('image/jpeg', 0.85));
+      };
+      bild.src = leser.result;
+    };
+    leser.readAsDataURL(datei);
+  });
 }
 
 function fmt(iso) {
@@ -151,6 +189,43 @@ async function saveCalendar() {
   }
 }
 
+$('welcomeImage2Quelle').addEventListener('change', zweiteBildQuelleAnzeigen);
+$('welcomeImage2Btn').addEventListener('click', () => $('welcomeImage2File').click());
+$('welcomeImage2File').addEventListener('change', async () => {
+  const datei = $('welcomeImage2File').files[0];
+  const ergebnis = $('welcomeImage2Result');
+  if (!datei) return;
+  ergebnis.className = 'result';
+  ergebnis.textContent = 'Wird hochgeladen …';
+  try {
+    const dataUrl = await bildVerkleinern(datei, 1600);
+    const r = await fetch('/api/photo-card/welcome-2/background', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Fehler beim Hochladen');
+    const v = Date.now();
+    $('welcomeImage2Preview').src = `/api/photo-card/welcome-2/background?v=${v}`;
+    $('welcomeImage2Preview').style.display = 'block';
+    $('welcomeImage2Remove').style.display = 'inline-block';
+    ergebnis.className = 'result ok';
+    ergebnis.textContent = 'Hochgeladen. Nicht vergessen: unten speichern.';
+  } catch (e) {
+    ergebnis.className = 'result err';
+    ergebnis.textContent = 'Fehler: ' + e.message;
+  }
+  $('welcomeImage2File').value = '';
+});
+$('welcomeImage2Remove').addEventListener('click', async () => {
+  await fetch('/api/photo-card/welcome-2/background/remove', { method: 'POST' });
+  $('welcomeImage2Preview').removeAttribute('src');
+  $('welcomeImage2Preview').style.display = 'none';
+  $('welcomeImage2Remove').style.display = 'none';
+  $('welcomeImage2Result').className = 'result';
+  $('welcomeImage2Result').textContent = 'Entfernt.';
+});
+
 $('saveCalBtn').addEventListener('click', saveCalendar);
 
 $('saveWelcomeBtn').addEventListener('click', async () => {
@@ -165,7 +240,8 @@ $('saveWelcomeBtn').addEventListener('click', async () => {
       welcomeImageEntity: $('welcomeImageEntity').value,
       welcomeCaption: $('welcomeCaption').value,
       welcomeHours: parseInt($('welcomeHours').value, 10) || 0,
-      welcomeImageEntity2: $('welcomeImageEntity2').value,
+      welcomeImage2Quelle: $('welcomeImage2Quelle').value,
+      welcomeImageEntity2: $('welcomeImage2Quelle').value === 'entity' ? $('welcomeImageEntity2').value : '',
       welcomeImageSeconds: parseInt($('welcomeImageSeconds').value, 10) || 8
     })
   });

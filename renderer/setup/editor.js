@@ -575,6 +575,12 @@ function openSettings(entityId) {
       <label>Knöpfe</label>
       <div id="gateBtnList"></div>
       <button type="button" id="gateAddBtn" style="margin-top:0.6rem;">+ Knopf hinzufügen</button>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.6vh 0 1vh;">
+        Relais und Schalter werden als <strong>Taster</strong> behandelt: kurz ein, gleich wieder
+        aus – ein Torantrieb braucht einen Impuls, kein Dauersignal. Soll eine Entität statt
+        dessen eingeschaltet bleiben, den Haken „Schalter“ setzen. Taster-Entitäten
+        (<code>input_button</code>, <code>button</code>, <code>script</code>) sind ohnehin
+        momentan; dort ändert der Haken nichts.</p>
       <datalist id="gateEntityList">
         ${allEntities.map(e => `<option value="${e.entity_id}">${e.name}</option>`).join('')}
       </datalist>
@@ -705,6 +711,10 @@ function openSettings(entityId) {
         <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.6vh;">
           <input type="text" class="gate-label-input" data-idx="${i}" placeholder="Beschriftung, z.B. Tor vorne" value="${(b.label || '').replace(/"/g, '&quot;')}" style="flex:1;">
           <input type="text" class="gate-entity-input" data-idx="${i}" list="gateEntityList" placeholder="input_button.xxx" value="${(b.entity || '').replace(/"/g, '&quot;')}" style="flex:1.4;">
+          <label style="display:flex; align-items:center; gap:0.3vh; font-size:1.1vh; color:var(--muted); flex-shrink:0; white-space:nowrap;"
+                 title="Aus: kurzer Impuls wie ein Taster. An: bleibt eingeschaltet wie ein Schalter.">
+            <input type="checkbox" class="gate-schalter-input" data-idx="${i}" style="width:auto; margin:0;" ${b.alsSchalter ? 'checked' : ''}>Schalter
+          </label>
           <button type="button" class="gate-up-btn" data-idx="${i}" style="width:auto; padding:0 1vh; margin:0; flex-shrink:0;" title="nach oben">↑</button>
           <button type="button" class="gate-remove-btn" data-idx="${i}" style="width:auto; padding:0 1.2vh; margin:0; background:#dc3545; flex-shrink:0;">×</button>
         </div>
@@ -715,6 +725,9 @@ function openSettings(entityId) {
       }));
       list.querySelectorAll('.gate-entity-input').forEach(el => el.addEventListener('input', () => {
         settings.gateButtons[+el.dataset.idx].entity = el.value; markDirty();
+      }));
+      list.querySelectorAll('.gate-schalter-input').forEach(el => el.addEventListener('change', () => {
+        settings.gateButtons[+el.dataset.idx].alsSchalter = el.checked; markDirty();
       }));
       list.querySelectorAll('.gate-remove-btn').forEach(el => el.addEventListener('click', () => {
         settings.gateButtons.splice(+el.dataset.idx, 1); markDirty(); renderGateRows();

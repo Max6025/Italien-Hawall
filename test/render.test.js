@@ -71,7 +71,7 @@ test('Die Karten-Entitaet der Tor-Card ist die Melde-Entitaet', () => {
 });
 
 test('Der Dienst wird aus der Entitaet abgeleitet -- Taster, Rollladen und Skript gemischt', () => {
-  const f = D.serviceFuerEntitaet;
+  const f = (id) => { const d = D.serviceFuerEntitaet(id); return { domain: d.domain, service: d.service }; };
   assert.deepStrictEqual(f('input_button.tor_vorne'), { domain: 'input_button', service: 'press' });
   assert.deepStrictEqual(f('button.tor'), { domain: 'button', service: 'press' });
   assert.deepStrictEqual(f('cover.garagentor'), { domain: 'cover', service: 'open_cover' });
@@ -105,4 +105,24 @@ test('Klima nimmt jetzt eine Einheit entgegen', () => {
   // settings.suffix wurde von der Karte gelesen, war im Editor aber nicht erreichbar.
   // Der Test haelt fest, dass die Karte den Typ ueberhaupt kennt.
   assert.deepStrictEqual(D.domainsForType('climate'), ['climate']);
+});
+
+test('Relais werden im Tor-Knopf als Taster behandelt, nicht als Schalter', () => {
+  // Ein Torantrieb haengt an einem Relais. Nur einschalten laesst es eingeschaltet -- das Tor
+  // faehrt dann einmal und der Kontakt bleibt geschlossen.
+  const schalter = D.serviceFuerEntitaet('switch.torgarage_switch_0');
+  assert.strictEqual(schalter.impuls, true, 'ein switch muss gepulst werden');
+  assert.strictEqual(schalter.aus, 'turn_off', 'ohne Gegenbefehl bleibt das Relais an');
+
+  const boolean = D.serviceFuerEntitaet('input_boolean.tor_merker');
+  assert.strictEqual(boolean.impuls, true);
+});
+
+test('Von Natur aus momentane Entitaeten werden nicht gepulst', () => {
+  // Ein zweiter Befehl waere hier sinnlos bis schaedlich.
+  for (const id of ['input_button.tor_vorne', 'button.tor', 'script.tor_auf', 'scene.ankunft', 'automation.tor']) {
+    assert.strictEqual(D.serviceFuerEntitaet(id).impuls, false, id + ' darf nicht gepulst werden');
+  }
+  assert.strictEqual(D.serviceFuerEntitaet('cover.garagentor').impuls, false,
+    'ein Rollladen faehrt und darf nicht mittendrin gestoppt werden');
 });
