@@ -124,13 +124,24 @@
 
     <label style="margin-top:1rem;">Text</label>
     <textarea id="welcomeText" rows="3" placeholder="Schön, dass Sie da sind. Alles Wichtige zu Ihrem Aufenthalt finden Sie auf dem Ankunftszettel."></textarea>
-    <p class="hint-text">Zeilenumbrüche werden übernommen.</p>
+    <p class="hint-text">Markdown wird unterstützt: <code>**fett**</code>, <code>*kursiv*</code>,
+      <code>`Code`</code>, Aufzählungen mit <code>-</code>, Überschriften mit <code>#</code> und
+      Links als <code>[Text](https://…)</code>. Zeilenumbrüche werden übernommen. HTML wird
+      bewusst nicht ausgeführt, sondern als Text angezeigt.</p>
 
     <label style="margin-top:1rem;">Bild</label>
     <select id="welcomeImageEntity"><option value="">– kein Bild –</option></select>
     <p class="hint-text">Auswahl aus deinen <code>image</code>-Entitäten. Liefert Home Assistant
       das Bild gerade nicht, verschwindet der Bildbereich und der Text nimmt die ganze Fläche –
       es erscheint kein Platzhalter.</p>
+
+    <label style="margin-top:1rem;">Zweites Bild (optional)</label>
+    <select id="welcomeImageEntity2"><option value="">– kein zweites Bild –</option></select>
+    <p class="hint-text">Ist eines gewählt, wechseln die beiden Bilder mit einer weichen
+      Überblendung ab.</p>
+
+    <label style="margin-top:1rem;">Wechsel alle … Sekunden</label>
+    <input type="number" id="welcomeImageSeconds" min="2" step="1" value="8" style="max-width:140px;">
 
     <label style="margin-top:1rem;">Bildunterschrift</label>
     <input type="text" id="welcomeCaption" placeholder="Gast-WLAN">

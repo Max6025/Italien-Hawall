@@ -61,22 +61,27 @@ async function load() {
   $('welcomeHeading').value = configRes.welcomeHeading || '';
   $('welcomeText').value = configRes.welcomeText || '';
   $('welcomeCaption').value = configRes.welcomeCaption || '';
+  $('welcomeImageSeconds').value = configRes.welcomeImageSeconds === undefined ? 8 : configRes.welcomeImageSeconds;
   $('welcomeHours').value = configRes.welcomeHours === undefined ? 5 : configRes.welcomeHours;
 
-  const bildSelect = $('welcomeImageEntity');
-  bildSelect.innerHTML = '<option value="">– kein Bild –</option>';
   const bildRes = await fetch('/api/entities?domain=image').then(r => r.json()).catch(() => ({ ok: false }));
-  if (bildRes.ok && bildRes.entities.length) {
+  const bildListe = (selectId, leerText, gewaehlt) => {
+    const sel = $(selectId);
+    sel.innerHTML = `<option value="">${leerText}</option>`;
+    if (!bildRes.ok || !bildRes.entities.length) {
+      sel.innerHTML = '<option value="">– keine Bild-Entitäten in Home Assistant gefunden –</option>';
+      return;
+    }
     bildRes.entities.forEach(e => {
       const opt = document.createElement('option');
       opt.value = e.entity_id;
       opt.textContent = `${e.name} (${e.entity_id})`;
-      if (e.entity_id === configRes.welcomeImageEntity) opt.selected = true;
-      bildSelect.appendChild(opt);
+      if (e.entity_id === gewaehlt) opt.selected = true;
+      sel.appendChild(opt);
     });
-  } else {
-    bildSelect.innerHTML = '<option value="">– keine Bild-Entitäten in Home Assistant gefunden –</option>';
-  }
+  };
+  bildListe('welcomeImageEntity', '– kein Bild –', configRes.welcomeImageEntity);
+  bildListe('welcomeImageEntity2', '– kein zweites Bild –', configRes.welcomeImageEntity2);
 
   $('codeState').textContent = configRes.hasSetupCode
     ? 'Es ist ein Zugangscode gesetzt. Leer lassen, um ihn nicht zu ändern.'
@@ -159,7 +164,9 @@ $('saveWelcomeBtn').addEventListener('click', async () => {
       welcomeText: $('welcomeText').value,
       welcomeImageEntity: $('welcomeImageEntity').value,
       welcomeCaption: $('welcomeCaption').value,
-      welcomeHours: parseInt($('welcomeHours').value, 10) || 0
+      welcomeHours: parseInt($('welcomeHours').value, 10) || 0,
+      welcomeImageEntity2: $('welcomeImageEntity2').value,
+      welcomeImageSeconds: parseInt($('welcomeImageSeconds').value, 10) || 8
     })
   });
   const data = await r.json();

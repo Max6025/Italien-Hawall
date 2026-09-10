@@ -974,7 +974,11 @@ function ankunftsschirmPruefen() {
     // Der Bildweg existiert bereits: /api/ha/media bedient auch image.*-Entitaeten.
     bildUrl: config.welcomeImageEntity
       ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity)}`
-      : ''
+      : '',
+    bildUrl2: config.welcomeImageEntity2
+      ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity2)}`
+      : '',
+    wechselSekunden: config.welcomeImageSeconds
   });
   ankunftsschirm.zeigen(zustand.activeWindow.start);
 }

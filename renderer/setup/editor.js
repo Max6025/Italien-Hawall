@@ -949,7 +949,7 @@ function showEntityStep(type) {
   pickerType = type;
   $('pickerTitle').textContent = CARD_TYPES[type].label + ' – Entität wählen';
   $('typeGrid').style.display = 'none';
-  $('entityStep').style.display = 'block';
+  $('entityStep').style.display = '';   // Layout kommt aus dem CSS (Flex-Spalte, scrollbar)
   $('pickerFilter').value = '';
   renderPickerList('');
   $('pickerFilter').focus();

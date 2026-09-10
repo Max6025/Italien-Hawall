@@ -52,6 +52,59 @@
     return true;
   }
 
+  /**
+   * Kleiner Markdown-Satz fuer den Text des Ankunftsschirms.
+   *
+   * Sicherheitsprinzip: Erst wird ALLES maskiert, danach werden ausschliesslich die eigenen
+   * Auszeichnungen wieder zu Tags. So kann aus dem Text nie HTML entstehen, das jemand
+   * hineingeschrieben hat -- auch nicht ueber einen Umweg.
+   */
+  // Absichtlich ueber Zeichencodes statt ueber Maskierungen: Diese Datei wird von Skripten
+  // erzeugt und veraendert, und eine zerbrochene Maskierung faellt erst zur Laufzeit auf.
+  const NEUE_ZEILE = new RegExp(String.fromCharCode(13) + '?' + String.fromCharCode(10));
+
+  function markdown(text, escFn) {
+    const esc = escFn || (v => String(v == null ? '' : v));
+    const zeilen = String(text || '').split(NEUE_ZEILE);
+    const raus = [];
+    let liste = false;
+
+    const inline = (roh) => {
+      let t = esc(roh);
+      t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+      t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      t = t.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+      t = t.replace(/_([^_]+)_/g, '<em>$1</em>');
+      // Nur http und https -- alles andere waere ein Einfallstor.
+      t = t.replace(/\[([^\]]+)\]\((https?:&#x2F;&#x2F;[^)\s]+|https?:\/\/[^)\s]+)\)/g,
+        (m, txt, url) => `<a href="${url.replace(/&#x2F;/g, '/')}" rel="noopener">${txt}</a>`);
+      return t;
+    };
+
+    const listeSchliessen = () => { if (liste) { raus.push('</ul>'); liste = false; } };
+
+    for (const zeile of zeilen) {
+      const z = zeile.trim();
+      if (!z) { listeSchliessen(); continue; }
+      const punkt = z.match(/^[-*+]\s+(.*)$/);
+      if (punkt) {
+        if (!liste) { raus.push('<ul>'); liste = true; }
+        raus.push('<li>' + inline(punkt[1]) + '</li>');
+        continue;
+      }
+      listeSchliessen();
+      const ueberschrift = z.match(/^(#{1,3})\s+(.*)$/);
+      if (ueberschrift) {
+        const stufe = ueberschrift[1].length + 1; // h2 bis h4, h1 gehoert der Ueberschrift oben
+        raus.push(`<h${stufe}>` + inline(ueberschrift[2]) + `</h${stufe}>`);
+        continue;
+      }
+      raus.push('<p>' + inline(z) + '</p>');
+    }
+    listeSchliessen();
+    return raus.join('');
+  }
+
   function Ankunftsschirm(wurzel, optionen) {
     const opt = optionen || {};
     this.wurzel = wurzel;
@@ -72,7 +125,10 @@
           '<p class="as-text"></p>' +
         '</div>' +
         '<div class="as-rechts">' +
-          '<div class="as-bildrahmen"><img class="as-bild" alt=""></div>' +
+          '<div class="as-bildrahmen">' +
+            '<img class="as-bild as-bild-a" alt="">' +
+            '<img class="as-bild as-bild-b" alt="">' +
+          '</div>' +
           '<div class="as-bildtext"></div>' +
         '</div>' +
       '</div>' +
@@ -148,25 +204,48 @@
   Ankunftsschirm.prototype.inhaltSetzen = function (inhalt) {
     const esc = (global.DashboardRender && global.DashboardRender.esc) || (v => String(v == null ? '' : v));
     this.wurzel.querySelector('.as-ueberschrift').innerHTML = esc(inhalt.ueberschrift || '');
-    this.wurzel.querySelector('.as-text').textContent = inhalt.text || '';
+    this.wurzel.querySelector('.as-text').innerHTML = markdown(inhalt.text || '', esc);
     this.wurzel.querySelector('.as-bildtext').textContent = inhalt.bildtext || '';
 
     const rechts = this.wurzel.querySelector('.as-rechts');
-    const bild = this.wurzel.querySelector('.as-bild');
-    if (inhalt.bildUrl) {
-      bild.src = inhalt.bildUrl;
-      rechts.style.display = '';
-      this.wurzel.classList.remove('as-ohne-bild');
-    } else {
-      bild.removeAttribute('src');
+    const a = this.wurzel.querySelector('.as-bild-a');
+    const b = this.wurzel.querySelector('.as-bild-b');
+    const bilder = [inhalt.bildUrl, inhalt.bildUrl2].filter(Boolean);
+
+    clearInterval(this._bildWechsel);
+    if (!bilder.length) {
+      a.removeAttribute('src'); b.removeAttribute('src');
       rechts.style.display = 'none';
       this.wurzel.classList.add('as-ohne-bild');
+      return;
     }
-    // Lädt das Bild nicht (Entität weg, HA kurz nicht erreichbar), gilt dasselbe wie oben.
-    bild.onerror = () => {
-      rechts.style.display = 'none';
-      this.wurzel.classList.add('as-ohne-bild');
+
+    rechts.style.display = '';
+    this.wurzel.classList.remove('as-ohne-bild');
+    a.src = bilder[0];
+    b.src = bilder[1] || bilder[0];
+    a.classList.add('as-bild-vorn');
+    b.classList.remove('as-bild-vorn');
+
+    // Laedt ein Bild nicht (Entitaet weg, HA kurz nicht erreichbar), verschwindet der Bildbereich
+    // ganz -- kein Platzhalter, kein Hinweis.
+    const wegBeiFehler = () => {
+      if (!a.complete || a.naturalWidth === 0) {
+        rechts.style.display = 'none';
+        this.wurzel.classList.add('as-ohne-bild');
+      }
     };
+    a.onerror = wegBeiFehler;
+
+    if (bilder.length > 1) {
+      const sekunden = Number(inhalt.wechselSekunden) > 0 ? Number(inhalt.wechselSekunden) : 8;
+      let vorn = 0;
+      this._bildWechsel = setInterval(() => {
+        vorn = 1 - vorn;
+        a.classList.toggle('as-bild-vorn', vorn === 0);
+        b.classList.toggle('as-bild-vorn', vorn === 1);
+      }, sekunden * 1000);
+    }
   };
 
   Ankunftsschirm.prototype.zeigen = function (fensterStart) {
@@ -179,6 +258,7 @@
 
   Ankunftsschirm.prototype.verbergen = function () {
     if (!this.sichtbar) return;
+    clearInterval(this._bildWechsel);
     this.sichtbar = false;
     this.wurzel.classList.remove('as-sichtbar');
     this._animationStoppen();
@@ -236,7 +316,7 @@
     this.wurzel.classList.remove('ta-sichtbar');
   };
 
-  const api = { sollAnzeigen, Ankunftsschirm, Terminankuendigung, ANZAHL_FORMEN, ANKUENDIGUNG_MS };
+  const api = { sollAnzeigen, markdown, Ankunftsschirm, Terminankuendigung, ANZAHL_FORMEN, ANKUENDIGUNG_MS };
   global.AnkunftsschirmModul = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

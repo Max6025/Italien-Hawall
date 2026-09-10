@@ -78,3 +78,52 @@ test('Ein Verworfen-Eintrag eines fremden Fensters blockiert nicht', () => {
   const s = sollAnzeigen(basis({ verworfenFuer: '2026-01-01T00:00:00.000Z' }));
   assert.strictEqual(s, true);
 });
+
+// --- Markdown ---------------------------------------------------------------------------------
+//
+// Sicherheitsprinzip: Erst wird alles maskiert, danach werden ausschliesslich die eigenen
+// Auszeichnungen zu Tags. Aus dem Text kann also nie HTML entstehen, das jemand hineingeschrieben
+// hat -- der Text landet auf einem Geraet, das Gaesten gehoert.
+
+const { markdown } = require('../renderer/shared/ankunftsschirm.js');
+const esc = (v) => String(v == null ? '' : v)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+test('Fett, kursiv und Code werden ausgezeichnet', () => {
+  assert.strictEqual(markdown('**fett**', esc), '<p><strong>fett</strong></p>');
+  assert.strictEqual(markdown('_kursiv_', esc), '<p><em>kursiv</em></p>');
+  assert.strictEqual(markdown('`code`', esc), '<p><code>code</code></p>');
+});
+
+test('Aufzaehlungen werden zu einer Liste', () => {
+  const h = markdown('- eins\n- zwei', esc);
+  assert.strictEqual(h, '<ul><li>eins</li><li>zwei</li></ul>');
+});
+
+test('Ueberschriften beginnen bei h2 -- h1 gehoert der Ueberschrift des Schirms', () => {
+  assert.strictEqual(markdown('# Titel', esc), '<h2>Titel</h2>');
+  assert.strictEqual(markdown('## Kleiner', esc), '<h3>Kleiner</h3>');
+});
+
+test('HTML im Text wird angezeigt, nicht ausgefuehrt', () => {
+  const h = markdown('<script>alert(1)</script>', esc);
+  assert.ok(!h.includes('<script'), 'es darf kein script-Tag entstehen');
+  assert.ok(h.includes('&lt;script&gt;'), 'es muss als Text sichtbar sein');
+});
+
+test('Ein Bildtag im Text erzeugt kein Bild', () => {
+  const h = markdown('<img src=x onerror=alert(1)>', esc);
+  assert.ok(!h.includes('<img'), 'es darf kein img-Tag entstehen');
+});
+
+test('Nur http und https werden zu Links', () => {
+  assert.ok(markdown('[HA](https://example.org)', esc).includes('<a href="https://example.org"'));
+  const boese = markdown('[klick](javascript:alert(1))', esc);
+  assert.ok(!boese.includes('<a '), 'javascript: darf nie zu einem Link werden');
+});
+
+test('Leerer Text ergibt nichts', () => {
+  assert.strictEqual(markdown('', esc), '');
+  assert.strictEqual(markdown(null, esc), '');
+});

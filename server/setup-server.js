@@ -248,6 +248,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeText: store.get('welcomeText') || '',
       welcomeImageEntity: store.get('welcomeImageEntity') || '',
       welcomeCaption: store.get('welcomeCaption') || 'Gast-WLAN',
+      welcomeImageEntity2: store.get('welcomeImageEntity2') || '',
+      welcomeImageSeconds: store.get('welcomeImageSeconds') === undefined ? 8 : store.get('welcomeImageSeconds'),
       welcomeHours: store.get('welcomeHours') === undefined ? 5 : store.get('welcomeHours'),
       welcomeDismissedFor: store.get('welcomeDismissedFor') || '',
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
@@ -265,7 +267,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       motionWakeEnabled, motionThreshold,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
-      welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeHours
+      welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeHours,
+      welcomeImageEntity2, welcomeImageSeconds
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -300,6 +303,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (welcomeImageEntity !== undefined) store.set('welcomeImageEntity', String(welcomeImageEntity || ''));
     if (welcomeCaption !== undefined) store.set('welcomeCaption', String(welcomeCaption || ''));
     if (welcomeHours !== undefined) store.set('welcomeHours', Math.max(0, Number(welcomeHours) || 0));
+    if (welcomeImageEntity2 !== undefined) store.set('welcomeImageEntity2', String(welcomeImageEntity2 || ''));
+    if (welcomeImageSeconds !== undefined) store.set('welcomeImageSeconds', Math.max(2, Number(welcomeImageSeconds) || 8));
 
     // Mindestlaenge, damit das Feld nicht versehentlich leer bleibt und der Schutz still ausfaellt.
     if (setupCode !== undefined && String(setupCode).length > 0) {
