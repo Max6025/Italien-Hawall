@@ -476,12 +476,24 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
    beides laeuft auf der Grafikeinheit und bleibt deshalb auch auf schwacher Hardware fluessig. */
 .ankunftsschirm {
   position: fixed; inset: 0; z-index: 9997;
-  display: none; overflow: hidden;
+  overflow: hidden;
   background: #07070c;
   font-family: "Segoe UI", system-ui, sans-serif;
   color: #f3f1f7;
+  /* Weich statt hart: "zack, weg" sieht nach Notbehelf aus. visibility wird verzoegert
+     umgeschaltet, damit die Blende noch zu Ende laufen kann. */
+  opacity: 0; visibility: hidden;
+  transition: opacity .6s ease, visibility 0s linear .6s;
 }
-.ankunftsschirm.as-sichtbar { display: block; }
+.ankunftsschirm.as-sichtbar {
+  opacity: 1; visibility: visible;
+  transition: opacity .8s ease, visibility 0s linear 0s;
+}
+.ankunftsschirm .as-inhalt > * {
+  transform: translateY(2vh); opacity: 0;
+  transition: transform .9s cubic-bezier(.22,.68,.28,1) .25s, opacity .9s ease .25s;
+}
+.ankunftsschirm.as-sichtbar .as-inhalt > * { transform: none; opacity: 1; }
 
 .as-buehne { position: absolute; inset: 0; }
 .as-form {
@@ -567,3 +579,60 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   font-family: inherit; font-size: clamp(.7rem, 2.4cqmin, 1.15rem); font-weight: 500;
 }
 .gate-btn:active { transform: scale(.97); }
+
+/* --- Terminankuendigung ----------------------------------------------------------------------
+   Beginnt ein Termin, faellt das Panel nicht mit der Tuer ins Haus: erst schwarz, dann Symbol,
+   "Neuer Termin", Titel und Zeitraum -- und erst danach Ankunftsschirm oder Dashboard. */
+.terminankuendigung {
+  position: fixed; inset: 0; z-index: 9998;
+  display: grid; place-items: center;
+  background: #05050a;
+  font-family: "Segoe UI", system-ui, sans-serif; color: #f3f1f7;
+  opacity: 0; visibility: hidden;
+  transition: opacity .7s ease, visibility 0s linear .7s;
+}
+.terminankuendigung.ta-sichtbar {
+  opacity: 1; visibility: visible;
+  transition: opacity .7s ease, visibility 0s linear 0s;
+}
+.ta-inhalt { text-align: center; padding: 6vw; max-width: 80vw; }
+.ta-inhalt > * {
+  opacity: 0; transform: translateY(2.4vh);
+  transition: opacity .8s ease, transform .8s cubic-bezier(.22,.68,.28,1);
+}
+.terminankuendigung.ta-sichtbar .ta-symbol { transition-delay: .15s; }
+.terminankuendigung.ta-sichtbar .ta-klein  { transition-delay: .45s; }
+.terminankuendigung.ta-sichtbar .ta-titel  { transition-delay: .70s; }
+.terminankuendigung.ta-sichtbar .ta-zeit   { transition-delay: .95s; }
+.terminankuendigung.ta-sichtbar .ta-inhalt > * { opacity: 1; transform: none; }
+
+.ta-symbol { display: grid; place-items: center; margin-bottom: 3.5vh; }
+.ta-symbol svg { width: clamp(48px, 9vw, 120px); height: clamp(48px, 9vw, 120px); color: rgba(255,255,255,.72); }
+.ta-klein {
+  font-size: clamp(.85rem, 1.7vw, 1.35rem); letter-spacing: .22em; text-transform: uppercase;
+  color: rgba(255,255,255,.5); margin-bottom: 1.6vh;
+}
+.ta-titel { font-size: clamp(1.8rem, 5vw, 4.4rem); font-weight: 200; line-height: 1.1; margin-bottom: 2vh; }
+.ta-zeit { font-size: clamp(.95rem, 2vw, 1.7rem); font-weight: 300; color: rgba(255,255,255,.72); }
+
+/* --- Uebergaenge allgemein -------------------------------------------------------------------
+   Kein hartes Umschalten mehr: Karten reagieren spuerbar aufs Antippen, Overlays blenden. */
+.card { transition: transform .18s ease, box-shadow .25s ease, background .3s ease; }
+.card:active { transform: scale(.985); }
+.icon-btn, .gate-btn, button { transition: transform .15s ease, background .25s ease, opacity .25s ease; }
+.night-overlay, .notify-overlay, #haErrorOverlay { transition: opacity .5s ease; }
+
+/* Klimakarte: Betriebsarten und Voreinstellungen */
+.climate-modes { display: flex; flex-wrap: wrap; gap: .4vh; justify-content: center; margin-top: .5vh; }
+.climate-mode {
+  padding: .5vh .9vh; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--card-border); background: var(--panel2); color: var(--muted);
+  font-family: inherit; font-size: clamp(.6rem, 2cqmin, .95rem);
+}
+.climate-mode.aktiv { background: var(--text); color: var(--bg); border-color: transparent; font-weight: 600; }
+.climate-presets { margin-top: .5vh; display: flex; justify-content: center; }
+.climate-presets select {
+  border-radius: 9px; padding: .4vh .8vh; border: 1px solid var(--card-border);
+  background: var(--panel2); color: var(--text); font-family: inherit;
+  font-size: clamp(.6rem, 2cqmin, .95rem); max-width: 100%;
+}

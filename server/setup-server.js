@@ -332,6 +332,13 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     res.json({ ok: true });
   });
 
+  // Ankunftsschirm erneut zeigen: setzt den Verworfen-Zustand zurueck. Gedacht zum Ausprobieren,
+  // ohne auf den naechsten Termin warten zu muessen.
+  app.post('/api/welcome/show', (req, res) => {
+    store.delete('welcomeDismissedFor');
+    res.json({ ok: true });
+  });
+
   // --- Kalendersteuerung ----------------------------------------------------------------------
 
   app.get('/api/calendar/state', (req, res) => {

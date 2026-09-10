@@ -167,6 +167,16 @@ $('saveWelcomeBtn').addEventListener('click', async () => {
   resultEl.className = data.ok ? 'result ok' : 'result err';
 });
 
+$('showWelcomeBtn').addEventListener('click', async () => {
+  const resultEl = $('showWelcomeResult');
+  const r = await fetch('/api/welcome/show', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const data = await r.json();
+  resultEl.textContent = data.ok
+    ? 'Zurückgesetzt. Läuft gerade ein Termin, erscheint der Ankunftsschirm gleich auf dem Display.'
+    : 'Fehler: ' + data.error;
+  resultEl.className = data.ok ? 'result ok' : 'result err';
+});
+
 $('calPauseBtn').addEventListener('click', async () => {
   await fetch('/api/calendar/pause', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   refreshCalStatus();

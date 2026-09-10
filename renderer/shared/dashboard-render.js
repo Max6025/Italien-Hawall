@@ -482,17 +482,50 @@
     if (type === 'climate') {
       const cur = attrs.current_temperature;
       const target = attrs.temperature;
+      // Schrittweite, Grenzen und Einheit kommen jetzt vom GERAET, nicht aus dem Code. Vorher
+      // stand hier fest 0,5 und fest "°C" -- bei Fahrenheit-Anlagen war die Einheit schlicht
+      // falsch, und man konnte ueber die Grenzen hinausklicken, die HA dann ablehnte.
+      const schritt = Number(attrs.target_temp_step) || 0.5;
+      const unten = attrs.min_temp !== undefined ? Number(attrs.min_temp) : -Infinity;
+      const oben = attrs.max_temp !== undefined ? Number(attrs.max_temp) : Infinity;
+      const einheit = settings.suffix || opts.tempUnit || '°C';
+      const modi = Array.isArray(attrs.hvac_modes) ? attrs.hvac_modes : [];
+      const presets = Array.isArray(attrs.preset_modes) ? attrs.preset_modes : [];
+      const modus = state ? state.state : '';
+      const zeigeModi = settings.climateModes !== false && modi.length > 1;
+      const zeigePresets = !!settings.climatePresets && presets.length > 0;
+      const nachkomma = schritt < 1 ? 1 : 0;
+      const begrenzt = (v) => Math.min(oben, Math.max(unten, v));
+
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.climate}</span><span class="badge">${state ? state.state : '–'}</span></div>
+        <div class="row"><span class="icon">${ICONS.climate}</span><span class="badge">${esc(HVAC_LABEL[modus] || modus || '–')}</span></div>
         <div class="name">${name}</div>
-        <div class="value">${target !== undefined ? target + '°C' : (cur !== undefined ? cur + '°C' : (state ? state.state : ''))}</div>
+        <div class="value">${target !== undefined ? target + einheit : (cur !== undefined ? cur + einheit : esc(modus))}</div>
+        ${cur !== undefined && target !== undefined ? `<div class="caption">gemessen ${cur}${einheit}</div>` : ''}
         <div class="controls">
           <button data-act="temp-down" ${dis}>−</button>
           <button data-act="temp-up" ${dis}>+</button>
-        </div>`;
+        </div>
+        ${zeigeModi ? `<div class="climate-modes">${modi.map(m =>
+          `<button class="climate-mode${m === modus ? ' aktiv' : ''}" data-modus="${esc(m)}" ${dis}>${esc(HVAC_LABEL[m] || m)}</button>`).join('')}</div>` : ''}
+        ${zeigePresets ? `<div class="climate-presets"><select data-act="preset" ${dis}>${presets.map(pm =>
+          `<option value="${esc(pm)}" ${pm === attrs.preset_mode ? 'selected' : ''}>${esc(pm)}</option>`).join('')}</select></div>` : ''}`;
+
       if (!editable && cb.onSetTemp) {
-        card.querySelector('[data-act="temp-up"]').addEventListener('click', () => cb.onSetTemp(entity_id, (target || 20) + 0.5));
-        card.querySelector('[data-act="temp-down"]').addEventListener('click', () => cb.onSetTemp(entity_id, (target || 20) - 0.5));
+        const basis = target !== undefined ? Number(target) : 20;
+        card.querySelector('[data-act="temp-up"]').addEventListener('click',
+          () => cb.onSetTemp(entity_id, +begrenzt(basis + schritt).toFixed(nachkomma)));
+        card.querySelector('[data-act="temp-down"]').addEventListener('click',
+          () => cb.onSetTemp(entity_id, +begrenzt(basis - schritt).toFixed(nachkomma)));
+      }
+      if (!editable && cb.onSetHvacMode) {
+        card.querySelectorAll('.climate-mode').forEach(el => el.addEventListener('click', (e) => {
+          e.stopPropagation(); cb.onSetHvacMode(entity_id, el.dataset.modus);
+        }));
+      }
+      if (!editable && cb.onSetPreset) {
+        const sel = card.querySelector('[data-act="preset"]');
+        if (sel) sel.addEventListener('change', (e) => { e.stopPropagation(); cb.onSetPreset(entity_id, sel.value); });
       }
     } else if (type === 'light') {
       const isOn = state && state.state === 'on';
@@ -1088,6 +1121,13 @@
       '.card { border-top: 1px solid var(--card-highlight, transparent); }',
       'body { background-attachment: fixed; }'
     ].join(' ')
+  };
+
+  // Home Assistant liefert die Modi als englische Bezeichner. Unbekannte werden unveraendert
+  // durchgereicht statt verschluckt -- lieber ein englisches Wort als ein leerer Knopf.
+  const HVAC_LABEL = {
+    off: 'Aus', heat: 'Heizen', cool: 'Kühlen', heat_cool: 'Auto', auto: 'Automatik',
+    dry: 'Entfeuchten', fan_only: 'Nur Lüfter', idle: 'Bereit', heating: 'Heizt', cooling: 'Kühlt'
   };
 
   // Welcher Dienst gehoert zu welcher Entitaet? Damit laesst sich in der Tor-Card ein

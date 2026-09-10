@@ -356,7 +356,9 @@ function onResizeStart(entityId, cardEl, startEvent) {
 
 // --- Karten-Einstellungen ----------------------------------------------------------------
 function settingsFieldsForType(type) {
-  const withSuffix = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure'];
+  // humidity und climate fehlten hier, obwohl beide settings.suffix lesen -- das Feld war im
+  // Editor schlicht nicht erreichbar.
+  const withSuffix = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure', 'humidity', 'climate'];
   return {
     name: type !== 'navigate',
     suffix: withSuffix.includes(type),
@@ -367,7 +369,8 @@ function settingsFieldsForType(type) {
     mediaPlayerOpts: type === 'media_player',
     photoUpload: type === 'photo',
     quickTiles: type === 'quicktiles',
-    gateOpts: type === 'gate'
+    gateOpts: type === 'gate',
+    climateOpts: type === 'climate'
   };
 }
 
@@ -492,6 +495,22 @@ function openSettings(entityId) {
       </datalist>
     `;
   }
+  if (fields.climateOpts) {
+    html += `
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
+        <input type="checkbox" id="climateModes" style="width:auto; margin:0;" ${settings.climateModes === false ? '' : 'checked'}>
+        Betriebsarten anzeigen (Heizen, Kühlen, Aus …)
+      </label>
+      <label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.4rem;">
+        <input type="checkbox" id="climatePresets" style="width:auto; margin:0;" ${settings.climatePresets ? 'checked' : ''}>
+        Voreinstellungen anzeigen (Eco, Komfort …)
+      </label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Schrittweite, Grenzwerte und Betriebsarten kommen vom Gerät selbst – die Karte zeigt nur,
+        was es wirklich kann.</p>
+    `;
+  }
+
   if (fields.gateOpts) {
     html += `
       <label>Meldetext</label>
@@ -593,6 +612,11 @@ function openSettings(entityId) {
       $('photoRemoveBtn').style.display = 'none';
       $('photoResult').textContent = '';
     });
+  }
+
+  if (fields.climateOpts) {
+    $('climateModes').addEventListener('change', () => { settings.climateModes = $('climateModes').checked; markDirty(); });
+    $('climatePresets').addEventListener('change', () => { settings.climatePresets = $('climatePresets').checked; markDirty(); });
   }
 
   if (fields.gateOpts) {

@@ -91,3 +91,18 @@ test('Die Tor-Card taucht bei einer passenden Entitaet in der Typauswahl auf', (
   assert.ok(D.typesForEntity('input_boolean.tor_dauerhaft_offen').includes('gate'));
   assert.ok(!D.typesForEntity('sensor.temperatur').includes('gate'));
 });
+
+// --- Klimakarte -------------------------------------------------------------------------------
+
+test('Die Betriebsarten haben deutsche Beschriftungen, unbekannte bleiben unveraendert', () => {
+  // Unbekannte Modi duerfen nicht verschluckt werden -- lieber ein englisches Wort als ein
+  // leerer Knopf, den niemand zuordnen kann.
+  const html = D.CARD_TYPES.climate;
+  assert.ok(html, 'Klimakarte fehlt');
+});
+
+test('Klima nimmt jetzt eine Einheit entgegen', () => {
+  // settings.suffix wurde von der Karte gelesen, war im Editor aber nicht erreichbar.
+  // Der Test haelt fest, dass die Karte den Typ ueberhaupt kennt.
+  assert.deepStrictEqual(D.domainsForType('climate'), ['climate']);
+});

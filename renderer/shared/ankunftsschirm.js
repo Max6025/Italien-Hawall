@@ -184,7 +184,59 @@
     this._animationStoppen();
   };
 
-  const api = { sollAnzeigen, Ankunftsschirm, ANZAHL_FORMEN };
+  // --- Terminankuendigung ---------------------------------------------------------------------
+  //
+  // Beginnt ein Termin, faellt das Panel nicht mit der Tuer ins Haus. Ablauf: schwarz, dann
+  // erscheint ein Symbol mit "Neuer Termin", Titel und Zeitraum, und erst danach uebernimmt der
+  // Ankunftsschirm oder das Dashboard. Fuenf Sekunden, weich ein und aus.
+  const ANKUENDIGUNG_MS = 5000;
+
+  function Terminankuendigung(wurzel) {
+    this.wurzel = wurzel;
+    this.timer = null;
+    wurzel.innerHTML =
+      '<div class="ta-inhalt">' +
+        '<div class="ta-symbol">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">' +
+          '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>' +
+          '<path d="M12 14v3M10.5 15.5h3"/></svg>' +
+        '</div>' +
+        '<div class="ta-klein">Neuer Termin</div>' +
+        '<div class="ta-titel"></div>' +
+        '<div class="ta-zeit"></div>' +
+      '</div>';
+  }
+
+  Terminankuendigung.prototype.zeigen = function (fenster, danach) {
+    const esc = (global.DashboardRender && global.DashboardRender.esc) || (v => String(v == null ? '' : v));
+    const von = new Date(fenster.start);
+    const bis = new Date(fenster.end);
+    const tag = von.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+    const uhr = von.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const bisUhr = bis.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const mehrtaegig = von.toDateString() !== bis.toDateString();
+    const bisText = mehrtaegig
+      ? bis.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' }) + ', ' + bisUhr
+      : bisUhr;
+
+    this.wurzel.querySelector('.ta-titel').innerHTML = esc(fenster.title || '');
+    this.wurzel.querySelector('.ta-zeit').textContent = tag + ', ' + uhr + ' bis ' + bisText;
+
+    this.wurzel.classList.add('ta-sichtbar');
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.wurzel.classList.remove('ta-sichtbar');
+      // Erst nach dem Ausblenden weitergeben, damit sich die Uebergaenge nicht ueberlagern.
+      setTimeout(() => { if (danach) danach(); }, 700);
+    }, ANKUENDIGUNG_MS);
+  };
+
+  Terminankuendigung.prototype.abbrechen = function () {
+    clearTimeout(this.timer);
+    this.wurzel.classList.remove('ta-sichtbar');
+  };
+
+  const api = { sollAnzeigen, Ankunftsschirm, Terminankuendigung, ANZAHL_FORMEN, ANKUENDIGUNG_MS };
   global.AnkunftsschirmModul = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
