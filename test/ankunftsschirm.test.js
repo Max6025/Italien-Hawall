@@ -208,3 +208,63 @@ test('Eine unbrauchbare Wechseldauer faellt auf acht Sekunden zurueck', () => {
   assert.strictEqual(bildFolge({ bildUrl: 'a', wechselSekunden: 'x' }).sekunden, 8);
   assert.strictEqual(bildFolge({ bildUrl: 'a', wechselSekunden: 25 }).sekunden, 25);
 });
+
+// --- "Jetzt anzeigen" -------------------------------------------------------------------------
+//
+// Der Knopf in den Einstellungen setzte frueher nur den Verworfen-Zustand zurueck. Ohne
+// laufenden Termin gibt es aber gar kein Anzeigefenster, und die Pruefung stieg sofort aus:
+// Man drueckt "jetzt anzeigen", und es passiert nichts. Wer den Schirm ansehen will, hat in
+// aller Regel gerade KEINEN Termin laufen -- sonst muesste er nicht danach fragen.
+
+const inZehnMinuten = () => Date.now() + 10 * 60000;
+const vorEinerMinute = () => Date.now() - 60000;
+
+test('Erzwungen erscheint er auch OHNE laufenden Termin', () => {
+  assert.strictEqual(sollAnzeigen({
+    aktiviert: true, anzeigefenster: null, erzwungenBis: inZehnMinuten(), jetzt: new Date()
+  }), true);
+});
+
+// basis() rechnet mit einer festen Pruefuhr im September 2026 -- das Zeitfenster muss sich
+// darauf beziehen, nicht auf die echte Uhr.
+const nachPruefuhr = (p, minuten) => (p.jetzt || new Date()).getTime() + minuten * 60000;
+
+test('Erzwungen schlaegt den Verworfen-Zustand', () => {
+  // Sonst waere der Knopf wirkungslos, sobald jemand den Schirm einmal weggetippt hat --
+  // und genau dann drueckt man ihn.
+  const p = basis({ verworfenFuer: START });
+  assert.strictEqual(sollAnzeigen(Object.assign(p, { erzwungenBis: nachPruefuhr(p, 10) })), true);
+});
+
+test('Erzwungen schlaegt die abgelaufene Anzeigedauer', () => {
+  const p = basis({ jetzt: beiUhrzeit('2026-09-13T22:00:00.000Z') });
+  assert.strictEqual(sollAnzeigen(Object.assign(p, { erzwungenBis: nachPruefuhr(p, 10) })), true);
+});
+
+test('Erzwungen erscheint er auch, wenn er ausgeschaltet ist', () => {
+  // Der Knopf steht in den Ankunftsschirm-Einstellungen und heisst "jetzt anzeigen". Wer ihn
+  // drueckt, will hinsehen -- auch (und gerade) um zu pruefen, ob sich das Einschalten lohnt.
+  assert.strictEqual(sollAnzeigen({
+    aktiviert: false, anzeigefenster: null, erzwungenBis: inZehnMinuten(), jetzt: new Date()
+  }), true);
+});
+
+test('Ein abgelaufenes Zeitfenster erzwingt nichts mehr', () => {
+  // Sonst bliebe der Schirm nach einem vergessenen Knopfdruck ewig stehen.
+  assert.strictEqual(sollAnzeigen({
+    aktiviert: true, anzeigefenster: null, erzwungenBis: vorEinerMinute(), jetzt: new Date()
+  }), false);
+});
+
+test('Ohne Zeitfenster gilt weiter die normale Regel', () => {
+  assert.strictEqual(sollAnzeigen(basis({ erzwungenBis: 0 })), true);
+  assert.strictEqual(sollAnzeigen(basis({ erzwungenBis: 0, verworfenFuer: START })), false);
+  assert.strictEqual(sollAnzeigen({ aktiviert: true, anzeigefenster: null, erzwungenBis: 0 }), false);
+});
+
+test('Unsinn im Zeitfenster laesst den Schirm nicht ewig stehen', () => {
+  ['kaputt', NaN, null, undefined, {}].forEach((v) => {
+    assert.strictEqual(sollAnzeigen({ aktiviert: true, anzeigefenster: null, erzwungenBis: v }), false,
+      'erzwungenBis=' + JSON.stringify(v));
+  });
+});

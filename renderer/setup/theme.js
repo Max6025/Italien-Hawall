@@ -209,7 +209,8 @@ $('showWelcomeBtn').addEventListener('click', async () => {
   const r = await fetch('/api/welcome/show', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   const data = await r.json();
   resultEl.textContent = data.ok
-    ? 'Zurückgesetzt. Läuft gerade ein Termin, erscheint der Ankunftsschirm gleich auf dem Display.'
+    ? `Der Ankunftsschirm erscheint gleich auf dem Display – auch ohne laufenden Termin. `
+      + `Er bleibt ${data.minuten || 10} Minuten stehen oder bis jemand ihn wegtippt.`
     : 'Fehler: ' + data.error;
   resultEl.className = data.ok ? 'result ok' : 'result err';
 });

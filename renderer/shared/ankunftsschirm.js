@@ -32,7 +32,20 @@
    * @param {Date}   p.jetzt
    */
   function sollAnzeigen(p) {
-    if (!p || !p.aktiviert) return false;
+    if (!p) return false;
+
+    // "Jetzt anzeigen" aus den Einstellungen schlaegt ALLES andere -- auch einen fehlenden
+    // Termin, eine abgelaufene Anzeigedauer und den Verworfen-Zustand.
+    //
+    // Vorher setzte der Knopf nur den Verworfen-Zustand zurueck. Ohne laufenden Termin gibt es
+    // aber gar kein Anzeigefenster, und die Pruefung stieg zwei Zeilen spaeter aus: Man drueckt
+    // "jetzt anzeigen", und es passiert nichts. Wer den Schirm ansehen will, hat in aller Regel
+    // gerade KEINEN Termin laufen -- sonst muesste er nicht danach fragen.
+    const erzwungenBis = Number(p.erzwungenBis) || 0;
+    const jetztMs = (p.jetzt || new Date()).getTime();
+    if (erzwungenBis && jetztMs < erzwungenBis) return true;
+
+    if (!p.aktiviert) return false;
     const fenster = p.anzeigefenster;
     if (!fenster || !fenster.start) return false;
 

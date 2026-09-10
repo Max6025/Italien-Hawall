@@ -261,6 +261,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeImageSeconds: store.get('welcomeImageSeconds') === undefined ? 8 : store.get('welcomeImageSeconds'),
       welcomeHours: store.get('welcomeHours') === undefined ? 5 : store.get('welcomeHours'),
       welcomeDismissedFor: store.get('welcomeDismissedFor') || '',
+      welcomeErzwungenBis: store.get('welcomeErzwungenBis') || 0,
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
       hasSetupCode: !!store.get('setupCode')
       // Token bewusst NICHT an den Dashboard-Client zurueckgeben; HA-Aufrufe laufen ueber /api/ha/*
@@ -343,16 +344,28 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
   // haengende onConfigSaved() die Ansicht neu laden.
   app.post('/api/welcome/dismiss', (req, res) => {
     const start = String((req.body && req.body.windowStart) || '');
-    if (!start) return res.status(400).json({ ok: false, error: 'windowStart fehlt' });
-    store.set('welcomeDismissedFor', start);
+    // Ein leerer Fensterbeginn ist erlaubt: Beim erzwungenen Anzeigen laeuft kein Termin, und
+    // trotzdem muss sich der Schirm wegtippen lassen.
+    if (start) store.set('welcomeDismissedFor', start);
+    store.delete('welcomeErzwungenBis');
     res.json({ ok: true });
   });
 
-  // Ankunftsschirm erneut zeigen: setzt den Verworfen-Zustand zurueck. Gedacht zum Ausprobieren,
-  // ohne auf den naechsten Termin warten zu muessen.
+  // Wie lange ein erzwungener Ankunftsschirm stehen bleibt, wenn ihn niemand wegtippt. Lang
+  // genug, um vom Einstellungsgeraet zur Wand zu gehen und hinzusehen; kurz genug, dass ein
+  // vergessener Knopfdruck das Panel nicht den halben Tag blockiert.
+  const WELCOME_ERZWUNGEN_MS = 10 * 60 * 1000;
+
+  // Ankunftsschirm jetzt zeigen.
+  //
+  // Vorher wurde hier nur der Verworfen-Zustand geloescht -- und das reichte nicht: Ohne
+  // laufenden Termin gibt es kein Anzeigefenster, und der Schirm erschien trotzdem nicht.
+  // Wer ihn ansehen will, hat aber in aller Regel gerade keinen Termin laufen. Jetzt wird ein
+  // Zeitfenster gesetzt, das die Anzeige unabhaengig vom Kalender erzwingt.
   app.post('/api/welcome/show', (req, res) => {
     store.delete('welcomeDismissedFor');
-    res.json({ ok: true });
+    store.set('welcomeErzwungenBis', Date.now() + WELCOME_ERZWUNGEN_MS);
+    res.json({ ok: true, minuten: Math.round(WELCOME_ERZWUNGEN_MS / 60000) });
   });
 
   // --- Kalendersteuerung ----------------------------------------------------------------------

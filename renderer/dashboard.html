@@ -227,6 +227,11 @@ async function activeLayout() {
 
 async function navigateTo(targetId) {
   currentDashboardId = targetId || 'main';
+  // Ein Dashboardwechsel muss IMMER durch. Das Antippen der Wechsel-Karte zaehlt selbst als
+  // Bedienung, und der Schutz in render() haette den Neuaufbau danach zwoelf Sekunden lang
+  // abgelehnt -- man tippt, es passiert nichts, und irgendwann wechselt es von allein.
+  // Genau so wurde es gemeldet: "bleibt auf dem Hauptdashboard".
+  aufbauErzwingen = true;
   $('backBtn').style.display = currentDashboardId === 'main' ? 'none' : 'flex';
   if (currentDashboardId === 'main') $('title').textContent = config.title || 'Wall Display';
   renderRoomTabs();
@@ -977,6 +982,7 @@ function ankunftsschirmPruefen() {
     anzeigefenster: zustand ? zustand.activeWindow : null,
     verworfenFuer: config.welcomeDismissedFor || '',
     stunden: config.welcomeHours,
+    erzwungenBis: config.welcomeErzwungenBis || 0,
     jetzt: new Date()
   });
   if (!zeigen) return ankunftsschirm.verbergen();
@@ -997,7 +1003,9 @@ function ankunftsschirmPruefen() {
       : (config.welcomeImageEntity2 ? `${API}/api/ha/media?entity_id=${encodeURIComponent(config.welcomeImageEntity2)}` : ''),
     wechselSekunden: config.welcomeImageSeconds
   });
-  ankunftsschirm.zeigen(zustand.activeWindow.start);
+  // Ohne laufenden Termin gibt es keinen Fensterbeginn -- beim erzwungenen Anzeigen ist das
+  // der Normalfall. Eine eigene Kennung, damit das Wegtippen trotzdem etwas zu melden hat.
+  ankunftsschirm.zeigen((zustand && zustand.activeWindow) ? zustand.activeWindow.start : '');
 }
 
 function ankunftsschirmAufbauen() {
@@ -1007,13 +1015,16 @@ function ankunftsschirmAufbauen() {
       // Sofort verbergen -- der Gast soll nicht auf das Netz warten. Scheitert das Speichern,
       // erscheint der Schirm beim naechsten Neustart erneut; das ist der harmlosere Fehler.
       ankunftsschirm.verbergen();
-      if (!fensterStart) return;
-      config.welcomeDismissedFor = fensterStart;
+      // Auch ohne Fensterbeginn muss das Wegtippen gemeldet werden: Beim erzwungenen Anzeigen
+      // gibt es keinen Termin, und ohne diese Meldung kaeme der Schirm beim naechsten
+      // Konfigurationsabruf sofort zurueck -- er liesse sich nicht wegtippen.
+      if (fensterStart) config.welcomeDismissedFor = fensterStart;
+      config.welcomeErzwungenBis = 0;
       try {
         await fetch(`${API}/api/welcome/dismiss`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ windowStart: fensterStart })
+          body: JSON.stringify({ windowStart: fensterStart || '' })
         });
       } catch (e) { /* siehe oben */ }
     }

@@ -95,6 +95,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   standardmäßig leer und lassen den Wert unverändert. Wer hier später auf „zwei Stellen ab
   Werk" umstellt, ändert stillschweigend jede Karte, die seit Jahren so hängt.
 
+- **Der Bedien-Schutz darf einen Dashboardwechsel nicht aufhalten.** `render()` verschiebt den
+  Neuaufbau, solange jemand bedient — aber das Antippen der Wechsel-Karte zählt selbst als
+  Bedienung. Ohne `aufbauErzwingen` in `navigateTo()` tippt man, es passiert nichts, und nach
+  zwölf Sekunden wechselt es von allein. Gemeldet wurde das als „bleibt auf dem
+  Hauptdashboard". Wer künftig etwas einbaut, das die Ansicht als Ganzes wechselt, muss
+  denselben Weg nehmen.
 - **Die Setup-Oberfläche läuft im UNSICHEREN Kontext.** Sie wird über `http://<ip>:8788`
   aufgerufen, nicht über HTTPS. Alles, was der Browser nur im sicheren Kontext freigibt, ist
   dort schlicht nicht da: `navigator.clipboard` ist `undefined`, und der Zugriff darauf wirft.
@@ -164,7 +170,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-170 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+181 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
