@@ -11,8 +11,12 @@
 //    wiederholt nach. Dieses Modul stellt dafür nur das billige Nachschalten bereit.
 //
 // 2. Das Einschalten über SC_MONITORPOWER mit -1 funktioniert auf aktuellen Windows-Versionen
-//    unzuverlässig. Zuverlässig weckt nur echte Eingabe. Deshalb wackeln wir beim Einschalten
-//    zusätzlich um einen Pixel mit dem Mauszeiger und setzen ihn sofort zurück.
+//    unzuverlässig. Zuverlässig weckt nur echte Eingabe -- und zwar ECHTE: `SetCursorPos`
+//    verschiebt zwar den Mauszeiger, zählt für Windows aber nicht als Benutzereingabe und setzt
+//    den Leerlaufzähler nicht zurück. Am Gerät beobachtet: Das Panel ging an, zeigte zwei
+//    Sekunden den Sperrbildschirm und wurde sofort wieder verdunkelt; ein Tastendruck dagegen
+//    liess es an. Deshalb wird die Eingabe jetzt über `mouse_event` eingespeist -- eine relative
+//    Bewegung um einen Pixel und zurück, die Windows als echte Eingabe verbucht.
 //
 // Damit der Wächter nicht alle paar Sekunden einen neuen PowerShell-Prozess startet, hält
 // dieses Modul EINEN Prozess offen und schiebt ihm Befehle über die Standardeingabe zu.
@@ -33,24 +37,31 @@ const MONITOR_ON = -1;
 
 const READY_MARKER = 'PANEL-BEREIT';
 const READY_TIMEOUT_MS = 10000;
+// Das Einschalten wird regelmaessig bekraeftigt. Einmal genuegt in der Theorie -- praktisch gibt
+// es unter Windows genug Stellen, die einen Bildschirm wieder verdunkeln (Sperrbildschirm-
+// Zeitgeber, Treiber, Energierichtlinien). Eine Minute ist selten genug, um nicht zu stoeren,
+// und haeufig genug, dass ein dunkler Bildschirm waehrend eines Termins nicht dunkel bleibt.
+const ON_REASSERT_MS = 60 * 1000;
+
+const MOUSEEVENTF_MOVE = 0x0001;
 
 const MEMBERS = [
   '[DllImport("user32.dll")] public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);',
-  '[DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);',
-  '[DllImport("user32.dll")] public static extern bool GetCursorPos(out System.Drawing.Point p);'
+  '[DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, System.IntPtr dwExtraInfo);'
 ].join(' ');
 
 const OFF_CALL = `[Wall.PanelCtl]::SendMessage(${HWND_BROADCAST}, ${WM_SYSCOMMAND}, ${SC_MONITORPOWER}, ${MONITOR_OFF}) | Out-Null`;
+// Erst einschalten, dann echte Eingabe einspeisen, damit der Zustand haelt. Die Reihenfolge ist
+// wichtig: Die Eingabe setzt den Leerlaufzaehler zurueck und verhindert das sofortige erneute
+// Verdunkeln -- deshalb muss sie NACH dem Einschalten kommen.
 const ON_CALL = [
-  '$p = New-Object System.Drawing.Point',
-  '[void][Wall.PanelCtl]::GetCursorPos([ref]$p)',
-  '[void][Wall.PanelCtl]::SetCursorPos($p.X + 1, $p.Y)',
+  `[Wall.PanelCtl]::SendMessage(${HWND_BROADCAST}, ${WM_SYSCOMMAND}, ${SC_MONITORPOWER}, ${MONITOR_ON}) | Out-Null`,
+  `[Wall.PanelCtl]::mouse_event(${MOUSEEVENTF_MOVE}, 1, 0, 0, [System.IntPtr]::Zero)`,
   'Start-Sleep -Milliseconds 40',
-  '[void][Wall.PanelCtl]::SetCursorPos($p.X, $p.Y)',
-  `[Wall.PanelCtl]::SendMessage(${HWND_BROADCAST}, ${WM_SYSCOMMAND}, ${SC_MONITORPOWER}, ${MONITOR_ON}) | Out-Null`
+  `[Wall.PanelCtl]::mouse_event(${MOUSEEVENTF_MOVE}, -1, 0, 0, [System.IntPtr]::Zero)`
 ].join('; ');
 
-const ADD_TYPE = `Add-Type -Name PanelCtl -Namespace Wall -MemberDefinition '${MEMBERS}' -ReferencedAssemblies System.Drawing`;
+const ADD_TYPE = `Add-Type -Name PanelCtl -Namespace Wall -MemberDefinition '${MEMBERS}'`;
 
 const PRELUDE = [
   "$ErrorActionPreference = 'SilentlyContinue'",
@@ -71,6 +82,7 @@ class Panel {
     this.proc = null;
     this.supported = process.platform === 'win32';
     this.lastDesired = null;
+    this.lastOnAssert = 0;   // wann zuletzt "einschalten" gesendet wurde
     this.ready = false;      // hat der Prozess seine Bereitschaft gemeldet?
     this.fallback = false;   // Dauerprozess aufgegeben, Einzelaufrufe verwenden
     this.readyTimer = null;
@@ -180,8 +192,11 @@ class Panel {
     const changed = this.lastDesired !== on;
     this.lastDesired = on;
     if (on) {
-      if (!changed) return true; // Einschalten muss nicht wiederholt werden
-      this.log('info', 'Panel wird eingeschaltet');
+      const faellig = Date.now() - this.lastOnAssert >= ON_REASSERT_MS;
+      if (!changed && !faellig) return true;
+      this.lastOnAssert = Date.now();
+      // Nur der Wechsel wird protokolliert -- sonst stuende jede Minute eine Zeile im Protokoll.
+      if (changed) this.log('info', 'Panel wird eingeschaltet');
       return this._send('Panel-On', true);
     }
     if (changed) this.log('info', 'Panel wird ausgeschaltet');

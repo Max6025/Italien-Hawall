@@ -14,7 +14,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { spawn } = require('child_process');
-const { PRELUDE, READY_MARKER, oneShotCommand } = require('../control/panel');
+const { Panel, PRELUDE, READY_MARKER, oneShotCommand } = require('../control/panel');
 
 const isWindows = process.platform === 'win32';
 
@@ -86,4 +86,51 @@ test('Ein echter Aufruf erreicht user32.dll', { skip: !isWindows && 'nur unter W
   assert.match(out, /AUFRUF-OK/, `Der Aufruf brach ab. Fehler: ${JSON.stringify(err)}`);
   assert.ok(!/Exception|nicht gefunden|not recognized/i.test(err),
     `PowerShell meldete einen Fehler: ${err}`);
+});
+
+// --- Echte Eingabe statt blosser Zeigerbewegung ------------------------------------------------
+//
+// Am Geraet beobachtet: Das Panel ging zum Terminbeginn an, zeigte zwei Sekunden den
+// Sperrbildschirm und wurde sofort wieder verdunkelt. Ein Tastendruck dagegen liess es an.
+// Ursache: `SetCursorPos` verschiebt den Zeiger, zaehlt fuer Windows aber nicht als
+// Benutzereingabe und setzt den Leerlaufzaehler nicht zurueck.
+
+test('Das Einschalten speist echte Eingabe ein, nicht nur eine Zeigerbewegung', () => {
+  assert.ok(PRELUDE.includes('mouse_event'), 'mouse_event fehlt -- das Wecken wuerde nicht halten');
+  assert.ok(!PRELUDE.includes('SetCursorPos'),
+    'SetCursorPos zaehlt nicht als Benutzereingabe und darf dafuer nicht verwendet werden');
+});
+
+test('Erst einschalten, dann Eingabe einspeisen', () => {
+  const zeile = PRELUDE.split('\n').find(l => l.startsWith('function Panel-On'));
+  assert.ok(zeile, 'Panel-On nicht gefunden');
+  assert.ok(zeile.indexOf('SendMessage') < zeile.indexOf('mouse_event'),
+    'die Eingabe muss NACH dem Einschalten kommen, sonst verdunkelt Windows sofort wieder');
+});
+
+test('Ausschalten speist keine Eingabe ein', () => {
+  const zeile = PRELUDE.split('\n').find(l => l.startsWith('function Panel-Off'));
+  assert.ok(zeile, 'Panel-Off nicht gefunden');
+  assert.ok(!zeile.includes('mouse_event'),
+    'beim Abschalten darf keine Eingabe erzeugt werden -- das wuerde den Bildschirm sofort wecken');
+});
+
+test('Einschalten wird wiederholt, Ausschalten bleibt unveraendert haeufig', () => {
+  const p = new Panel();
+  p.supported = true;
+  const gesendet = [];
+  p._send = (cmd) => { gesendet.push(cmd); return true; };
+
+  p.setPower(true);
+  p.setPower(true);
+  assert.deepStrictEqual(gesendet, ['Panel-On'], 'kurz hintereinander nicht erneut einschalten');
+
+  p.lastOnAssert = Date.now() - 90 * 1000; // eine Minute ist vorbei
+  p.setPower(true);
+  assert.strictEqual(gesendet.length, 2, 'nach der Frist wird das Einschalten bekraeftigt');
+
+  p.setPower(false);
+  p.setPower(false);
+  assert.strictEqual(gesendet.filter(c => c === 'Panel-Off').length, 2,
+    'das Nachschalten des Waechters muss bei JEDEM Aufruf senden');
 });

@@ -34,8 +34,13 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
 - **Ganztages-Termine**: Home Assistant liefert das Enddatum **ausschließend**. Ein Termin vom
   3. bis 7. Juni hat `end.date = "2026-06-08"`. Wer das übersieht, schaltet einen Tag zu früh ab.
 - **Zeitzonen**: `{ date: ... }` muss als *lokale* Mitternacht gelesen werden, nicht als UTC.
-- **Panel einschalten**: `SC_MONITORPOWER` mit `-1` ist auf aktuellem Windows unzuverlässig.
-  Zuverlässig weckt nur echte Eingabe — deshalb der Mauszeiger-Wackler in `panel.js`.
+- **Panel einschalten braucht ECHTE Eingabe.** `SC_MONITORPOWER` mit `-1` allein hält nicht, und
+  `SetCursorPos` hilft nicht: Es verschiebt den Zeiger, zählt für Windows aber nicht als
+  Benutzereingabe und setzt den Leerlaufzähler nicht zurück. Am Gerät sah das so aus: Panel geht
+  an, zeigt zwei Sekunden den Sperrbildschirm, wird wieder dunkel — ein Tastendruck dagegen ließ
+  es an. `panel.js` speist die Eingabe deshalb über `mouse_event` ein und bekräftigt das
+  Einschalten jede Minute erneut. Beim **Ausschalten** darf keine Eingabe erzeugt werden, sonst
+  weckt der Abschaltbefehl den Bildschirm sofort wieder.
 - **Kein Here-String im PowerShell-Vorspann.** Über die Standardeingabe erkennt PowerShell das
   Ende von `@'...'@` nicht: Es puffert alles Folgende als Text, führt nie etwas aus und beendet
   sich am Dateiende mit Code 0 — ohne Ausgabe, ohne Fehlermeldung. Das Panel wird dann nie
