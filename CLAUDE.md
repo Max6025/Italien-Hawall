@@ -51,6 +51,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   Dagegen hält `keepSystemAwake()` in `main.js` eine `prevent-app-suspension`-Anforderung. Wird
   hier je etwas an der Panel-Abschaltung geändert, muss dieser Fall neu gemessen werden --
   „Panel aus" und „Gerät schläft" sehen von außen identisch aus.
+- **Auf dem Sperrbildschirm greift kein einziger Fluchtweg.** Die Tipp-Geste erreicht das
+  Dashboard nicht (der Sperrbildschirm liegt davor), globale Tastenkuerzel laesst Windows dort
+  nicht durch, und der Schalter in der Weboberflaeche braucht einen Server, der beim Aufwachen
+  noch nicht antwortet. Wer aufweckt, hat sonst fuenf Sekunden bis zum naechsten Abschalten.
+  Deshalb pausiert `powerMonitor`s `resume` und `unlock-screen` die Steuerung automatisch zwei
+  Minuten. Diese Automatik nicht entfernen -- ohne sie sperrt das Geraet den Nutzer aus.
 - **Doppelte Nachtlogik**: Der alte Nachtmodus im Renderer ist deaktiviert, solange die
   Kalendersteuerung aktiv ist (`panelControlActive` in `dashboard.html`). Beide gleichzeitig
   laufen zu lassen führt zu Flackern.

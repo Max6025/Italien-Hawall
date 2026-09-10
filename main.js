@@ -287,6 +287,28 @@ app.whenReady().then(() => {
   // wie eine stille Panel-Steuerung.
   powerMonitor.on('resume', () => keepSystemAwake('nach dem Aufwachen'));
 
+  // --- Aussperr-Schutz -----------------------------------------------------------------------
+  //
+  // Am Geraet gemessen: Wacht das Panel auf und Windows zeigt den Sperrbildschirm, schaltet der
+  // Waechter fuenf Sekunden spaeter wieder ab -- und ALLE drei Fluchtwege sind dort wirkungslos.
+  // Die Tipp-Geste erreicht das Dashboard nicht, weil der Sperrbildschirm davor liegt. Globale
+  // Tastenkuerzel laesst Windows dort nicht durch. Und der Schalter in der Weboberflaeche
+  // braucht den Server, der beim Aufwachen noch nicht antwortet.
+  //
+  // Deshalb: Jedes Aufwachen und jedes Entsperren setzt selbsttaetig eine Pause. Wer vor dem
+  // Geraet steht, bekommt garantierte Zeit zum Anmelden, statt gegen eine Uhr zu arbeiten.
+  const AUFWACH_PAUSE_MINUTEN = 2;
+  const pauseNachAufwachen = (anlass) => {
+    if (!controller) return;
+    controller.log('info', `${anlass}: Bildschirmsteuerung pausiert ${AUFWACH_PAUSE_MINUTEN} Minuten, damit die Anmeldung moeglich ist`);
+    controller.pause(AUFWACH_PAUSE_MINUTEN);
+  };
+  powerMonitor.on('resume', () => pauseNachAufwachen('Aufgewacht'));
+  powerMonitor.on('unlock-screen', () => pauseNachAufwachen('Entsperrt'));
+  powerMonitor.on('lock-screen', () => {
+    if (controller) controller.log('info', 'Sitzung gesperrt -- das Wall Display liegt jetzt hinter dem Sperrbildschirm');
+  });
+
   startServer({ port: SETUP_PORT, store, onConfigSaved, getLocalIps, updater, controller });
   applyWindowsKioskLockdown();
 
