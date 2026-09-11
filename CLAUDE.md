@@ -102,6 +102,16 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   rechts, obwohl beide auf `hidden` standen. Deshalb steht ganz oben in `dashboard.css` ein
   `[hidden] { display: none !important; }`. Wer diese Zeile entfernt, bricht jede
   Sichtbarkeitssteuerung, die über `hidden` läuft — und zwar lautlos.
+- **Ein Knopf muss erkennbar sein, nicht lesbar.** Aus fünf Metern liest niemand „Tor" und
+  „Garage" auseinander — ein Tor und eine Garage schon. Deshalb trägt jeder Tor-Knopf ein
+  wählbares Symbol, groß, mit dem Text als Bestätigung darunter. Ein Symbol, das man suchen
+  muss, ersetzt keinen Text.
+- **Nach einer Schaltaktion meldet der Knopf, ob der Befehl ankam** — Haken oder Kreuz,
+  gezeichnet statt eingeblendet, weil eine Bewegung am Rand des Blickfelds auffällt und ein
+  Farbwechsel nicht. Das sagt **ausdrücklich nur**, dass Home Assistant den Befehl angenommen
+  hat, nicht dass das Tor aufgegangen ist; das weiß die App nicht, und so zu tun als ob wäre
+  schlimmer als nichts zu sagen. `callService()` liefert dafür true/false — wer das ändert,
+  nimmt jedem Knopf die Rückmeldung.
 - **Eine neue Karte darf nie auf einer bestehenden landen.** `findFreeSpot()` gab bei vollem
   Raster früher „die letzte Zeile als Notlösung" zurück — die neue Karte lag dann halb unter
   einer anderen, und man musste erst merken, dass da zwei sind. Jetzt liefert es `null`, und

@@ -832,6 +832,10 @@ function openSettings(entityId) {
       <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
         Erscheint oben auf der Karte, solange die gewählte Karten-Entität an ist.</p>
       <label>Knöpfe</label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0 0 0.6vh;">
+        Ein Symbol je Knopf lohnt sich: Aus fünf Metern liest man „Tor“ und „Garage“ nicht
+        auseinander – ein Tor und eine Garage schon. Passend sind z.B. <code>gate</code>,
+        <code>garage</code>, <code>door</code>, <code>lockClosed</code>, <code>power</code>.</p>
       <div id="gateBtnList"></div>
       <button type="button" id="gateAddBtn" style="margin-top:0.6rem;">+ Knopf hinzufügen</button>
       <p style="font-size:1.1vh; color:var(--muted); margin:0.6vh 0 1vh;">
@@ -1051,6 +1055,12 @@ function openSettings(entityId) {
         <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.6vh;">
           <input type="text" class="gate-label-input" data-idx="${i}" placeholder="Beschriftung, z.B. Tor vorne" value="${(b.label || '').replace(/"/g, '&quot;')}" style="flex:1;">
           <input type="text" class="gate-entity-input" data-idx="${i}" list="gateEntityList" placeholder="input_button.xxx" value="${(b.entity || '').replace(/"/g, '&quot;')}" style="flex:1.4;">
+          <span class="gate-symbol-vorschau" data-idx="${i}" style="width:3vh; height:3vh; flex-shrink:0; color:var(--text);"></span>
+          <select class="gate-icon-input" data-idx="${i}" style="flex:0 0 auto; width:auto; margin:0;">
+            <option value="">ohne Symbol</option>
+            ${((window.DashboardRender && DashboardRender.symbolNamen) ? DashboardRender.symbolNamen() : [])
+              .map(n => `<option value="${n}" ${b.icon === n ? 'selected' : ''}>${n}</option>`).join('')}
+          </select>
           <label style="display:flex; align-items:center; gap:0.3vh; font-size:1.1vh; color:var(--muted); flex-shrink:0; white-space:nowrap;"
                  title="Aus: kurzer Impuls wie ein Taster. An: bleibt eingeschaltet wie ein Schalter.">
             <input type="checkbox" class="gate-schalter-input" data-idx="${i}" style="width:auto; margin:0;" ${b.alsSchalter ? 'checked' : ''}>Schalter
@@ -1065,6 +1075,18 @@ function openSettings(entityId) {
       }));
       list.querySelectorAll('.gate-entity-input').forEach(el => el.addEventListener('input', () => {
         settings.gateButtons[+el.dataset.idx].entity = el.value; markDirty();
+      }));
+      const symbolVorschau = () => {
+        list.querySelectorAll('.gate-symbol-vorschau').forEach(el => {
+          const wahl = settings.gateButtons[+el.dataset.idx].icon;
+          el.innerHTML = (wahl && DashboardRender.ICONS[wahl]) ? DashboardRender.ICONS[wahl] : '';
+        });
+      };
+      symbolVorschau();
+      // Eine Liste von Namen ohne Bild waere Raten -- das Symbol ist ja gerade der Punkt.
+      list.querySelectorAll('.gate-icon-input').forEach(el => el.addEventListener('change', () => {
+        settings.gateButtons[+el.dataset.idx].icon = el.value;
+        markDirty(); symbolVorschau();
       }));
       list.querySelectorAll('.gate-schalter-input').forEach(el => el.addEventListener('change', () => {
         settings.gateButtons[+el.dataset.idx].alsSchalter = el.checked; markDirty();

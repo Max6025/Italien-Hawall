@@ -47,7 +47,8 @@ const KARTEN = [
   ['alarm_control_panel.a', 'alarm',      Z('disarmed', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
   ['alarm_control_panel.b', 'alarm',      Z('armed_away', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
   ['alarm_control_panel.c', 'alarm',      Z('pending', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
-  ['alarm_control_panel.d', 'alarm',      Z('triggered', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1]
+  ['alarm_control_panel.d', 'alarm',      Z('triggered', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
+  ['binary_sensor.tor', 'gate', Z('off', { friendly_name: 'Tore' }), 2, 1]
 ];
 
 const grid = document.getElementById('grid');
@@ -75,11 +76,21 @@ const VERLAEUFE = {
 const nur = new URLSearchParams(location.search).get('nur');
 (nur ? KARTEN.filter(k => k[1] === nur) : KARTEN).forEach(([id, typ, zustand, c, r]) => {
   const el = DashboardRender.buildCard(id, zustand, typ, { cols: c, rows: r }, {
-    editable: false, settings: {}, apiBase: '', statesById: {}, history: VERLAEUFE[id]
-  }, {
+    editable: false, apiBase: '', statesById: {}, history: VERLAEUFE[id],
+    settings: typ === 'gate' ? { gateButtons: [
+      { label: 'Tor', entity: 'switch.a', icon: 'gate' },
+      { label: 'Garage', entity: 'switch.b', icon: 'garage' },
+      { label: 'Haustür', entity: 'switch.c', icon: 'door' },
+      { label: 'Ohne Symbol', entity: 'switch.d' }
+    ] } : {}
+    ,
+    callbacks: {
     onSetBrightness: (e, v) => console.log('Helligkeit', e, v),
     onToggle: (d, e, st) => console.log('Umschalten', e, st),
-    onFanSpeed: (e, v) => console.log('Stufe', e, v)
+    onFanSpeed: (e, v) => console.log('Stufe', e, v),
+    // Zum Ansehen der Rueckmeldung: der erste Knopf gelingt, der zweite scheitert.
+    onGatePress: (e) => new Promise(r => setTimeout(() => r(e !== 'switch.b'), 500))
+    }
   });
   grid.appendChild(el);
 });

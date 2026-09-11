@@ -445,14 +445,17 @@ function dashboardRueckrufe() {
     onSetPreset: (entityId, preset) => callService('climate', 'set_preset_mode', entityId, { preset_mode: preset }),
     onGatePress: (entityId, alsSchalter) => {
       const dienst = DashboardRender.serviceFuerEntitaet(entityId);
-      if (!dienst) return;
-      callService(dienst.domain, dienst.service, entityId);
+      if (!dienst) return Promise.resolve(false);
+      const versprechen = callService(dienst.domain, dienst.service, entityId);
       // Ein Torantrieb haengt an einem Relais: Ein reines Einschalten laesst es eingeschaltet.
       // Deshalb kurz halten und wieder ausschalten -- Taster statt Schalter. Wer die Entitaet
       // wirklich als Schalter will, setzt das je Knopf in den Karten-Einstellungen.
       if (dienst.impuls && !alsSchalter) {
-    setTimeout(() => callService(dienst.domain, dienst.aus, entityId), 800);
+        setTimeout(() => callService(dienst.domain, dienst.aus, entityId), 800);
       }
+      // Gemeldet wird das EINSCHALTEN. Das Ausschalten danach beendet nur den Impuls;
+      // scheitert es, ist der Knopfdruck trotzdem angekommen.
+      return versprechen;
     },
     onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
     onCover: (entityId, service) => callService('cover', service, entityId),
@@ -981,17 +984,34 @@ function applyMotionWakeSetting() {
   $('motionIndicator').classList.toggle('relevant', !!(config && config.motionWakeEnabled));
 }
 
+/**
+ * Schickt einen Dienstaufruf an Home Assistant. Liefert true, wenn er angekommen ist.
+ *
+ * Der Rueckgabewert sagt AUSDRUECKLICH nur, dass Home Assistant den Befehl angenommen hat --
+ * nicht, dass das Tor aufgegangen ist. Das weiss die App nicht, und so zu tun als ob waere
+ * schlimmer als nichts zu sagen. Frueher gab die Funktion gar nichts zurueck; der Knopf
+ * konnte deshalb nicht melden, ob etwas passiert ist.
+ */
 async function callService(domain, service, entity_id, service_data = {}) {
-  await fetch(`${API}/api/ha/service`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ domain, service, service_data: { entity_id, ...service_data } })
-  });
+  let ok = false;
+  try {
+    const r = await fetch(`${API}/api/ha/service`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain, service, service_data: { entity_id, ...service_data } })
+    });
+    ok = r.ok;
+    // Ein 200 mit { ok: false } im Rumpf ist immer noch ein Fehlschlag.
+    if (ok) { try { const d = await r.json(); if (d && d.ok === false) ok = false; } catch (e) { /* kein JSON */ } }
+  } catch (e) {
+    ok = false;   // Netz weg
+  }
   // Zweimal nachfassen: einmal schnell fuer die sofortige Rueckmeldung, einmal spaeter fuer
   // Geraete, die traeger antworten (Klimaanlagen brauchen oft eine Sekunde, bis HA den neuen
   // Zustand meldet). Beide Male erzwungen, damit der Bedienschutz sie nicht schluckt.
   aufbauErzwingen = true;
   setTimeout(() => { aufbauErzwingen = true; refresh(); }, 400);
   setTimeout(() => { aufbauErzwingen = true; refresh(); }, 1600);
+  return ok;
 }
 
 $('refreshBtn').addEventListener('click', refresh);

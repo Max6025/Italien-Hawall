@@ -730,10 +730,68 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .gate-buttons { display: flex; flex-wrap: wrap; gap: .6vh; justify-content: center; }
 .gate-btn {
   flex: 1 1 40%; min-width: 0; min-height: 5vh; padding: 1vh .6vh; border-radius: 12px; cursor: pointer;
-  border: 1px solid var(--card-border); background: var(--panel2); color: var(--text);
+  border: 1px solid var(--card-border); background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text);
   font-family: inherit; font-size: clamp(.7rem, 2.4cqmin, 1.15rem); font-weight: 500;
+  position: relative; overflow: hidden;
 }
 .gate-btn:active { transform: scale(.97); }
+
+/* Mit Symbol: Das Bild traegt, der Text erklaert nur noch. Aus fuenf Metern liest man
+   "Tor" und "Garage" nicht auseinander -- ein Tor und eine Garage schon. */
+.gate-btn.hat-symbol {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3vh;
+  min-height: 7.5vh;
+}
+/* Bewusst gross: Das Symbol IST die Unterscheidung, der Text nur die Bestaetigung. Ein
+   Symbol, das man suchen muss, ersetzt keinen Text -- dann kann man ihn auch lesen. */
+.gate-btn-symbol {
+  display: block; color: var(--kachel-akzent);
+  width: clamp(2.6vh, 26cqmin, 5.2vh); height: clamp(2.6vh, 26cqmin, 5.2vh);
+}
+.gate-btn-symbol svg { width: 100%; height: 100%; }
+.gate-btn.hat-symbol .gate-btn-text {
+  font-size: clamp(.65rem, 2.6cqmin, 1rem); color: var(--muted); line-height: 1.1;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* --- Hat es geklappt? ------------------------------------------------------------------------
+   Ein Torantrieb braucht Sekunden, bis sich sichtbar etwas tut, und ein Skript meldet gar
+   nichts. Ohne Rueckmeldung stand man davor und drueckte ein zweites Mal.
+
+   Der Haken sagt: Der Befehl ist raus. NICHT: Das Tor ist offen -- das weiss die App nicht. */
+.wartet { opacity: .6; }
+.geschafft { border-color: color-mix(in srgb, #6fd6a0 65%, transparent) !important;
+  background: color-mix(in srgb, #6fd6a0 18%, transparent) !important; color: #6fd6a0 !important; }
+.fehlgeschlagen { border-color: color-mix(in srgb, #ff6b6b 65%, transparent) !important;
+  background: color-mix(in srgb, #ff6b6b 18%, transparent) !important; color: #ff6b6b !important; }
+
+.rueckmeldung-zeichen {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; min-height: inherit;
+}
+.rueckmeldung-zeichen svg {
+  /* So gross wie das Symbol, das es kurz ersetzt -- eine Rueckmeldung, die man suchen muss,
+     ist keine. */
+  width: clamp(2.6vh, 26cqmin, 5.2vh); height: clamp(2.6vh, 26cqmin, 5.2vh);
+  /* Der Haken wird gezeichnet statt eingeblendet -- eine Bewegung faellt am Rand des
+     Blickfelds auf, ein Farbwechsel nicht.
+
+     60 statt 30: Die Laenge gilt fuer ALLE Teilstriche zusammen. Das Kreuz besteht aus zwei
+     Linien von je rund 17 Einheiten; bei 30 blieb der zweite Strich zu zwei Dritteln stehen
+     und das Kreuz sah aus wie ein Haken. */
+  stroke-dasharray: 60; stroke-dashoffset: 60;
+  animation: zeichen-malen .34s ease-out forwards;
+}
+@keyframes zeichen-malen { to { stroke-dashoffset: 0; } }
+.badge .rueckmeldung-zeichen svg { width: clamp(1.2vh, 10cqmin, 2.2vh); height: clamp(1.2vh, 10cqmin, 2.2vh); }
+
+/* Auf dem Zustands-Chip der Taster-Karte ist kaum Platz -- dort nur der Haken, ohne Rahmen. */
+.badge.geschafft, .badge.fehlgeschlagen { background: transparent !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rueckmeldung-zeichen svg { animation: none; stroke-dashoffset: 0; }
+}
 
 /* --- Terminankuendigung ----------------------------------------------------------------------
    Beginnt ein Termin, faellt das Panel nicht mit der Tuer ins Haus: erst schwarz, dann Symbol,

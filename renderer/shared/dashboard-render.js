@@ -52,6 +52,16 @@
     shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h3.5L16 18h6M2 18h3.5L11 11"/><path d="M18 6h4v0M18 6l3-3M18 6l3 3M18 18h4M18 18l3-3M18 18l3 3"/></svg>',
     repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
     repeatOne: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><path d="M11 9h1v4"/></svg>',
+    // Fuer Knoepfe, die man auf einen Blick unterscheiden koennen muss -- ein Tor sieht
+    // anders aus als eine Garage, und das erkennt man aus fuenf Metern, einen Text nicht.
+    gate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20V9l9-4 9 4v11"/><path d="M3 13h18"/><path d="M9 20V9"/><path d="M15 20V9"/></svg>',
+    garage: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-7h10v7"/><path d="M7 17.5h10"/></svg>',
+    door: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17"/><path d="M3 21h18"/><circle cx="15" cy="12" r="1.1" fill="currentColor" stroke="none"/></svg>',
+    arrowUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>',
+    arrowDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>',
+    stopSquare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     generic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>'
   };
   const DOMAIN_LABEL = { light: 'Licht', switch: 'Schalter', climate: 'Klima', cover: 'Rollläden', fan: 'Lüfter', sensor: 'Sensoren', button: 'Taster', input_button: 'Taster', scene: 'Szenen', script: 'Skripte' };
@@ -431,6 +441,49 @@
     const d = ende - anfang;
     if (Math.abs(d) <= totzone) return { richtung: 0, delta: 0 };
     return { richtung: d > 0 ? 1 : -1, delta: d };
+  }
+
+  // --- Hat es geklappt? ---------------------------------------------------------------------------
+  //
+  // Ein Torantrieb braucht Sekunden, bis sich etwas sichtbar tut, und ein Skript gibt ueberhaupt
+  // keine Rueckmeldung. Bisher passierte nach dem Druck nichts -- man stand davor und druckte
+  // ein zweites Mal, weil man nicht wusste, ob der erste angekommen war.
+  //
+  // Der Knopf beantwortet deshalb selbst, was er weiss: Der Befehl ist raus (Haken) oder er
+  // ist nicht angekommen (Kreuz). Das ist BEWUSST keine Aussage darueber, ob das Tor
+  // aufgegangen ist -- das weiss die App nicht, und so zu tun als ob waere schlimmer als
+  // nichts zu sagen.
+
+  const RUECKMELDUNG_MS = 1400;
+
+  /**
+   * Zeigt am Knopf, ob der Befehl durchging. `versprechen` liefert true/false.
+   *
+   * Der urspruengliche Inhalt wird gesichert und danach zurueckgesetzt -- auch im Fehlerfall,
+   * sonst bliebe ein Knopf mit einem Haken darauf stehen und waere fuer immer unbeschriftet.
+   */
+  function rueckmeldung(el, versprechen) {
+    if (!el) return;
+    if (el.dataset.meldetGerade === '1') return;   // Doppeldruck nicht uebereinander legen
+    const vorher = el.innerHTML;
+    el.dataset.meldetGerade = '1';
+    el.classList.add('wartet');
+
+    const fertig = (ok) => {
+      el.classList.remove('wartet');
+      el.classList.add(ok ? 'geschafft' : 'fehlgeschlagen');
+      el.innerHTML = `<span class="rueckmeldung-zeichen">${ok ? ICONS.check : ICONS.cross}</span>`;
+      setTimeout(() => {
+        el.classList.remove('geschafft', 'fehlgeschlagen');
+        el.innerHTML = vorher;
+        delete el.dataset.meldetGerade;
+      }, RUECKMELDUNG_MS);
+    };
+
+    Promise.resolve(versprechen).then(
+      (ok) => fertig(ok !== false),
+      () => fertig(false)
+    );
   }
 
   // --- Die Karte IST der Regler -----------------------------------------------------------------
@@ -901,9 +954,9 @@
         <div class="value">${pos !== undefined ? pos + '%' : ''}</div>
         <div class="name">${name}</div>
         <div class="controls">
-          <button data-act="open" ${dis}>▲</button>
+          <button data-act="open" ${dis} aria-label="Auf">${ICONS.arrowUp}</button>
           <button data-act="stop" ${dis}>⏸</button>
-          <button data-act="close" ${dis}>▼</button>
+          <button data-act="close" ${dis} aria-label="Zu">${ICONS.arrowDown}</button>
         </div>
         ${zeigePosition ? `<div class="controls slider-row">
           <input type="range" min="0" max="100" step="1" value="${pos}" data-act="position" ${dis}>
@@ -949,10 +1002,11 @@
         <div class="name">${name}</div>`;
       if (!editable && cb.onPress) {
         card.style.cursor = 'pointer';
+        const chip = card.querySelector('.badge');
         card.addEventListener('click', () => {
           card.classList.add('pressed');
           setTimeout(() => card.classList.remove('pressed'), 300);
-          cb.onPress(domain, entity_id);
+          rueckmeldung(chip, cb.onPress(domain, entity_id));
         });
       }
     } else if (type === 'temperature') {
@@ -1201,13 +1255,23 @@
         ${settings.name ? `<div class="gate-title">${name}</div>` : ''}
         <div class="gate-buttons">
           ${knoepfe.length
-            ? knoepfe.map((b, i) => `<button class="gate-btn" data-gate="${i}" ${dis}>${esc(b.label || b.entity || '?')}</button>`).join('')
+            ? knoepfe.map((b, i) => {
+                // Das Symbol ist die eigentliche Unterscheidung. Aus fuenf Metern liest man
+                // "Tor" und "Garage" nicht auseinander, ein Tor und eine Garage schon.
+                const symbol = (b.icon && ICONS[b.icon]) ? ICONS[b.icon] : '';
+                return `<button class="gate-btn${symbol ? ' hat-symbol' : ''}" data-gate="${i}" ${dis}>`
+                  + (symbol ? `<span class="gate-btn-symbol">${symbol}</span>` : '')
+                  + `<span class="gate-btn-text">${esc(b.label || b.entity || '?')}</span></button>`;
+              }).join('')
             : '<div class="graph-empty">Noch keine Knöpfe – in den Karten-Einstellungen hinzufügen</div>'}
         </div>`;
       if (!editable && cb.onGatePress) {
         knoepfe.forEach((b, i) => {
           const el = card.querySelector(`[data-gate="${i}"]`);
-          if (el && b.entity) el.addEventListener('click', (e) => { e.stopPropagation(); cb.onGatePress(b.entity, b.alsSchalter === true); });
+          if (el && b.entity) el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            rueckmeldung(el, cb.onGatePress(b.entity, b.alsSchalter === true));
+          });
         });
       }
     } else if (type === 'lock') {
@@ -1747,7 +1811,7 @@
     serviceFuerEntitaet,
     wasteColor, zahlFormatieren, symbolFuer, symbolNamen,
     quickTileAktion, quickTileAktiv, quickTileText,
-    kachelRegler, miniVerlaufSvg, tendenz,
+    kachelRegler, miniVerlaufSvg, tendenz, rueckmeldung,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };
