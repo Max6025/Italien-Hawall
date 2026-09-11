@@ -344,6 +344,17 @@
     this._animationStarten();
   };
 
+  /**
+   * Steht der Schirm gerade auf dem Bildschirm?
+   *
+   * Braucht das Dashboard, um nicht unter ihm hindurch das Dashboard zu wechseln -- die
+   * automatische Rueckkehr aufs Hauptdashboard soll warten, solange jemand den Schirm
+   * vor sich hat.
+   */
+  Ankunftsschirm.prototype.istSichtbar = function () {
+    return !!this.sichtbar;
+  };
+
   Ankunftsschirm.prototype.verbergen = function () {
     if (!this.sichtbar) return;
     clearInterval(this._bildWechsel);

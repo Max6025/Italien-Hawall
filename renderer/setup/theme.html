@@ -45,6 +45,13 @@
       Ankunftsschirm, nur viel langsamer. Eine Runde dauert über eine Minute. Abschalten, wenn
       es zu unruhig ist.</p>
 
+    <label>Nach wie vielen Sekunden zurück zum Hauptdashboard</label>
+    <input type="number" id="rueckkehrSekunden" min="0" max="3600" step="10" value="90" style="max-width:140px;">
+    <p class="hint-text">Wer auf einem Unterdashboard etwas nachgesehen hat, lässt es dort stehen –
+      beim nächsten Blick auf die Wand steht dann die Katzenkarte statt des Hauptdashboards.
+      Nach dieser Ruhezeit wechselt das Panel von allein zurück. <strong>0 heißt: gar nicht.</strong>
+      Solange der Ankunftsschirm zu sehen ist, passiert nichts.</p>
+
     <label>Sonnenstand-Entität</label>
     <select id="sunEntity"><option value="">Kein Wechsel (immer dunkel)</option></select>
       </div>

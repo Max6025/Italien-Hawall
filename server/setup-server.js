@@ -128,7 +128,7 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
 });
 </script></body></html>`;
 
-function startServer({ port, store, onConfigSaved, getLocalIps, updater, controller }) {
+function startServer({ port, store, onConfigSaved, getLocalIps, updater, controller, getPanelSize }) {
   const app = express();
   app.use(express.json({ limit: '15mb' }));
 
@@ -263,7 +263,12 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeDismissedFor: store.get('welcomeDismissedFor') || '',
       welcomeErzwungenBis: store.get('welcomeErzwungenBis') || 0,
       // Standard AN -- die Bewegung ist der sichtbare Teil des Designs.
+      // Wie gross das Panel wirklich ist -- der Editor zeichnet seine Arbeitsflaeche danach.
+      panelGroesse: (typeof getPanelSize === 'function' ? getPanelSize() : null),
       hintergrundBewegung: store.get('hintergrundBewegung') !== false,
+      // 0 = gar nicht zurueck. Vorgabe 90 Sekunden: lang genug, um in Ruhe etwas
+      // nachzusehen, kurz genug, dass die Wand nicht tagelang auf einem Unterdashboard steht.
+      rueckkehrSekunden: store.get('rueckkehrSekunden') === undefined ? 90 : store.get('rueckkehrSekunden'),
       welcomeTestmodus: !!store.get('welcomeTestmodus'),
       welcomeTestSekunden: store.get('welcomeTestSekunden') || 10,
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
@@ -283,7 +288,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       setupCode,
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
       welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle,
-      welcomeTestmodus, welcomeTestSekunden, hintergrundBewegung
+      welcomeTestmodus, welcomeTestSekunden, hintergrundBewegung, rueckkehrSekunden
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -322,6 +327,9 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (welcomeImageEntity2 !== undefined) store.set('welcomeImageEntity2', String(welcomeImageEntity2 || ''));
     if (welcomeImage2Quelle !== undefined) store.set('welcomeImage2Quelle', String(welcomeImage2Quelle || ''));
     if (hintergrundBewegung !== undefined) store.set('hintergrundBewegung', !!hintergrundBewegung);
+    if (rueckkehrSekunden !== undefined) {
+      store.set('rueckkehrSekunden', Math.max(0, Math.min(3600, parseInt(rueckkehrSekunden, 10) || 0)));
+    }
     if (welcomeTestmodus !== undefined) store.set('welcomeTestmodus', !!welcomeTestmodus);
     if (welcomeTestSekunden !== undefined) {
       // Unter drei Sekunden liesse sich der Schirm nicht mehr wegtippen -- er waere

@@ -64,6 +64,7 @@ async function load() {
   $('welcomeCaption2').value = configRes.welcomeCaption2 || '';
   $('welcomeImageSeconds').value = configRes.welcomeImageSeconds === undefined ? 8 : configRes.welcomeImageSeconds;
   $('hintergrundBewegung').checked = configRes.hintergrundBewegung !== false;
+  $('rueckkehrSekunden').value = configRes.rueckkehrSekunden === undefined ? 90 : configRes.rueckkehrSekunden;
   $('welcomeTestmodus').checked = !!configRes.welcomeTestmodus;
   $('welcomeTestSekunden').value = configRes.welcomeTestSekunden || 10;
   $('welcomeHours').value = configRes.welcomeHours === undefined ? 5 : configRes.welcomeHours;
@@ -261,6 +262,7 @@ function alleFelder() {
   };
   const felder = {
     hintergrundBewegung: $('hintergrundBewegung').checked,
+    rueckkehrSekunden: zahl('rueckkehrSekunden', 90),
     sunEntity: $('sunEntity').value,
     notifyEntity: $('notifyEntity').value,
     batteryThreshold: zahl('batteryThreshold', 20),

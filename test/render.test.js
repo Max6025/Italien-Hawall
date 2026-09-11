@@ -480,3 +480,60 @@ test('Jedes geratene Symbol gibt es wirklich', () => {
   ['Tor', 'Garage', 'Tür', 'Schloss', 'Rollladen', 'Licht', 'Alarm', 'Szene', 'Auf', 'Zu', 'Stopp', 'xyz']
     .forEach(w => assert.ok(D.ICONS[D.symbolErraten(w, '')], `${w} -> ${D.symbolErraten(w, '')} fehlt`));
 });
+
+// --- Klimaanlage: das Symbol zeigt, WAS die Anlage tut -----------------------------------------
+//
+// Vorher trug die Karte immer dasselbe Symbol -- auch ausgeschaltet stand dort ein
+// Kuehlsymbol, und aus dem Vorbeigehen las man das Gegenteil der Wahrheit.
+
+test('Jede Betriebsart bekommt ihr eigenes Symbol', () => {
+  const namen = ['off', 'heat', 'cool', 'dry', 'fan_only'].map(m => D.hvacSymbol(m, true).name);
+  assert.strictEqual(new Set(namen).size, namen.length, 'zwei Betriebsarten teilen sich ein Symbol: ' + namen);
+  namen.forEach(n => assert.ok(D.ICONS[n], `Symbol ${n} fehlt`));
+});
+
+test('Eine ausgeschaltete Anlage bewegt sich nie', () => {
+  // Bewegung heisst "laeuft gerade". Eine ausgeschaltete Anlage laeuft nicht.
+  assert.strictEqual(D.hvacSymbol('off', true).klasse, '');
+  assert.strictEqual(D.hvacSymbol('off', false).klasse, '');
+});
+
+test('Die Bewegung unterscheidet "laeuft" von "ist eingestellt"', () => {
+  // Steht die Flamme still, heizt die Anlage nicht, auch wenn Heizen gewaehlt ist -- das
+  // steht sonst nirgends auf der Karte.
+  assert.strictEqual(D.hvacSymbol('heat', true).klasse, 'hvac-laeuft');
+  assert.strictEqual(D.hvacSymbol('heat', false).klasse, '');
+});
+
+test('Eine unbekannte Betriebsart bekommt das allgemeine Symbol', () => {
+  assert.strictEqual(D.hvacSymbol('irgendwas', true).name, 'climate');
+  assert.ok(D.ICONS[D.hvacSymbol('irgendwas', true).name]);
+});
+
+test('"Aus" steht immer vorne', () => {
+  // Home Assistant liefert die Reihenfolge der Integration und setzt "off" gelegentlich
+  // mitten hinein. Auf einem Wandpanel sucht man den Aus-Knopf dann zwischen Heizen und
+  // Kuehlen -- ausgerechnet den, den man im Zweifel schnell trifft.
+  assert.strictEqual(D.hvacReihenfolge(['heat', 'off', 'cool'])[0], 'off');
+  assert.strictEqual(D.hvacReihenfolge(['cool', 'dry', 'off'])[0], 'off');
+  assert.strictEqual(D.hvacReihenfolge(['off'])[0], 'off');
+});
+
+test('Die uebrigen Betriebsarten stehen in verlaesslicher Reihenfolge', () => {
+  assert.deepStrictEqual(
+    D.hvacReihenfolge(['fan_only', 'cool', 'heat', 'off', 'dry', 'auto']),
+    ['off', 'auto', 'heat', 'cool', 'dry', 'fan_only']);
+});
+
+test('Unbekannte Betriebsarten gehen nicht verloren', () => {
+  // Sie landen hinten, bleiben aber schaltbar.
+  const r = D.hvacReihenfolge(['heat', 'sonderbetrieb', 'off']);
+  assert.strictEqual(r.length, 3);
+  assert.ok(r.includes('sonderbetrieb'));
+  assert.strictEqual(r[0], 'off');
+});
+
+test('Eine fehlende Liste ergibt eine leere, keinen Absturz', () => {
+  assert.deepStrictEqual(D.hvacReihenfolge(null), []);
+  assert.deepStrictEqual(D.hvacReihenfolge(undefined), []);
+});

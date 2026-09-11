@@ -102,6 +102,17 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   rechts, obwohl beide auf `hidden` standen. Deshalb steht ganz oben in `dashboard.css` ein
   `[hidden] { display: none !important; }`. Wer diese Zeile entfernt, bricht jede
   Sichtbarkeitssteuerung, die über `hidden` läuft — und zwar lautlos.
+- **Das Symbol einer Klima-Karte muss zeigen, was die Anlage TUT.** Vorher trug sie immer
+  dasselbe Symbol — auch ausgeschaltet stand dort ein Kühlsymbol, und aus dem Vorbeigehen las
+  man das Gegenteil der Wahrheit. Die Bewegung ist dabei keine Spielerei: Sie unterscheidet
+  „läuft gerade" (`hvac_action`) von „ist eingestellt" (`state`). Steht die Flamme still,
+  heizt die Anlage nicht — das steht sonst nirgends auf der Karte.
+- **Der Editor läuft auf einem anderen Gerät als das Panel.** Ohne die Panelgröße
+  (`panelGroesse` aus `/api/config`, gefüllt von `getPanelSize` in `main.js`) zieht man Karten
+  auf einem breiten Notebook zurecht und sieht erst auf der Wand, dass es nicht passt. Und es
+  braucht **immer einen Weg an jede Karte heran**, der nicht über die Arbeitsfläche führt: Eine
+  Karte kann hinter einer anderen liegen oder so groß gezogen sein, dass man ihre Knöpfe nicht
+  trifft — dann ließ sie sich nicht einmal mehr löschen. Dafür ist die Kartenliste da.
 - **Eine Verbesserung, die man erst einschalten muss, ist für die meisten keine.** Drei
   Releases in Folge bestanden fast nur aus Einstellungen — Symbole, Beschriftungen, untere
   Leiste, Testmodus —, und die Rückmeldung lautete folgerichtig „hat sich nichts geändert".
@@ -217,7 +228,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-207 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+215 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

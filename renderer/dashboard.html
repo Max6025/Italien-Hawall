@@ -174,6 +174,7 @@ async function loadConfig() {
   // Bewegung ab Werk an -- sie ist der sichtbare Teil. Wem es zu unruhig ist, schaltet sie ab.
   document.body.classList.toggle('ohne-bewegung', config.hintergrundBewegung === false);
   testmodusTaktAnpassen();
+  rueckkehrTaktAnpassen();
   await loadDashboardOrder();
   ankunftsschirmPruefen();
 }
@@ -249,9 +250,11 @@ async function navigateTo(targetId) {
   // abgelehnt -- man tippt, es passiert nichts, und irgendwann wechselt es von allein.
   // Genau so wurde es gemeldet: "bleibt auf dem Hauptdashboard".
   aufbauErzwingen = true;
+  letzteBedienungAufUnterdashboard = Date.now();
   $('backBtn').style.display = currentDashboardId === 'main' ? 'none' : 'flex';
   if (currentDashboardId === 'main') $('title').textContent = config.title || 'Wall Display';
   renderRoomTabs();
+  rueckkehrTaktAnpassen();
   const dashInfo = dashboardOrder.find(d => d.id === currentDashboardId);
   if (dashInfo && dashInfo.type === 'tracker') {
     $('grid').style.display = 'none';
@@ -1010,12 +1013,13 @@ async function callService(domain, service, entity_id, service_data = {}) {
   } catch (e) {
     ok = false;   // Netz weg
   }
-  // Zweimal nachfassen: einmal schnell fuer die sofortige Rueckmeldung, einmal spaeter fuer
-  // Geraete, die traeger antworten (Klimaanlagen brauchen oft eine Sekunde, bis HA den neuen
-  // Zustand meldet). Beide Male erzwungen, damit der Bedienschutz sie nicht schluckt.
+  // Mehrfach nachfassen. Eine Klimaanlage braucht oft Sekunden, bis Home Assistant den neuen
+  // Zustand meldet; mit nur zwei Versuchen (400 und 1600 ms) war danach bis zum naechsten
+  // regulaeren Abruf Ruhe -- und der kommt erst nach fuenfzehn Sekunden. Genau so wurde es
+  // gemeldet: "dann dauert's noch fuenf bis zehn Sekunden, bis er das anzeigt".
   aufbauErzwingen = true;
-  setTimeout(() => { aufbauErzwingen = true; refresh(); }, 400);
-  setTimeout(() => { aufbauErzwingen = true; refresh(); }, 1600);
+  [400, 1200, 2500, 4500, 7000].forEach(ms =>
+    setTimeout(() => { aufbauErzwingen = true; refresh(); }, ms));
   return ok;
 }
 
@@ -1028,6 +1032,9 @@ $('batteryModalClose').addEventListener('click', () => $('batteryModal').classLi
 $('refreshBtn').innerHTML = ICONS.refresh;
 $('settingsBtn').innerHTML = ICONS.settings;
 $('backBtn').innerHTML = ICONS.back;
+// body.wandanzeige erfasst alles UNTER body -- das Wurzelelement selbst nicht. Ueber dem
+// bleibt sonst je nach Fensterlage ein Zeiger stehen.
+document.documentElement.style.cursor = 'none';
 $('zurueckKnopf').innerHTML = ICONS.back;
 $('zurueckKnopf').addEventListener('click', () => navigateTo('main'));
 $('batteryWarnBtn').innerHTML = ICONS.battery2;
@@ -1112,6 +1119,32 @@ function ankunftsschirmAufbauen() {
 // Zeigt bei einem mehrtaegigen Termin, der wievielte Tag laeuft -- und hebt den letzten
 // hervor. Bei eintaegigen Terminen erscheint nichts: Da waere "Tag 1 von 1" kein Hinweis,
 // sondern Rauschen auf einer Wand, die man den ganzen Tag ansieht.
+// --- Von allein zurueck aufs Hauptdashboard ----------------------------------------------------
+//
+// Wer auf einem Unterdashboard etwas nachgesehen hat, laesst es dort stehen. Beim naechsten
+// Blick auf die Wand steht dann die Katzenkarte statt des Hauptdashboards -- und niemand
+// raeumt das auf, weil es niemandem gehoert.
+//
+// Gezaehlt werden nur echte Beruehrungen, keine Mausbewegungen: Das Aufwecken des Panels
+// wackelt mit dem Mauszeiger (panel.js), und ein mousemove-Zaehler haette sich davon selbst
+// dauernd zurueckgesetzt.
+let letzteBedienungAufUnterdashboard = Date.now();
+let rueckkehrTakt = null;
+
+function rueckkehrPruefen() {
+  if (currentDashboardId === 'main') return;
+  const sekunden = Number(config && config.rueckkehrSekunden);
+  if (!(sekunden > 0)) return;                       // 0 oder leer heisst: gar nicht
+  if (ankunftsschirm && ankunftsschirm.istSichtbar && ankunftsschirm.istSichtbar()) return;
+  if ((Date.now() - letzteBedienungAufUnterdashboard) / 1000 >= sekunden) navigateTo('main');
+}
+
+function rueckkehrTaktAnpassen() {
+  const noetig = currentDashboardId !== 'main' && Number(config && config.rueckkehrSekunden) > 0;
+  if (noetig && !rueckkehrTakt) rueckkehrTakt = setInterval(rueckkehrPruefen, 2000);
+  if (!noetig && rueckkehrTakt) { clearInterval(rueckkehrTakt); rueckkehrTakt = null; }
+}
+
 // --- Testmodus fuer den Ankunftsschirm ---------------------------------------------------------
 //
 // Nach ein paar Sekunden ohne Beruehrung kommt der Schirm von allein wieder. Zum Ausprobieren
@@ -1124,7 +1157,10 @@ function ankunftsschirmAufbauen() {
 let letzteBeruehrung = Date.now();
 let testmodusTakt = null;
 
-document.addEventListener('pointerdown', () => { letzteBeruehrung = Date.now(); }, { capture: true, passive: true });
+document.addEventListener('pointerdown', () => {
+  letzteBeruehrung = Date.now();
+  letzteBedienungAufUnterdashboard = Date.now();
+}, { capture: true, passive: true });
 
 // Im Testmodus muss oft genug nachgesehen werden, damit "nach zehn Sekunden" auch ungefaehr
 // zehn Sekunden heisst -- der normale Takt liegt bei einer Minute. Ausserhalb des Testmodus

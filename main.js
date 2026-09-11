@@ -315,7 +315,18 @@ app.whenReady().then(() => {
     if (controller) controller.log('info', 'Sitzung gesperrt -- das Wall Display liegt jetzt hinter dem Sperrbildschirm');
   });
 
-  startServer({ port: SETUP_PORT, store, onConfigSaved, getLocalIps, updater, controller });
+  // Die Groesse des Panels weiterreichen. Der Karten-Editor laeuft auf einem ANDEREN Geraet
+  // und kann sonst nicht wissen, wie viel Platz auf der Wand ueberhaupt da ist -- man zieht
+  // Karten zurecht und sieht am Ergebnis erst auf dem Panel, dass es nicht passt.
+  const getPanelSize = () => {
+    try {
+      const d = screen.getPrimaryDisplay();
+      return { breite: d.bounds.width, hoehe: d.bounds.height };
+    } catch (e) {
+      return null;
+    }
+  };
+  startServer({ port: SETUP_PORT, store, onConfigSaved, getLocalIps, updater, controller, getPanelSize });
   applyWindowsKioskLockdown();
 
   // Auto-Start bei Windows-Anmeldung aktivieren

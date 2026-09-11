@@ -62,6 +62,15 @@
     stopSquare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>',
     cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    // Betriebsarten der Klimaanlage. Jede sieht anders aus -- eine Anlage, die heizt, darf
+    // nicht dasselbe Symbol tragen wie eine, die kuehlt, und eine ausgeschaltete schon gar
+    // nicht. Die inneren Teile haben Klassen, damit das CSS sie bewegen kann.
+    hvacHeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path class="flamme-aussen" d="M12 22c3.9 0 6.8-2.6 6.8-6.3 0-4.4-4.4-6.4-3.9-11.2-2.4 1.5-3.9 3.9-3.9 5.9 0 1.5-1 1.9-1.5 1.2-.6-.9-1-1.9-1-2.9-2 1.5-3.3 3.9-3.3 7 0 3.7 2.9 6.3 6.8 6.3z"/><path class="flamme-innen" d="M12 22c1.9 0 3.3-1.4 3.3-3.2 0-2.2-2.4-3-2.1-5.4-1.5 1-2.5 2.5-2.5 3.6 0 .8-.6.9-.9.5a2.6 2.6 0 0 1-.5-1.1c-.8.8-1.2 1.7-1.2 2.6 0 1.8 1.4 3 3.9 3z"/></svg>',
+    hvacCool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><g class="flocke"><path d="M12 2.5v19M3.8 7.2l16.4 9.6M20.2 7.2 3.8 16.8"/><path d="M12 6.2 9.6 4M12 6.2 14.4 4M12 17.8l-2.4 2.2M12 17.8l2.4 2.2"/><path d="m6.9 9 .1-3.2M6.9 9 4 9.6M17.1 15l-.1 3.2M17.1 15l2.9-.6"/><path d="m17.1 9-.1-3.2M17.1 9 20 9.6M6.9 15l.1 3.2M6.9 15 4 14.4"/></g></svg>',
+    hvacDry: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.2c3.4 4.4 5.8 7.3 5.8 10.2a5.8 5.8 0 0 1-11.6 0c0-2.9 2.4-5.8 5.8-10.2z"/><circle class="tropfen" cx="12" cy="14.4" r="1.6" fill="currentColor" stroke="none" opacity="0"/></svg>',
+    hvacFan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><g class="luefter"><path d="M12 11.2c1.6-3.6.7-6.6-1.3-7.6-1.7-.8-3.1.5-2.7 2.4.5 2.3 2.3 4.3 4 5.2z"/><path d="M12.8 12c3.6-1.6 6.6-.7 7.6 1.3.8 1.7-.5 3.1-2.4 2.7-2.3-.5-4.3-2.3-5.2-4z"/><path d="M11.2 12.8c-1.6 3.6-4.6 4.5-6.6 3.5-1.7-.8-1.5-2.7.4-3.5 2.1-.9 4.6-.6 6.2 0z"/></g><circle cx="12" cy="12" r="1.5"/></svg>',
+    hvacAuto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17.5 8.8 7.2l3.8 10.3M6.2 14.4h5.2"/><path d="M16 8.6v6.8M16 8.6c2 0 3.2 1.2 3.2 3.4S18 15.4 16 15.4"/></svg>',
+    hvacOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3.5v8"/><path d="M6.5 6.8a7.5 7.5 0 1 0 11 0"/></svg>',
     generic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>'
   };
   const DOMAIN_LABEL = { light: 'Licht', switch: 'Schalter', climate: 'Klima', cover: 'Rollläden', fan: 'Lüfter', sensor: 'Sensoren', button: 'Taster', input_button: 'Taster', scene: 'Szenen', script: 'Skripte' };
@@ -441,6 +450,45 @@
     const d = ende - anfang;
     if (Math.abs(d) <= totzone) return { richtung: 0, delta: 0 };
     return { richtung: d > 0 ? 1 : -1, delta: d };
+  }
+
+  // --- Klimaanlage: das Symbol zeigt, WAS die Anlage tut -----------------------------------------
+  //
+  // Vorher trug die Karte immer dasselbe Symbol -- auch im ausgeschalteten Zustand stand dort
+  // ein Kuehlsymbol. Aus dem Vorbeigehen las man daraus das Gegenteil der Wahrheit.
+  //
+  // Die Bewegung ist keine Spielerei: Sie unterscheidet "laeuft gerade" von "ist eingestellt".
+  // Steht die Flamme still, heizt die Anlage nicht, auch wenn Heizen gewaehlt ist.
+
+  const HVAC_SYMBOL = {
+    off: 'hvacOff',
+    heat: 'hvacHeat',
+    cool: 'hvacCool',
+    dry: 'hvacDry',
+    fan_only: 'hvacFan',
+    auto: 'hvacAuto',
+    heat_cool: 'hvacAuto'
+  };
+
+  /** Symbolname und Bewegungsklasse fuer eine Betriebsart. */
+  function hvacSymbol(modus, laeuftGerade) {
+    const name = HVAC_SYMBOL[modus] || 'climate';
+    // 'off' bewegt sich nie -- eine ausgeschaltete Anlage tut nichts.
+    const bewegt = modus !== 'off' && laeuftGerade !== false;
+    return { name, klasse: bewegt ? 'hvac-laeuft' : '' };
+  }
+
+  /**
+   * Betriebsarten in einer sinnvollen Reihenfolge: "Aus" zuerst.
+   *
+   * Home Assistant liefert sie in der Reihenfolge der Integration, und die setzt "off"
+   * gelegentlich mitten hinein. Auf einem Wandpanel sucht man den Aus-Knopf dann zwischen
+   * Heizen und Kuehlen -- ausgerechnet den, den man im Zweifel schnell trifft.
+   */
+  function hvacReihenfolge(modi) {
+    const liste = Array.isArray(modi) ? modi.slice() : [];
+    const rang = { off: 0, auto: 1, heat_cool: 1, heat: 2, cool: 3, dry: 4, fan_only: 5 };
+    return liste.sort((a, b) => (rang[a] === undefined ? 9 : rang[a]) - (rang[b] === undefined ? 9 : rang[b]));
   }
 
   // --- Symbole, die sich von selbst einstellen ---------------------------------------------------
@@ -910,16 +958,26 @@
       const nachkomma = schritt < 1 ? 1 : 0;
       const begrenzt = (v) => Math.min(oben, Math.max(unten, v));
 
+      // hvac_action sagt, was die Anlage GERADE tut (heating/cooling/idle/off). Ohne das
+      // Attribut wird angenommen, dass sie laeuft -- lieber Bewegung zu viel als eine
+      // stillstehende Flamme bei einer heizenden Anlage.
+      const taetigkeit = attrs.hvac_action;
+      const laeuft = taetigkeit === undefined ? true : !['idle', 'off'].includes(taetigkeit);
+      const sym = hvacSymbol(modus, laeuft);
+
+      card.classList.add('klima-' + (modus || 'unbekannt').replace(/[^a-z_]/g, ''));
       card.innerHTML = `
-        <div class="row"><span class="icon">${ICONS.climate}</span><span class="badge">${esc(HVAC_LABEL[modus] || modus || '–')}</span></div>
-        <div class="value">${target !== undefined ? target + einheit : (cur !== undefined ? cur + einheit : esc(modus))}</div>
+        <div class="row"><span class="icon hvac-symbol ${sym.klasse}">${ICONS[sym.name]}</span><span class="badge">${esc(HVAC_LABEL[modus] || modus || '–')}</span></div>
+        <div class="value">${modus === 'off'
+          ? 'Aus'
+          : (target !== undefined ? target + einheit : (cur !== undefined ? cur + einheit : esc(modus)))}</div>
         <div class="name">${name}</div>
         ${cur !== undefined && target !== undefined ? `<div class="caption">gemessen ${cur}${einheit}</div>` : ''}
         <div class="controls">
           <button data-act="temp-down" ${dis}>−</button>
           <button data-act="temp-up" ${dis}>+</button>
         </div>
-        ${zeigeModi ? `<div class="climate-modes">${modi.map(m =>
+        ${zeigeModi ? `<div class="climate-modes">${hvacReihenfolge(modi).map(m =>
           `<button class="climate-mode${m === modus ? ' aktiv' : ''}" data-modus="${esc(m)}" ${dis}>${esc(HVAC_LABEL[m] || m)}</button>`).join('')}</div>` : ''}
         ${zeigePresets ? `<div class="climate-presets"><select data-act="preset" ${dis}>${presets.map(pm =>
           `<option value="${esc(pm)}" ${pm === attrs.preset_mode ? 'selected' : ''}>${esc(pm)}</option>`).join('')}</select></div>` : ''}`;
@@ -1899,6 +1957,7 @@
     quickTileAktion, quickTileAktiv, quickTileText,
     kachelRegler, miniVerlaufSvg, tendenz, rueckmeldung,
     ALARM_ZUSTAENDE, ALARM_TOENE, alarmDarstellung, symbolErraten,
+    HVAC_SYMBOL, hvacSymbol, hvacReihenfolge,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };

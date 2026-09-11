@@ -82,6 +82,13 @@ function assignMissingPositions() {
   });
 }
 
+// Groesse des Panels holen -- daraus bekommt die Arbeitsflaeche ihr Seitenverhaeltnis.
+window.panelGroesse = null;
+fetch('/api/config').then(r => r.json()).then(c => {
+  window.panelGroesse = c && c.panelGroesse;
+  if (window.panelGroesse) arbeitsflaecheAnpassen();
+}).catch(() => { /* dann eben ohne */ });
+
 async function refreshStates() {
   const r = await fetch('/api/ha/states');
   const data = await r.json();
@@ -158,6 +165,77 @@ function findOverlappingPhoto(entry) {
 // eigener kleiner Aufbau statt der Rasterlogik.
 let unterleisteWahl = false;   // gesetzt, solange die Auswahl fuer die Unterleiste offen ist
 
+/**
+ * Arbeitsflaeche im Seitenverhaeltnis des echten Panels.
+ *
+ * Der Editor laeuft auf einem anderen Geraet. Ohne diese Anpassung zieht man Karten auf einem
+ * breiten Notebook zurecht und stellt erst auf der Wand fest, dass alles anders aussitzt --
+ * "ich kann nicht sehen, wieviel Platz ich auf dem Surface Go hab".
+ */
+function arbeitsflaecheAnpassen() {
+  const g = $('grid');
+  const p = (window.panelGroesse || null);
+  const hinweis = $('platzHinweis');
+  if (!g) return;
+  if (!p || !p.breite || !p.hoehe) {
+    if (hinweis) hinweis.textContent = '';
+    return;
+  }
+  // Auf dem Panel nimmt das Raster die volle Breite abzueglich Rand und sechs Zeilen Hoehe.
+  // Dasselbe Verhaeltnis bekommt die Arbeitsflaeche hier.
+  g.style.aspectRatio = (p.breite / p.hoehe).toFixed(4);
+  g.style.height = 'auto';
+  g.style.maxHeight = 'none';
+  g.style.gridTemplateRows = 'repeat(6, 1fr)';
+  g.style.gridAutoRows = '1fr';
+  if (hinweis) {
+    hinweis.textContent = `Arbeitsfläche im Seitenverhältnis des Panels (${p.breite} × ${p.hoehe}). `
+      + 'Was hier passt, passt dort auch.';
+  }
+}
+
+/**
+ * Liste aller Karten, mit Einstellungen und Entfernen.
+ *
+ * Der eigentliche Grund: Auf der Arbeitsflaeche kann eine Karte hinter einer anderen liegen
+ * oder so gross gezogen sein, dass man ihre Knoepfe nicht mehr trifft -- dann kommt man an
+ * sie nicht mehr heran und kann sie nicht einmal loeschen. Hier kommt man immer heran.
+ */
+function kartenListeRendern() {
+  const el = $('kartenListe');
+  if (!el) return;
+  const eintraege = currentLayout.slice();
+  if (!eintraege.length) {
+    el.innerHTML = '<p style="font-size:1.1vh; color:var(--muted);">Noch keine Karten.</p>';
+    return;
+  }
+  el.innerHTML = eintraege.map((e, i) => {
+    const typ = e.card_type || defaultCardType(e.entity_id, statesById[e.entity_id]);
+    const label = (e.settings && e.settings.name)
+      || ((statesById[e.entity_id] || {}).attributes || {}).friendly_name
+      || e.entity_id;
+    const platz = e.unterleiste ? 'untere Leiste' : `${e.cols || 1}×${e.rows || 1} bei ${e.x || 0},${e.y || 0}`;
+    return `
+      <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.4vh;">
+        <span style="flex:1; font-size:1.2vh; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${label}</span>
+        <span style="flex:0 0 auto; font-size:1.05vh; color:var(--muted);">${(CARD_TYPES[typ] || {}).label || typ}</span>
+        <span style="flex:0 0 auto; font-size:1.05vh; color:var(--muted);">${platz}</span>
+        <button type="button" class="kl-set" data-i="${i}" style="width:auto; padding:0 1vh; margin:0;" title="Einstellungen">⚙</button>
+        <button type="button" class="kl-del" data-i="${i}" style="width:auto; padding:0 1.2vh; margin:0; background:#dc3545;" title="Entfernen">×</button>
+      </div>`;
+  }).join('');
+  el.querySelectorAll('.kl-set').forEach(b => b.addEventListener('click', () => {
+    openSettings(eintraege[+b.dataset.i].entity_id);
+  }));
+  el.querySelectorAll('.kl-del').forEach(b => b.addEventListener('click', () => {
+    const e = eintraege[+b.dataset.i];
+    fotosWegraeumen(e);
+    currentLayout = currentLayout.filter(x => x !== e);
+    markDirty();
+    render();
+  }));
+}
+
 async function unterleisteRendern() {
   const el = $('unterleisteCanvas');
   if (!el) return;
@@ -199,7 +277,9 @@ async function unterleisteRendern() {
 async function render() {
   const grid = $('grid');
   grid.innerHTML = '';
+  arbeitsflaecheAnpassen();
   await unterleisteRendern();
+  kartenListeRendern();
   for (const entry of currentLayout.filter(e => !e.unterleiste)) {
     const state = statesById[entry.entity_id];
     const type = entry.card_type || defaultCardType(entry.entity_id, state);
@@ -1433,7 +1513,7 @@ function kartenEintragAnlegen(entity_id, type, settings) {
     if (!pos) {
       $('picker').classList.remove('show');
       alert('Kein Platz mehr im Raster. Erst eine Karte entfernen oder verkleinern – '
-        + 'oder die Karte in die untere Leiste legen.');
+        + 'oder die Karte über „+ Karte für die untere Leiste“ in den Streifen darunter legen.');
       return;
     }
     currentLayout.push({

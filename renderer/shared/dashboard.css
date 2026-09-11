@@ -246,14 +246,30 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 }
 .card .controls.slider-row input[type="range"]:disabled { opacity: 0.4; cursor: default; }
 
-/* Schalter und Taster haben keinen Zahlenwert -- bei ihnen fuellt das Symbol die Mitte.
-   Die Kante bleibt trotzdem links, damit sie sich in die Reihe einfuegen. */
-.card.type-switch, .card.type-button { justify-content: space-between; gap: 0.6vh; }
-.card.type-switch .icon, .card.type-button .icon {
-  width: clamp(2.4vh, 26cqmin, 7vh); height: clamp(2.4vh, 26cqmin, 7vh);
-  margin: auto 0;
+/* Schalter und Taster haben keinen Zahlenwert. Frueher stand ihr Symbol klein am linken
+   Rand und der Name darunter -- auf einer grossen Karte war das viel Luft und wenig Aussage;
+   die Rueckmeldung dazu lautete "sehr leer, sehr tot".
+   Jetzt fuellt das Symbol die Mitte und waechst mit der Karte, der Name steht mittig
+   darunter. Es IST hier die Aussage: Bei einer Karte ohne Zahl gibt es nichts anderes. */
+.card.type-switch, .card.type-button {
+  justify-content: space-between; align-items: center; gap: 0.6vh; text-align: center;
 }
-.card.type-switch .icon, .card.type-button .icon { align-self: flex-start; }
+.card.type-switch .row, .card.type-button .row { width: 100%; }
+.card.type-switch .icon, .card.type-button .icon {
+  width: clamp(3.4vh, 46cqmin, 16vh); height: clamp(3.4vh, 46cqmin, 16vh);
+  margin: auto; align-self: center;
+  /* Der Umriss ist bei grossen Symbolen sonst klobig. */
+  stroke-width: 1.4;
+}
+.card.type-switch .icon svg, .card.type-button .icon svg { stroke-width: 1.5; }
+.card.type-switch .name, .card.type-button .name {
+  width: 100%; font-size: clamp(1.1vh, 9cqmin, 2.8vh);
+}
+/* Ein eingeschalteter Schalter leuchtet im Symbol -- das sieht man ueber den Raum. */
+.card.type-switch.on .icon { color: var(--kachel-akzent); opacity: 1; }
+
+/* Das Klima-Symbol traegt jetzt eine Aussage (heizt? kuehlt?) und darf dafuer groesser sein. */
+.card.type-climate .icon { width: clamp(2.2vh, 17cqmin, 5.4vh); height: clamp(2.2vh, 17cqmin, 5.4vh); }
 /* Ein eingeschalteter Schalter faerbte bisher die ganze Kachel um -- an einer Wand mit
    zwanzig Karten flackerte das den ganzen Tag. Der Schein und das farbige Symbol
    genuegen; siehe .ist-aktiv oben. */
@@ -1112,4 +1128,74 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 body.ohne-bewegung .lebendig { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .lebendig span { animation: none; }
+}
+
+
+/* --- Klimaanlage: das Symbol zeigt, WAS die Anlage tut -----------------------------------------
+   Vorher trug die Karte immer dasselbe Symbol -- auch ausgeschaltet stand dort ein
+   Kuehlsymbol, und aus dem Vorbeigehen las man das Gegenteil der Wahrheit.
+
+   Die Bewegung ist keine Spielerei: Sie unterscheidet "laeuft gerade" von "ist eingestellt".
+   Steht die Flamme still, heizt die Anlage nicht, auch wenn Heizen gewaehlt ist -- das steht
+   sonst nirgends. Bewegt wird nur mit transform und opacity, also auf der Grafikeinheit. */
+
+.card.type-climate.klima-heat      { --kachel-akzent: #ff9d5c; }
+.card.type-climate.klima-cool      { --kachel-akzent: #7bc4ff; }
+.card.type-climate.klima-dry       { --kachel-akzent: #8fd6c4; }
+.card.type-climate.klima-fan_only  { --kachel-akzent: #c8d4e8; }
+.card.type-climate.klima-auto,
+.card.type-climate.klima-heat_cool { --kachel-akzent: #b9a8f0; }
+/* Ausgeschaltet ist gedaempft -- eine Anlage, die nichts tut, braucht keine Aufmerksamkeit. */
+.card.type-climate.klima-off       { --kachel-akzent: rgba(255,255,255,0.5); }
+.card.type-climate.klima-off .value { color: var(--muted); }
+
+.hvac-symbol svg { transform-origin: 50% 50%; }
+
+/* Heizen: die innere Flamme zuckt, die aeussere atmet leicht mit. */
+.hvac-symbol.hvac-laeuft .flamme-innen {
+  transform-origin: 50% 80%;
+  animation: flamme-zucken 1.1s ease-in-out infinite alternate;
+}
+.hvac-symbol.hvac-laeuft .flamme-aussen {
+  transform-origin: 50% 85%;
+  animation: flamme-atmen 2.3s ease-in-out infinite alternate;
+}
+@keyframes flamme-zucken { from { transform: scaleY(.82) translateY(1px); opacity: .75; }
+                           to   { transform: scaleY(1.12); opacity: 1; } }
+@keyframes flamme-atmen  { from { transform: scale(.97); } to { transform: scale(1.03); } }
+
+/* Kuehlen: die Flocke dreht sich langsam. Eine ganze Umdrehung dauert zwoelf Sekunden --
+   schneller wirkt es hektisch, und eine Klimaanlage ist nichts Hektisches. */
+.hvac-symbol.hvac-laeuft .flocke {
+  transform-origin: 50% 50%;
+  animation: flocke-drehen 12s linear infinite;
+}
+@keyframes flocke-drehen { to { transform: rotate(360deg); } }
+
+/* Entfeuchten: ein Tropfen loest sich und faellt. */
+.hvac-symbol.hvac-laeuft .tropfen {
+  animation: tropfen-fallen 2.4s ease-in infinite;
+}
+@keyframes tropfen-fallen {
+  0%, 55% { opacity: 0; transform: translateY(-2px); }
+  62%     { opacity: .9; transform: translateY(-1px); }
+  100%    { opacity: 0; transform: translateY(5px); }
+}
+
+/* Nur Lueften: die Fluegel drehen. Schneller als die Flocke -- ein Luefter dreht ja auch. */
+.hvac-symbol.hvac-laeuft .luefter {
+  transform-origin: 50% 50%;
+  animation: flocke-drehen 3.2s linear infinite;
+}
+
+/* Automatik: sanftes Pulsieren, weil die Anlage selbst entscheidet, was sie gerade tut. */
+.hvac-symbol.hvac-laeuft svg { animation: none; }
+.card.type-climate.klima-auto .hvac-symbol.hvac-laeuft svg,
+.card.type-climate.klima-heat_cool .hvac-symbol.hvac-laeuft svg {
+  animation: auto-pulsieren 3.4s ease-in-out infinite alternate;
+}
+@keyframes auto-pulsieren { from { opacity: .62; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hvac-symbol * , .hvac-symbol svg { animation: none !important; }
 }

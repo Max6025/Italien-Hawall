@@ -49,7 +49,13 @@ const KARTEN = [
   ['alarm_control_panel.b', 'alarm',      Z('armed_away', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
   ['alarm_control_panel.c', 'alarm',      Z('pending', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
   ['alarm_control_panel.d', 'alarm',      Z('triggered', { friendly_name: 'Alarmanlage', supported_features: 7 }), 1, 1],
-  ['binary_sensor.tor', 'gate', Z('off', { friendly_name: 'Tore' }), 2, 1]
+  ['binary_sensor.tor', 'gate', Z('off', { friendly_name: 'Tore' }), 2, 1],
+  ['climate.off',  'climate', Z('off',      { friendly_name: 'Aus',        current_temperature: 21.5, hvac_modes: ['off','heat','cool'] }), 1, 1],
+  ['climate.heat', 'climate', Z('heat',     { friendly_name: 'Heizen',     current_temperature: 21.5, temperature: 23, hvac_action: 'heating', hvac_modes: ['heat','off','cool'] }), 1, 1],
+  ['climate.cool', 'climate', Z('cool',     { friendly_name: 'Kühlen',     current_temperature: 25.5, temperature: 21, hvac_action: 'cooling', hvac_modes: ['cool','off'] }), 1, 1],
+  ['climate.dry',  'climate', Z('dry',      { friendly_name: 'Entfeuchten', current_temperature: 23, temperature: 22, hvac_modes: ['dry','off'] }), 1, 1],
+  ['climate.fan',  'climate', Z('fan_only', { friendly_name: 'Nur Lüfter', current_temperature: 23, temperature: 22, hvac_modes: ['fan_only','off'] }), 1, 1],
+  ['climate.auto', 'climate', Z('auto',     { friendly_name: 'Automatik',  current_temperature: 23, temperature: 22, hvac_modes: ['auto','off'] }), 1, 1]
 ];
 
 const grid = document.getElementById('grid');
