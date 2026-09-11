@@ -161,6 +161,23 @@ async function applyOrientationLock() {
   }
 }
 
+// Der Mauszeiger wird vom HAUPTPROZESS abgeschaltet, nicht nur per Stylesheet der Seite.
+//
+// Grund: Das Stylesheet gilt nur fuer dashboard.html. Die App zeigt aber auch andere Seiten --
+// updating.html, update-success.html, die Fehlerseite -- und ueber denen stand der Zeiger
+// weiterhin. Eingespeist wird bei JEDEM Laden, weil eingefuegtes CSS einen Seitenwechsel
+// nicht ueberlebt.
+const ZEIGER_AUS = '*, *::before, *::after { cursor: none !important; }';
+function zeigerAusblenden(win) {
+  if (!win || win.isDestroyed()) return;
+  const einspeisen = () => {
+    win.webContents.insertCSS(ZEIGER_AUS).catch(() => { /* Seite gerade weg */ });
+  };
+  win.webContents.on('did-finish-load', einspeisen);
+  win.webContents.on('dom-ready', einspeisen);
+  einspeisen();
+}
+
 function createWindow() {
   // Kamera-Zugriff automatisch erlauben -- wird ausschliesslich lokal fuer die
   // Annaeherungserkennung genutzt (Frame-Differenz im Renderer), es wird nichts
@@ -182,6 +199,8 @@ function createWindow() {
       nodeIntegration: false
     }
   });
+
+  zeigerAusblenden(mainWindow);
 
   // Nach einem Update: der Ladekreis ("Update wird installiert") laeuft nahtlos weiter,
   // auch waehrend/nach dem Neustart -- kein Sprung ins Leere. Erst wenn die App wirklich
@@ -321,7 +340,15 @@ app.whenReady().then(() => {
   const getPanelSize = () => {
     try {
       const d = screen.getPrimaryDisplay();
-      return { breite: d.bounds.width, hoehe: d.bounds.height };
+      const w = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow.getContentBounds() : null;
+      return {
+        breite: d.bounds.width, hoehe: d.bounds.height,
+        // Zur Fehlersuche: Weicht die Fenster- von der Bildschirmgroesse ab, sieht man auf
+        // dem Panel einen schwarzen Rand -- und kein CSS der Seite kann das erklaeren.
+        fenster: w ? { breite: w.width, hoehe: w.height } : null,
+        skalierung: d.scaleFactor,
+        drehung: d.rotation
+      };
     } catch (e) {
       return null;
     }

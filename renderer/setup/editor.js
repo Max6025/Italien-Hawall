@@ -84,6 +84,9 @@ function assignMissingPositions() {
 
 // Groesse des Panels holen -- daraus bekommt die Arbeitsflaeche ihr Seitenverhaeltnis.
 window.panelGroesse = null;
+// Die Arbeitsflaeche haengt an der Fenstergroesse -- beim Drehen eines Tablets oder beim
+// Verkleinern des Browserfensters muss sie neu gerechnet werden.
+window.addEventListener('resize', () => arbeitsflaecheAnpassen());
 fetch('/api/config').then(r => r.json()).then(c => {
   window.panelGroesse = c && c.panelGroesse;
   if (window.panelGroesse) arbeitsflaecheAnpassen();
@@ -181,16 +184,36 @@ function arbeitsflaecheAnpassen() {
     if (hinweis) hinweis.textContent = '';
     return;
   }
-  // Auf dem Panel nimmt das Raster die volle Breite abzueglich Rand und sechs Zeilen Hoehe.
-  // Dasselbe Verhaeltnis bekommt die Arbeitsflaeche hier.
-  g.style.aspectRatio = (p.breite / p.hoehe).toFixed(4);
-  g.style.height = 'auto';
+  // Das Seitenverhaeltnis allein genuegt NICHT. Bei 1280x854 und einer breiten Seite wird
+  // die Flaeche sonst hoeher als das Browserfenster -- dann ist unten alles abgeschnitten und
+  // die untere Leiste gar nicht mehr zu sehen. Genau das ist passiert.
+  //
+  // Also zuerst rechnen, wieviel Hoehe ueberhaupt da ist, und die Breite daraus ableiten.
+  const verhaeltnis = p.breite / p.hoehe;
+  const platz = g.parentElement ? g.parentElement.clientWidth : g.clientWidth;
+  const obenWeg = g.getBoundingClientRect().top;
+  // Was unter der Flaeche noch hinmuss: untere Leiste, Kartenliste, Luft.
+  const hoeheFrei = Math.max(220, window.innerHeight - obenWeg - 240);
+
+  let breite = Math.min(platz, hoeheFrei * verhaeltnis);
+  let hoehe = breite / verhaeltnis;
+
+  g.style.width = Math.round(breite) + 'px';
+  g.style.height = Math.round(hoehe) + 'px';
   g.style.maxHeight = 'none';
+  g.style.aspectRatio = 'auto';
   g.style.gridTemplateRows = 'repeat(6, 1fr)';
   g.style.gridAutoRows = '1fr';
+  g.style.marginLeft = 'auto';
+  g.style.marginRight = 'auto';
+
   if (hinweis) {
-    hinweis.textContent = `Arbeitsfläche im Seitenverhältnis des Panels (${p.breite} × ${p.hoehe}). `
-      + 'Was hier passt, passt dort auch.';
+    hinweis.textContent = `Arbeitsfläche im Seitenverhältnis des Panels (${p.breite} × ${p.hoehe}`
+      + (p.skalierung && p.skalierung !== 1 ? `, ${Math.round(p.skalierung * 100)} % Skalierung` : '')
+      + '). Was hier passt, passt dort auch.'
+      + (p.fenster && (p.fenster.breite !== p.breite || p.fenster.hoehe !== p.hoehe)
+        ? ` ACHTUNG: Das App-Fenster misst ${p.fenster.breite} × ${p.fenster.hoehe} und weicht davon ab.`
+        : '');
   }
 }
 
