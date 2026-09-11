@@ -21,7 +21,11 @@ const ZUSTAENDE = [
   ['alarm_control_panel.alarmo', 'Alarmo Überwachungskamera', 'armed_home', { supported_features: 7 }],
   ['climate.klima', 'Klimaanlage', 'off', { hvac_modes: ['off', 'heat', 'cool'], current_temperature: 22 }],
   ['sensor.aussen', 'Außentemperatur', '21.4', { unit_of_measurement: '°C' }],
-  ['light.wohnzimmer', 'Wohnzimmer', 'on', { brightness: 180 }]
+  ['light.wohnzimmer', 'Wohnzimmer', 'on', { brightness: 180 }],
+  // Zweite Klimaanlage und zweiter Sensor, damit sich der Entitaetstausch pruefen laesst:
+  // mit nur einem Kandidaten je Art gibt es nichts zu tauschen.
+  ['climate.schlafzimmer', 'Klima Schlafzimmer', 'heat', { hvac_modes: ['off', 'heat'], current_temperature: 19 }],
+  ['sensor.keller', 'Kellertemperatur', '7.2', { unit_of_measurement: '°C' }]
 ];
 
 const LAYOUT = [

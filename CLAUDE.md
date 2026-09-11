@@ -117,6 +117,11 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   gestanden. `ankuendigungsText()` sammelt diese Fälle an einer Stelle; die Einstellungsseite
   benutzt **dieselbe** Funktion für ihre Vorschau, sonst sagt sie etwas anderes voraus, als
   später passiert.
+- **`entity_id` ist der Schlüssel eines Layout-Eintrags.** Wer ihn ändert (Entität einer
+  bestehenden Karte tauschen), muss es **nach** allen anderen Schreibzugriffen tun — bis dahin
+  wird der Eintrag über die alte Kennung gefunden — und vorher prüfen, dass die neue Kennung
+  nicht schon vergeben ist. Zwei Einträge mit derselben `entity_id` sind stiller Datenverlust:
+  Jede Suche findet nur noch den ersten.
 - **In `openSettings()` gilt eine Reihenfolge:** Erst wird `html` zusammengebaut, dann
   `$('settingsBody').innerHTML = html`, und **erst danach** darf Code die neuen Elemente
   anfassen. Steht ein `$('…')` davor, liefert es `null`, der Fehler bricht den ganzen Aufbau

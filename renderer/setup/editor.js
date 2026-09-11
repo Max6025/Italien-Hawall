@@ -580,7 +580,11 @@ function settingsFieldsForType(type) {
   // Karten ohne eigenes Symbol (Uhr, Foto, Kacheln, Energiefluss, Media Player) haben nichts
   // zu tauschen -- ein Auswahlfeld dort waere eine Einstellung ohne Wirkung.
   const ohneSymbol = ['clock', 'photo', 'quicktiles', 'energy', 'media_player', 'navigate', 'gate', 'light', 'switch', 'climate', 'cover', 'lock', 'alarm'];
+  // Karten ohne Home-Assistant-Entitaet (Uhr, Energiefluss, Foto, Kacheln, Wechsel-Karte)
+  // haben nichts zu tauschen -- sie tragen eine selbst vergebene Kennung.
+  const ohneEntitaet = ['clock', 'energy', 'photo', 'quicktiles', 'navigate'];
   return {
+    entitaetWechseln: !ohneEntitaet.includes(type),
     decimals: mitZahl.includes(type),
     verlaufOpts: mitZahl.includes(type) && type !== 'graph' && type !== 'gauge',
     iconWahl: !ohneSymbol.includes(type),
@@ -644,6 +648,24 @@ function openSettings(entityId) {
   $('settingsTitle').textContent = 'Einstellungen: ' + (settings.name || attrs.friendly_name || entityId);
 
   let html = '';
+  if (fields.entitaetWechseln) {
+    // Die Entitaet laesst sich nachtraeglich tauschen. Vorher musste man die Karte entfernen
+    // und neu anlegen -- und verlor dabei Groesse, Platz und saemtliche Einstellungen, obwohl
+    // sich nur das dahinterliegende Geraet geaendert hat.
+    const doms = domainsForType(type);
+    const belegt = currentLayout.filter(l => l.entity_id !== entityId).map(l => l.entity_id);
+    const passende = allEntities
+      .filter(e => doms === null || doms.includes(e.domain))
+      .filter(e => !belegt.includes(e.entity_id));
+    html += `<label>Entität (Gerät hinter dieser Karte)</label>
+      <select id="setEntity">
+        ${passende.some(e => e.entity_id === entityId) ? '' : `<option value="${entityId}" selected>${entityId} (aktuell)</option>`}
+        ${passende.map(e => `<option value="${e.entity_id}" ${e.entity_id === entityId ? 'selected' : ''}>${e.name} — ${e.entity_id}</option>`).join('')}
+      </select>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0.4vh 0 1vh;">
+        Tauscht nur das Gerät aus. Größe, Platz und alle Einstellungen dieser Karte bleiben.
+        Bereits von anderen Karten belegte Entitäten stehen nicht zur Auswahl.</p>`;
+  }
   if (fields.name) {
     html += `<label>Anzeigename (leer = Name aus Home Assistant${attrs.friendly_name ? ': ' + attrs.friendly_name : ''})</label>
       <input type="text" id="setName" value="${settings.name || ''}" placeholder="${attrs.friendly_name || entityId}">`;
@@ -1364,6 +1386,22 @@ $('settingsSave').addEventListener('click', () => {
   const entry = currentLayout.find(l => l.entity_id === settingsEntityId);
   if (!entry) return;
   const settings = { ...(entry.settings || {}) };
+
+  // Entitaet tauschen, falls gewaehlt. Das passiert VOR allem anderen, damit die uebrigen
+  // Einstellungen auf dem schon getauschten Eintrag landen.
+  let neueEntitaet = null;
+  if (settingsFields.entitaetWechseln && $('setEntity')) {
+    const gewaehlt = $('setEntity').value;
+    if (gewaehlt && gewaehlt !== entry.entity_id) {
+      // Doppelt vergeben waere ein stiller Datenverlust: Zwei Eintraege mit derselben
+      // Kennung, und jede Suche nach entity_id findet nur noch den ersten.
+      if (currentLayout.some(l => l !== entry && l.entity_id === gewaehlt)) {
+        alert('Diese Entität steckt schon in einer anderen Karte.');
+        return;
+      }
+      neueEntitaet = gewaehlt;
+    }
+  }
   if (settingsFields.name) {
     const nameV = ($('setName') && $('setName').value.trim()) || '';
     if (nameV) settings.name = nameV; else delete settings.name;
@@ -1492,6 +1530,12 @@ $('settingsSave').addEventListener('click', () => {
     settings.mediaShowProgress = $('setMediaShowProgress') ? $('setMediaShowProgress').checked : true;
   }
   entry.settings = settings;
+  // Erst jetzt umhaengen -- bis hierher wurde der Eintrag noch ueber die alte Kennung
+  // gefunden.
+  if (neueEntitaet) {
+    entry.entity_id = neueEntitaet;
+    settingsEntityId = neueEntitaet;
+  }
   markDirty();
   $('settingsModal').classList.remove('show');
   render();
