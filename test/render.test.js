@@ -582,3 +582,45 @@ test('Ein Platzhalter IN einem Satz bleibt stehen', () => {
   assert.strictEqual(D.ankuendigungsText('Status unknown, bitte prüfen'), 'Status unknown, bitte prüfen');
   assert.strictEqual(D.ankuendigungsText('Keine Post heute'), 'Keine Post heute');
 });
+
+// --- Kurzfassung fuer die untere Leiste --------------------------------------------------------
+//
+// Wandert die Ankuendigung nach unten, ist dort Platz fuer EINE Zeile. Der ganze Text kommt
+// beim Antippen zurueck.
+
+test('Die Ueberschrift wird zur Zeile', () => {
+  assert.strictEqual(
+    D.ankuendigungKurz('# Tor dauerhaft offen\n\nDas Hoftor steht seit 11:40 offen.'),
+    'Tor dauerhaft offen');
+});
+
+test('Ohne Ueberschrift der erste Absatz', () => {
+  assert.strictEqual(D.ankuendigungKurz('Paket vor der Tür\nZweite Zeile'), 'Paket vor der Tür');
+});
+
+test('Auszeichnungen fallen weg', () => {
+  // In einer Zeile sind Sternchen nur Stoerung.
+  assert.strictEqual(D.ankuendigungKurz('Paket **liegt** vor der _Tür_'), 'Paket liegt vor der Tür');
+  assert.strictEqual(D.ankuendigungKurz('## **Achtung**'), 'Achtung');
+});
+
+test('Ein Aufzaehlungszeichen wird nicht mitgeschleppt', () => {
+  assert.strictEqual(D.ankuendigungKurz('- Punkt eins\n- Punkt zwei'), 'Punkt eins');
+});
+
+test('Die Ueberschrift gewinnt, auch wenn sie nicht zuerst steht', () => {
+  // Wer erst einen Satz schreibt und dann eine Ueberschrift, meint mit der Ueberschrift die
+  // Zusammenfassung.
+  assert.strictEqual(D.ankuendigungKurz('Vorbemerkung\n\n# Die Hauptsache'), 'Die Hauptsache');
+});
+
+test('Leere Eingaben ergeben eine leere Zeile, keinen Absturz', () => {
+  assert.strictEqual(D.ankuendigungKurz(''), '');
+  assert.strictEqual(D.ankuendigungKurz(null), '');
+  assert.strictEqual(D.ankuendigungKurz('   \n  \n '), '');
+});
+
+test('Windows-Zeilenenden werden genauso gelesen', () => {
+  // Ein Text aus Home Assistant kann mit CRLF kommen.
+  assert.strictEqual(D.ankuendigungKurz('Erste Zeile\r\nZweite'), 'Erste Zeile');
+});

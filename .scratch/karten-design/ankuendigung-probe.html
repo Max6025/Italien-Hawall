@@ -1,47 +1,113 @@
 <!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><title>Ankündigung</title>
+<html lang="de">
+<head><meta charset="UTF-8"><title>Ankündigung</title>
 <link rel="stylesheet" href="../../renderer/shared/dashboard.css">
-</head><body class="wandanzeige">
-<!-- Prueft die Ankuendigungs-Box: Aussehen mit Markdown, und ob beim Leeren WIRKLICH alles
-     verschwindet -- Rahmen und Text blieben frueher stehen. -->
-<div class="app"><div class="main"><div class="grid" id="grid"></div></div></div>
+<style>
+  /* Nur fuer die Probe: Knoepfe, um die Zustaende von Hand durchzuschalten. */
+  .probe-leiste { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 99999;
+    display: flex; gap: .4rem; padding: .4rem; background: #000c; font: 12px system-ui; }
+  .probe-leiste button { font: inherit; padding: .3rem .6rem; }
+</style>
+</head>
+<body class="wandanzeige">
+<!--
+  Prueft die Ankuendigung mit ihren zwei Zustaenden und dem Weg dazwischen: Vollbild ->
+  Leiste -> weg. Nachgebaut wird dieselbe Hoehenstruktur wie im Dashboard, damit die Box
+  wirklich dorthin wandert, wo die Karte in der Leiste sitzt.
+-->
+<div class="app"><div class="main">
+  <div class="grid" id="grid"></div>
+  <div class="unterleiste" id="unterleiste"></div>
+</div></div>
 
 <div class="notify-overlay" id="notifyOverlay">
-  <div class="notify-box">
+  <div class="notify-box" id="notifyBox">
     <div class="notify-kopf" id="notifyKopf"></div>
     <div class="notify-text as-text" id="notifyText"></div>
+    <div class="notify-kurz" id="notifyKurz"></div>
   </div>
+</div>
+
+<div class="probe-leiste">
+  <button onclick="vollbild()">Vollbild</button>
+  <button onclick="inLeiste()">→ in die Leiste</button>
+  <button onclick="weg()">leeren</button>
 </div>
 
 <script src="../../renderer/shared/dashboard-render.js"></script>
 <script src="../../renderer/shared/ankunftsschirm.js"></script>
 <script>
+const $ = (id) => document.getElementById(id);
 DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
-const grid = document.getElementById('grid');
-for (let i = 0; i < 8; i++) {
-  grid.appendChild(DashboardRender.buildCard('sensor.s'+i, {state:(18+i)+'',attributes:{friendly_name:'Sensor '+i,unit_of_measurement:'°C'}},
-    'temperature', {cols:1,rows:1}, {editable:false,settings:{},apiBase:''}));
+
+const grid = $('grid');
+for (let i = 0; i < 12; i++) {
+  grid.appendChild(DashboardRender.buildCard('sensor.s' + i,
+    { state: (18 + i) + '', attributes: { friendly_name: 'Sensor ' + i, unit_of_measurement: '°C' } },
+    'temperature', { cols: 1, rows: 1 }, { editable: false, settings: {}, apiBase: '' }));
+}
+// Eine Uhr in der Leiste -- sie muss weichen, wenn die Ankuendigung dort ankommt.
+$('unterleiste').appendChild(DashboardRender.buildCard('clock:1', null, 'clock',
+  { cols: 1, rows: 1 }, { editable: false, settings: {}, apiBase: '' }));
+
+const TEXT = '# Tor dauerhaft offen\n\n'
+  + 'Das Hoftor steht seit **11:40** offen. Bitte vor dem Schlafengehen schließen.\n\n'
+  + '- Schlüssel liegt im Flur\n'
+  + '- Die Garage ist _zu_\n';
+
+function kurzfassung(roh) {
+  const zeilen = String(roh || '').split(/\r?\n/).map(z => z.trim()).filter(Boolean);
+  if (!zeilen.length) return '';
+  const u = zeilen.find(z => /^#{1,3}\s+/.test(z));
+  return (u || zeilen[0]).replace(/^#{1,3}\s+/, '').replace(/[*_`]/g, '').trim();
 }
 
-const TEXT = `# Tor dauerhaft offen
-
-Das Hoftor steht seit **11:40** offen. Bitte vor dem Schlafengehen schließen.
-
-- Schlüssel liegt im Flur
-- Die Garage ist _zu_
-`;
-
-function zeigen(text) {
-  const hat = !!DashboardRender.ankuendigungsText(text);
-  if (hat) {
-    document.getElementById('notifyText').innerHTML =
-      AnkunftsschirmModul.markdown(DashboardRender.ankuendigungsText(text), DashboardRender.esc);
-    document.getElementById('notifyKopf').textContent = 'Ankündigung';
+function geometrie(zielIstLeiste) {
+  const box = $('notifyBox');
+  if (!zielIstLeiste) {
+    const breite = Math.min(window.innerWidth * 0.8, window.innerHeight * 1.3);
+    box.style.left = Math.round((window.innerWidth - breite) / 2) + 'px';
+    box.style.width = Math.round(breite) + 'px';
+    box.style.top = '12vh';
+    box.style.height = 'auto';
+    box.style.maxHeight = '76vh';
+    return;
   }
-  document.getElementById('notifyOverlay').classList.toggle('show', hat);
+  const leiste = $('unterleiste');
+  const karteDrin = leiste && leiste.querySelector('.card');
+  const r = karteDrin ? karteDrin.getBoundingClientRect()
+    : ((leiste && leiste.offsetHeight > 8) ? leiste.getBoundingClientRect()
+      : { left: innerWidth * 0.02, width: innerWidth * 0.96, top: innerHeight * 0.885, height: innerHeight * 0.1 });
+  box.style.left = Math.round(r.left) + 'px';
+  box.style.width = Math.round(r.width) + 'px';
+  box.style.top = Math.round(r.top) + 'px';
+  box.style.height = Math.round(r.height) + 'px';
+  box.style.maxHeight = 'none';
 }
-zeigen(TEXT);
 
-// Nach drei Sekunden leeren -- dann muss ALLES weg sein.
-window.leeren = () => zeigen('unknow');
-</script></body></html>
+function vollbild() {
+  $('notifyText').innerHTML = AnkunftsschirmModul.markdown(TEXT, DashboardRender.esc);
+  $('notifyKopf').textContent = 'Ankündigung';
+  $('notifyKurz').textContent = kurzfassung(TEXT);
+  const o = $('notifyOverlay');
+  o.classList.add('show', 'vollbild');
+  o.classList.remove('leiste');
+  document.body.classList.remove('ankuendigung-in-leiste');
+  geometrie(false);
+}
+function inLeiste() {
+  const o = $('notifyOverlay');
+  document.body.classList.add('ankuendigung-in-leiste');
+  o.classList.remove('vollbild');
+  o.classList.add('leiste');
+  geometrie(true);
+}
+function weg() {
+  $('notifyOverlay').classList.remove('show', 'vollbild', 'leiste');
+  document.body.classList.remove('ankuendigung-in-leiste');
+}
+
+vollbild();
+</script>
+</body>
+</html>

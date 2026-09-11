@@ -107,6 +107,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   man das Gegenteil der Wahrheit. Die Bewegung ist dabei keine Spielerei: Sie unterscheidet
   „läuft gerade" (`hvac_action`) von „ist eingestellt" (`state`). Steht die Flamme still,
   heizt die Anlage nicht — das steht sonst nirgends auf der Karte.
+- **Die Ankündigung hat zwei Zustände und einen Weg dazwischen.** Vollbild (auffällig,
+  Hintergrund abgedunkelt, Dashboard gesperrt) und Leiste (eine Zeile unten, Dashboard wieder
+  bedienbar, die Karte dort weicht). Die Lage der Box wird in **Pixeln aus der echten
+  Geometrie** gesetzt — gemessen an der Karte in der Unterleiste, nicht an der Leiste selbst,
+  sonst landet sie breiter als das, was sie ersetzt. Nach einer Fenstergrößenänderung muss
+  `notifyGeometrie()` neu laufen, sonst steht sie an der alten Stelle.
 - **Sichtbarkeit gehört an den Container, nicht an die Einzelteile.** Die Ankündigungs-Box
   bestand aus einem SVG-Rahmen und einem Text, die beide per Animation mit `forwards`
   eingeblendet wurden. Das Ausblenden nahm nur den dunklen Hintergrund weg — Rahmen und Text
@@ -264,7 +270,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-222 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+229 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

@@ -470,6 +470,32 @@
     'n/a', 'na', 'leer', 'unbekannt', 'nicht verfuegbar', 'nicht verfügbar', 'keine', 'kein'
   ];
 
+  // Bewusst ueber Zeichencodes zusammengesetzt statt als Maskierungen geschrieben: Diese
+  // Datei wird von Skripten veraendert, und eine zerbrochene Maskierung faellt erst zur
+  // Laufzeit auf. Dieselbe Vorsichtsmassnahme wie bei NEUE_ZEILE in ankunftsschirm.js.
+  const ZEILENUMBRUCH = new RegExp(String.fromCharCode(13) + "?" + String.fromCharCode(10));
+  const UEBERSCHRIFT = new RegExp("^#{1,3}" + String.fromCharCode(92) + "s+");
+  const AUFZAEHLUNG = new RegExp("^[-*+]" + String.fromCharCode(92) + "s+");
+  const AUSZEICHNUNG = new RegExp("[*_`]", "g");
+
+  /**
+   * Eine Zeile aus dem Ankuendigungstext -- fuer die untere Leiste.
+   *
+   * Dort ist Platz fuer eine Zeile, nicht fuer einen Absatz. Genommen wird die Ueberschrift,
+   * sonst der erste Absatz; Auszeichnungen fallen weg, weil Sternchen in einer Zeile nur
+   * stoeren. Der ganze Text kommt beim Antippen zurueck.
+   */
+  function ankuendigungKurz(roh) {
+    const zeilen = String(roh || "").split(ZEILENUMBRUCH).map(z => z.trim()).filter(Boolean);
+    if (!zeilen.length) return "";
+    const ueberschrift = zeilen.find(z => UEBERSCHRIFT.test(z));
+    return (ueberschrift || zeilen[0])
+      .replace(UEBERSCHRIFT, "")
+      .replace(AUFZAEHLUNG, "")
+      .replace(AUSZEICHNUNG, "")
+      .trim();
+  }
+
   /** Der anzuzeigende Text, oder '' wenn nichts anzuzeigen ist. */
   function ankuendigungsText(roh) {
     const text = String(roh == null ? '' : roh).trim();
@@ -1982,7 +2008,7 @@
     kachelRegler, miniVerlaufSvg, tendenz, rueckmeldung,
     ALARM_ZUSTAENDE, ALARM_TOENE, alarmDarstellung, symbolErraten,
     HVAC_SYMBOL, hvacSymbol, hvacReihenfolge,
-    ankuendigungsText, NICHTS_ANZUZEIGEN,
+    ankuendigungsText, ankuendigungKurz, NICHTS_ANZUZEIGEN,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };

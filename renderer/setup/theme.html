@@ -73,6 +73,13 @@
     <input type="text" id="notifyTitel" maxlength="40" placeholder="Ankündigung">
     <p class="hint-text">Steht klein über dem Text. Ohne sie steht dort ein Satz ohne Absender,
       und man rätselt, ob das Gerät kaputt ist.</p>
+    <label>Sekunden im Vollbild, bevor sie nach unten wandert</label>
+    <input type="number" id="notifySekunden" min="0" max="600" step="5" value="20" style="max-width:140px;">
+    <p class="hint-text">Die Ankündigung erscheint zuerst bildschirmfüllend – eine Nachricht,
+      die man übersehen kann, ist keine. Danach wandert sie in die untere Leiste und bleibt
+      dort als eine Zeile stehen, solange die Entität Text enthält; die Karte dort (meist die
+      Uhr) weicht so lange. Antippen holt den ganzen Text zurück.
+      <strong>0 heißt: bleibt bildschirmfüllend.</strong></p>
     <p class="hint-text"><strong>Der Text versteht Markdown</strong> – genau wie der
       Ankunftsschirm: <code>**fett**</code>, <code>_kursiv_</code>, <code>- Aufzählung</code>,
       <code># Überschrift</code>. HTML wird angezeigt, nicht ausgeführt.</p>

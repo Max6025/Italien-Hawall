@@ -120,9 +120,12 @@
        dunkle Hintergrund, Rahmen und Text standen weiter auf der Wand. Jetzt eine
        Glaskarte wie der Rest, und das Ausblenden nimmt alles mit. -->
   <div class="notify-overlay" id="notifyOverlay">
-    <div class="notify-box">
+    <div class="notify-box" id="notifyBox">
       <div class="notify-kopf" id="notifyKopf"></div>
       <div class="notify-text as-text" id="notifyText"></div>
+      <!-- Die Kurzfassung fuer die untere Leiste. Dort ist Platz fuer eine Zeile, nicht fuer
+           einen Absatz -- der ganze Text kommt beim Antippen zurueck. -->
+      <div class="notify-kurz" id="notifyKurz"></div>
     </div>
   </div>
 
@@ -626,6 +629,78 @@ function applyTheme() {
 // abgedunkelt und der Text in einer Box angezeigt, die sich schnell "zeichnet". Leer/unknown
 // -> Box verschwindet wieder. ---
 let notifyVisible = false;
+let notifyText = '';
+let notifyUhr = null;
+
+/**
+ * Die Ankuendigung in zwei Schritten.
+ *
+ * Erst fuellt sie den Bildschirm -- eine Ankuendigung, die man uebersehen kann, ist keine.
+ * Nach einer einstellbaren Zeit wandert sie nach unten in die Leiste und bleibt dort als
+ * eine Zeile stehen, solange die Entitaet Text enthaelt. So ist das Dashboard wieder
+ * benutzbar, ohne dass die Nachricht verschwindet.
+ *
+ * Die Bewegung laeuft ueber die tatsaechliche Lage der Leiste, nicht ueber geschaetzte
+ * Werte: Die Box wandert genau dorthin, wo die Karte sass, die sie ersetzt.
+ */
+function notifyGeometrie(zielIstLeiste) {
+  const box = $('notifyBox');
+  if (!box) return;
+  if (!zielIstLeiste) {
+    const breite = Math.min(window.innerWidth * 0.8, window.innerHeight * 1.3);
+    box.style.left = Math.round((window.innerWidth - breite) / 2) + 'px';
+    box.style.width = Math.round(breite) + 'px';
+    box.style.top = '12vh';
+    box.style.height = 'auto';
+    box.style.maxHeight = '76vh';
+    return;
+  }
+  // Die Leiste kann fehlen (keine Karte eingerichtet) -- dann unten mittig ein Streifen in
+  // derselben Hoehe. Die Ankuendigung darf nicht davon abhaengen, dass jemand eine Uhr
+  // eingerichtet hat.
+  const leiste = $('unterleiste');
+  // Die Karte IN der Leiste ist das genaue Ziel -- die Leiste selbst hat Innenabstand, und
+  // die Box waere sonst breiter als das, was sie ersetzt. Steht dort keine Karte, bleibt die
+  // Leiste als Naeherung; gibt es auch die nicht, ein Streifen unten in derselben Hoehe.
+  const karteDrin = leiste && leiste.querySelector('.card');
+  const r = karteDrin
+    ? karteDrin.getBoundingClientRect()
+    : ((leiste && leiste.offsetHeight > 8)
+      ? leiste.getBoundingClientRect()
+      : { left: window.innerWidth * 0.02, width: window.innerWidth * 0.96,
+          top: window.innerHeight - window.innerHeight * 0.115, height: window.innerHeight * 0.1 });
+  box.style.left = Math.round(r.left) + 'px';
+  box.style.width = Math.round(r.width) + 'px';
+  box.style.top = Math.round(r.top) + 'px';
+  box.style.height = Math.round(r.height) + 'px';
+  box.style.maxHeight = 'none';
+}
+
+function notifyVollbild() {
+  const o = $('notifyOverlay');
+  o.classList.add('vollbild');
+  o.classList.remove('leiste');
+  document.body.classList.remove('ankuendigung-in-leiste');
+  notifyGeometrie(false);
+
+  clearTimeout(notifyUhr);
+  const sek = Number(config && config.notifySekunden);
+  // 0 heisst ausdruecklich "bleibt gross" -- wer eine Ankuendigung dauerhaft im Bild haben
+  // will, soll das koennen, ohne einen zweiten Schalter dafuer zu brauchen.
+  if (sek > 0) notifyUhr = setTimeout(notifyInLeiste, sek * 1000);
+}
+
+function notifyInLeiste() {
+  const o = $('notifyOverlay');
+  if (!notifyVisible) return;
+  // Die Karte in der Leiste weicht -- zwei Dinge uebereinander waeren beides unlesbar.
+  document.body.classList.add('ankuendigung-in-leiste');
+  o.classList.remove('vollbild');
+  o.classList.add('leiste');
+  notifyGeometrie(true);
+}
+
+
 function applyNotify() {
   if (!config || !config.notifyEntity) return;
   const s = statesById[config.notifyEntity];
@@ -636,13 +711,26 @@ function applyNotify() {
   // Markdown wie beim Ankunftsschirm: dieselbe Funktion, dieselbe Sicherheitsregel -- erst
   // wird ALLES maskiert, danach werden ausschliesslich die eigenen Auszeichnungen zu Tags.
   // Aus einem Text, den jemand in Home Assistant eintippt, kann so nie HTML entstehen.
-  if (hasText) {
+  if (hasText && text !== notifyText) {
     $('notifyText').innerHTML = AnkunftsschirmModul.markdown(text, DashboardRender.esc);
     $('notifyKopf').textContent = config.notifyTitel || 'Ankündigung';
+    $('notifyKurz').textContent = DashboardRender.ankuendigungKurz(text);
+    notifyText = text;
+    // Neuer Text faengt wieder gross an -- sonst erschiene eine frische Ankuendigung
+    // unbemerkt als Zeile am unteren Rand.
+    if (notifyVisible) notifyVollbild();
   }
-  if (hasText !== notifyVisible) {
-    $('notifyOverlay').classList.toggle('show', hasText);
-    notifyVisible = hasText;
+
+  if (hasText && !notifyVisible) {
+    notifyVisible = true;
+    $('notifyOverlay').classList.add('show');
+    notifyVollbild();
+  } else if (!hasText && notifyVisible) {
+    notifyVisible = false;
+    notifyText = '';
+    clearTimeout(notifyUhr);
+    $('notifyOverlay').classList.remove('show', 'vollbild', 'leiste');
+    document.body.classList.remove('ankuendigung-in-leiste');
   }
 }
 
@@ -1041,6 +1129,17 @@ $('backBtn').innerHTML = ICONS.back;
 document.documentElement.style.cursor = 'none';
 $('zurueckKnopf').innerHTML = ICONS.back;
 $('zurueckKnopf').addEventListener('click', () => navigateTo('main'));
+
+// Antippen der Zeile holt die ganze Ankuendigung zurueck -- in der Leiste steht nur die
+// erste Zeile, und wer mehr wissen will, soll nicht auf den naechsten Textwechsel warten.
+$('notifyOverlay').addEventListener('click', () => {
+  if (notifyVisible && $('notifyOverlay').classList.contains('leiste')) notifyVollbild();
+});
+
+// Fenstergroesse geaendert (Drehung): Die Box haengt an Pixelwerten und muss neu gesetzt werden.
+window.addEventListener('resize', () => {
+  if (notifyVisible) notifyGeometrie($('notifyOverlay').classList.contains('leiste'));
+});
 $('batteryWarnBtn').innerHTML = ICONS.battery2;
 
 // --- Kalendersteuerung: Anzeigeseite der im Hauptprozess laufenden Logik --------------------

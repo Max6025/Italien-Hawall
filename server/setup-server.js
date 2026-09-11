@@ -232,6 +232,9 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       screensaverLayout: store.get('screensaverLayout') || [],
       notifyEntity: store.get('notifyEntity') || '',
       notifyTitel: store.get('notifyTitel') || 'Ankündigung',
+      // Wie lange die Ankuendigung gross bleibt, bevor sie in die Leiste wandert.
+      // 0 heisst ausdruecklich: bleibt gross.
+      notifySekunden: store.get('notifySekunden') === undefined ? 20 : store.get('notifySekunden'),
       batteryThreshold: store.get('batteryThreshold') || 20,
       nightModeEnabled: store.get('nightModeEnabled') || false,
       nightStart: store.get('nightStart') || '23:00',
@@ -284,7 +287,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     const {
       haUrl, token, title, entities, layout, sunEntity, screensaverSeconds, screensaverEntities,
       screensaverLayout, notifyEntity, batteryThreshold, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
-      motionWakeEnabled, motionThreshold, notifyTitel,
+      motionWakeEnabled, motionThreshold, notifyTitel, notifySekunden,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
@@ -305,6 +308,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (screensaverLayout !== undefined) store.set('screensaverLayout', screensaverLayout);
     if (notifyEntity !== undefined) store.set('notifyEntity', notifyEntity);
     if (notifyTitel !== undefined) store.set('notifyTitel', String(notifyTitel || '').slice(0, 40));
+    if (notifySekunden !== undefined) store.set('notifySekunden', Math.max(0, Math.min(600, parseInt(notifySekunden, 10) || 0)));
     if (batteryThreshold !== undefined) store.set('batteryThreshold', batteryThreshold);
     if (nightModeEnabled !== undefined) store.set('nightModeEnabled', nightModeEnabled);
     if (nightStart !== undefined) store.set('nightStart', nightStart);
