@@ -115,11 +115,15 @@
   <button class="zurueck-knopf" id="zurueckKnopf" hidden aria-label="Zurück zum Hauptdashboard"></button>
   <div class="terminankuendigung" id="terminankuendigung"></div>
 
+  <!-- Ankuendigung. Der weisse Rahmen als SVG ist entfallen: Er wurde per Animation
+       gezeichnet und blieb mit `forwards` stehen -- beim Ausblenden verschwand nur der
+       dunkle Hintergrund, Rahmen und Text standen weiter auf der Wand. Jetzt eine
+       Glaskarte wie der Rest, und das Ausblenden nimmt alles mit. -->
   <div class="notify-overlay" id="notifyOverlay">
-    <svg class="notify-box-svg" viewBox="0 0 100 60" preserveAspectRatio="none">
-      <rect id="notifyBoxRect" x="2" y="2" width="96" height="56" rx="4" fill="none" stroke="#fff" stroke-width="1.2"/>
-    </svg>
-    <div class="notify-text" id="notifyText"></div>
+    <div class="notify-box">
+      <div class="notify-kopf" id="notifyKopf"></div>
+      <div class="notify-text as-text" id="notifyText"></div>
+    </div>
   </div>
 
 <script src="shared/dashboard-render.js"></script>
@@ -629,18 +633,16 @@ function applyNotify() {
   // Begruendung, warum die Liste laenger ist als nur unknown/unavailable.
   const text = DashboardRender.ankuendigungsText(s ? s.state : '');
   const hasText = !!text;
-  if (hasText && !notifyVisible) {
-    $('notifyText').textContent = text;
-    $('notifyOverlay').classList.add('show');
-    const rect = $('notifyBoxRect');
-    rect.classList.remove('draw');
-    requestAnimationFrame(() => rect.classList.add('draw'));
-    notifyVisible = true;
-  } else if (hasText && notifyVisible) {
-    $('notifyText').textContent = text;
-  } else if (!hasText && notifyVisible) {
-    $('notifyOverlay').classList.remove('show');
-    notifyVisible = false;
+  // Markdown wie beim Ankunftsschirm: dieselbe Funktion, dieselbe Sicherheitsregel -- erst
+  // wird ALLES maskiert, danach werden ausschliesslich die eigenen Auszeichnungen zu Tags.
+  // Aus einem Text, den jemand in Home Assistant eintippt, kann so nie HTML entstehen.
+  if (hasText) {
+    $('notifyText').innerHTML = AnkunftsschirmModul.markdown(text, DashboardRender.esc);
+    $('notifyKopf').textContent = config.notifyTitel || 'Ankündigung';
+  }
+  if (hasText !== notifyVisible) {
+    $('notifyOverlay').classList.toggle('show', hasText);
+    notifyVisible = hasText;
   }
 }
 

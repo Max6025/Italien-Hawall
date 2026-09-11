@@ -69,6 +69,13 @@
     <label>input_text-Entität</label>
     <select id="notifyEntity"><option value="">Keine Ankündigungs-Box</option></select>
     <div id="notifyVorschau" class="result" style="margin-top:0.6rem;"></div>
+    <label>Überschrift der Box</label>
+    <input type="text" id="notifyTitel" maxlength="40" placeholder="Ankündigung">
+    <p class="hint-text">Steht klein über dem Text. Ohne sie steht dort ein Satz ohne Absender,
+      und man rätselt, ob das Gerät kaputt ist.</p>
+    <p class="hint-text"><strong>Der Text versteht Markdown</strong> – genau wie der
+      Ankunftsschirm: <code>**fett**</code>, <code>_kursiv_</code>, <code>- Aufzählung</code>,
+      <code># Überschrift</code>. HTML wird angezeigt, nicht ausgeführt.</p>
     <p class="hint-text">Die Box bleibt stehen, solange dort Text steht. Sie verschwindet erst,
       wenn das Feld leer ist – oder einen der üblichen Platzhalter enthält
       (<code>unknown</code>, <code>unavailable</code>, <code>keine</code>, <code>-</code>).

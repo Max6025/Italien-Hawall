@@ -54,6 +54,7 @@ async function load() {
   $('notifyEntity').addEventListener('change', notifyVorschau);
   notifyVorschau();
 
+  $('notifyTitel').value = configRes.notifyTitel || '';
   $('batteryThreshold').value = configRes.batteryThreshold || 20;
   $('nightEnabled').checked = !!configRes.nightModeEnabled;
   $('nightStart').value = configRes.nightStart || '23:00';
@@ -293,6 +294,7 @@ function alleFelder() {
     rueckkehrSekunden: zahl('rueckkehrSekunden', 90),
     sunEntity: $('sunEntity').value,
     notifyEntity: $('notifyEntity').value,
+    notifyTitel: $('notifyTitel').value,
     batteryThreshold: zahl('batteryThreshold', 20),
 
     nightModeEnabled: $('nightEnabled').checked,

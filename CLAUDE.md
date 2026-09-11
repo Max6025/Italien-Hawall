@@ -107,6 +107,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   man das Gegenteil der Wahrheit. Die Bewegung ist dabei keine Spielerei: Sie unterscheidet
   „läuft gerade" (`hvac_action`) von „ist eingestellt" (`state`). Steht die Flamme still,
   heizt die Anlage nicht — das steht sonst nirgends auf der Karte.
+- **Sichtbarkeit gehört an den Container, nicht an die Einzelteile.** Die Ankündigungs-Box
+  bestand aus einem SVG-Rahmen und einem Text, die beide per Animation mit `forwards`
+  eingeblendet wurden. Das Ausblenden nahm nur den dunklen Hintergrund weg — Rahmen und Text
+  standen weiter auf der Wand, obwohl die Entität längst leer war. Wer eine Überlagerung
+  ausblendet, schaltet `opacity` **und** `visibility` am Container; Teile, die sich selbst
+  eingeblendet haben, blenden sich nicht von selbst wieder aus.
 - **Wer etwas über allem anzeigt, muss die Stapelhöhen kennen.** Der Ankunftsschirm liegt auf
   `z-index: 9997`. Die Ankündigungs-Box lag auf 80 und war damit während jedes Termins
   vollständig zugedeckt — sie funktionierte, nur sah sie niemand. Eine Ankündigung ist die

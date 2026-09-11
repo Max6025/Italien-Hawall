@@ -231,6 +231,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       screensaverEntities: store.get('screensaverEntities') || [],
       screensaverLayout: store.get('screensaverLayout') || [],
       notifyEntity: store.get('notifyEntity') || '',
+      notifyTitel: store.get('notifyTitel') || 'Ankündigung',
       batteryThreshold: store.get('batteryThreshold') || 20,
       nightModeEnabled: store.get('nightModeEnabled') || false,
       nightStart: store.get('nightStart') || '23:00',
@@ -283,7 +284,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     const {
       haUrl, token, title, entities, layout, sunEntity, screensaverSeconds, screensaverEntities,
       screensaverLayout, notifyEntity, batteryThreshold, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
-      motionWakeEnabled, motionThreshold,
+      motionWakeEnabled, motionThreshold, notifyTitel,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
@@ -303,6 +304,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (screensaverEntities !== undefined) store.set('screensaverEntities', screensaverEntities);
     if (screensaverLayout !== undefined) store.set('screensaverLayout', screensaverLayout);
     if (notifyEntity !== undefined) store.set('notifyEntity', notifyEntity);
+    if (notifyTitel !== undefined) store.set('notifyTitel', String(notifyTitel || '').slice(0, 40));
     if (batteryThreshold !== undefined) store.set('batteryThreshold', batteryThreshold);
     if (nightModeEnabled !== undefined) store.set('nightModeEnabled', nightModeEnabled);
     if (nightStart !== undefined) store.set('nightStart', nightStart);

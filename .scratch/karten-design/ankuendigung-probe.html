@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>Ankündigung</title>
+<link rel="stylesheet" href="../../renderer/shared/dashboard.css">
+</head><body class="wandanzeige">
+<!-- Prueft die Ankuendigungs-Box: Aussehen mit Markdown, und ob beim Leeren WIRKLICH alles
+     verschwindet -- Rahmen und Text blieben frueher stehen. -->
+<div class="app"><div class="main"><div class="grid" id="grid"></div></div></div>
+
+<div class="notify-overlay" id="notifyOverlay">
+  <div class="notify-box">
+    <div class="notify-kopf" id="notifyKopf"></div>
+    <div class="notify-text as-text" id="notifyText"></div>
+  </div>
+</div>
+
+<script src="../../renderer/shared/dashboard-render.js"></script>
+<script src="../../renderer/shared/ankunftsschirm.js"></script>
+<script>
+DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
+const grid = document.getElementById('grid');
+for (let i = 0; i < 8; i++) {
+  grid.appendChild(DashboardRender.buildCard('sensor.s'+i, {state:(18+i)+'',attributes:{friendly_name:'Sensor '+i,unit_of_measurement:'°C'}},
+    'temperature', {cols:1,rows:1}, {editable:false,settings:{},apiBase:''}));
+}
+
+const TEXT = `# Tor dauerhaft offen
+
+Das Hoftor steht seit **11:40** offen. Bitte vor dem Schlafengehen schließen.
+
+- Schlüssel liegt im Flur
+- Die Garage ist _zu_
+`;
+
+function zeigen(text) {
+  const hat = !!DashboardRender.ankuendigungsText(text);
+  if (hat) {
+    document.getElementById('notifyText').innerHTML =
+      AnkunftsschirmModul.markdown(DashboardRender.ankuendigungsText(text), DashboardRender.esc);
+    document.getElementById('notifyKopf').textContent = 'Ankündigung';
+  }
+  document.getElementById('notifyOverlay').classList.toggle('show', hat);
+}
+zeigen(TEXT);
+
+// Nach drei Sekunden leeren -- dann muss ALLES weg sein.
+window.leeren = () => zeigen('unknow');
+</script></body></html>
