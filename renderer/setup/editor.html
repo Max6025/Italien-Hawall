@@ -7,6 +7,47 @@
 <link rel="stylesheet" href="/shared/nav.css">
 <link rel="stylesheet" href="/shared/dashboard.css">
 <style>
+  /* --- Die Arbeitsflaeche ist ein Abbild des Panels -------------------------------------------
+     Vorher waren Raster und untere Leiste zwei getrennte Kaesten. Die Leiste erbte dabei
+     `flex: 1` aus dashboard.css und wuchs auf den halben Editor an, waehrend das Raster in
+     der Mitte klebte -- damit liess sich nicht arbeiten.
+
+     Auf dem Geraet sind beide EIN Bildschirm. Also auch hier: ein Rahmen im Seitenverhaeltnis
+     des Panels, darin das Raster (rund 90 %) und der Streifen (rund 10 %). Breite und Hoehe
+     setzt arbeitsflaecheAnpassen() in Pixeln.
+
+     Diese Regeln stehen hier und NICHT in style.css: editor.html laedt style.css gar nicht,
+     sondern nur nav.css und dashboard.css. */
+  #panelFlaeche {
+    display: flex; flex-direction: column; gap: 0.6vh;
+    margin: 0 auto; align-self: center;
+    border: 1px dashed var(--muted); border-radius: 10px; padding: 0.6vh;
+    box-sizing: border-box;
+  }
+  #panelFlaeche > .grid {
+    flex: 0 0 auto; height: auto; min-height: 0;
+    grid-template-rows: repeat(6, 1fr); grid-auto-rows: 1fr;
+    max-height: none; padding: 0; overflow: visible;
+  }
+  #panelFlaeche > .unterleiste {
+    flex: 0 0 auto; min-height: 0; padding: 0;
+    border-top: 1px dashed color-mix(in srgb, var(--muted) 45%, transparent);
+  }
+  #panelFlaeche > .unterleiste > .card { min-width: 0; }
+  #panelFlaeche > .unterleiste button { width: auto; margin: auto; padding: 0.3vh 1vh; font-size: 1.2vh; }
+  #panelFlaeche > .unterleiste > div:last-child button { margin: 0; padding: 0 0.7vh; font-size: 1.1vh; }
+  /* Ausklappbare Kartenliste. Die Regeln dafuer stehen in setup/style.css -- die laedt
+     diese Seite aber nicht, also hier noch einmal das Noetigste. */
+  details.einstellungsblock { border: 1px solid var(--card-border); border-radius: 10px;
+    background: var(--surface); margin: 1.2vh 2vw 0; }
+  details.einstellungsblock > summary { cursor: pointer; padding: 1vh 1.4vh; list-style: none; }
+  details.einstellungsblock > summary::-webkit-details-marker { display: none; }
+  details.einstellungsblock .eb-titel { display: block; font-size: 1.5vh; font-weight: 600; color: var(--text); }
+  details.einstellungsblock .eb-unter { display: block; font-size: 1.2vh; color: var(--muted); }
+  details.einstellungsblock .eb-inhalt { padding: 0 1.4vh 1.2vh; }
+
+  .flaeche-hinweis { font-size: 1.2vh; color: var(--muted); margin: 0.5vh 0 0; text-align: center; }
+
   .editor-topbar { display: flex; justify-content: space-between; align-items: center;
     padding: 1.6vh 2vw; background: var(--surface); flex-wrap: wrap; gap: 1vh; }
   .editor-topbar h1 { font-size: 2vh; font-weight: 400; margin: 0; }
@@ -46,21 +87,26 @@
         <span class="save-result" id="saveResult"></span>
       </div>
     </div>
-    <div class="grid editor-canvas" id="grid" style="height: auto; grid-auto-rows: 14vh; grid-template-rows: repeat(6, 14vh); max-height: calc(6 * 14vh + 5 * 1.2vh); border: 1px dashed var(--muted); border-radius: 8px;"></div>
+    <!-- EINE Flaeche, die das Panel abbildet: oben das Raster, unten der Streifen. Sie sind
+         auf dem Geraet auch nicht zwei Bildschirme, sondern einer -- und genau so gehoeren
+         sie auch hier untereinander, im selben Massstab. -->
+    <div id="panelFlaeche">
+      <div class="grid editor-canvas" id="grid"></div>
+      <div class="unterleiste editor-canvas" id="unterleisteCanvas"></div>
+    </div>
 
-    <p style="font-size:1.2vh; color:var(--muted); margin:0.6vh 0 0;" id="platzHinweis"></p>
-
-    <p style="font-size:1.2vh; color:var(--muted); margin:1.2vh 0 0.4vh;">
-      <strong>Untere Leiste</strong> – der Streifen, den das Raster unten übrig lässt. Genau eine
-      Karte, über die ganze Breite. Gedacht für Uhrzeit und Datum, es geht aber jede Kartenart.</p>
-    <div class="unterleiste editor-canvas" id="unterleisteCanvas"
-         style="min-height: 9vh; border: 1px dashed var(--muted); border-radius: 8px; padding: 0.6vh;"></div>
+    <p class="flaeche-hinweis" id="platzHinweis"></p>
   </div>
 
-    <p style="font-size:1.2vh; color:var(--muted); margin:1.6vh 0 0.4vh;">
-      <strong>Alle Karten</strong> – hier kommt man auch an eine Karte heran, die auf der
-      Arbeitsfläche von einer anderen verdeckt wird.</p>
-    <div id="kartenListe"></div>
+    <!-- Eingeklappt, damit sie keinen Platz frisst. Aufgeklappt ist sie der Weg an jede
+         Karte, die auf der Flaeche verdeckt oder zu gross gezogen ist. -->
+    <details class="einstellungsblock" style="margin-top:1rem;">
+      <summary>
+        <span class="eb-titel">Alle Karten</span>
+        <span class="eb-unter">Auch an verdeckte Karten kommt man hier heran</span>
+      </summary>
+      <div class="eb-inhalt"><div id="kartenListe"></div></div>
+    </details>
 
   <div class="modal-backdrop" id="helpModal">
     <div class="modal">

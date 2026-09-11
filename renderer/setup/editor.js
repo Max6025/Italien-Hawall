@@ -176,46 +176,50 @@ let unterleisteWahl = false;   // gesetzt, solange die Auswahl fuer die Unterlei
  * "ich kann nicht sehen, wieviel Platz ich auf dem Surface Go hab".
  */
 function arbeitsflaecheAnpassen() {
+  const rahmen = $('panelFlaeche');
   const g = $('grid');
-  const p = (window.panelGroesse || null);
+  const leiste = $('unterleisteCanvas');
   const hinweis = $('platzHinweis');
-  if (!g) return;
-  if (!p || !p.breite || !p.hoehe) {
-    if (hinweis) hinweis.textContent = '';
-    return;
-  }
-  // Das Seitenverhaeltnis allein genuegt NICHT. Bei 1280x854 und einer breiten Seite wird
-  // die Flaeche sonst hoeher als das Browserfenster -- dann ist unten alles abgeschnitten und
-  // die untere Leiste gar nicht mehr zu sehen. Genau das ist passiert.
-  //
-  // Also zuerst rechnen, wieviel Hoehe ueberhaupt da ist, und die Breite daraus ableiten.
-  const verhaeltnis = p.breite / p.hoehe;
-  const platz = g.parentElement ? g.parentElement.clientWidth : g.clientWidth;
-  const obenWeg = g.getBoundingClientRect().top;
-  // Was unter der Flaeche noch hinmuss: untere Leiste, Kartenliste, Luft.
-  const hoeheFrei = Math.max(220, window.innerHeight - obenWeg - 240);
+  if (!rahmen || !g || !leiste) return;
 
-  let breite = Math.min(platz, hoeheFrei * verhaeltnis);
-  let hoehe = breite / verhaeltnis;
+  const p = (window.panelGroesse || null);
+  // Ohne Angabe vom Panel das Verhaeltnis des Rasters selbst -- besser als gar keine Flaeche.
+  const verhaeltnis = (p && p.breite && p.hoehe) ? (p.breite / p.hoehe) : (4 / 3);
 
-  g.style.width = Math.round(breite) + 'px';
-  g.style.height = Math.round(hoehe) + 'px';
-  g.style.maxHeight = 'none';
-  g.style.aspectRatio = 'auto';
-  g.style.gridTemplateRows = 'repeat(6, 1fr)';
-  g.style.gridAutoRows = '1fr';
-  g.style.marginLeft = 'auto';
-  g.style.marginRight = 'auto';
+  // Zuerst die HOEHE bestimmen, dann die Breite. Andersherum wird die Flaeche bei einer
+  // breiten Seite hoeher als das Fenster, und unten ist alles abgeschnitten -- genau das
+  // war der Fehler in 1.17.0.
+  const platzBreite = (rahmen.parentElement ? rahmen.parentElement.clientWidth : window.innerWidth) - 8;
+  const obenWeg = rahmen.getBoundingClientRect().top;
+  // Was unter der Flaeche noch sichtbar bleiben muss: Hinweiszeile und Kartenliste.
+  // Unter der Flaeche bleiben die Hinweiszeile und die eingeklappte Kartenliste stehen.
+  // Gemessen sind das rund 235 Pixel; mit dieser Reserve passt alles ohne Scrollen aufs Bild.
+  // Bewusst eine feste Zahl statt einer Nachmessschleife: Die Liste laesst sich aufklappen,
+  // und dann SOLL die Seite scrollen -- eine Flaeche, die dabei schrumpft, waere schlimmer.
+  const platzHoehe = Math.max(260, window.innerHeight - obenWeg - 245);
+
+  const breite = Math.min(platzBreite, platzHoehe * verhaeltnis);
+  const hoehe = breite / verhaeltnis;
+
+  rahmen.style.width = Math.round(breite) + 'px';
+  rahmen.style.height = Math.round(hoehe) + 'px';
+
+  // Dieselbe Aufteilung wie auf dem Geraet: sechs Zeilen a 14vh plus Abstaende sind rund
+  // 90 % der Hoehe, der Streifen bekommt den Rest.
+  const innen = Math.round(hoehe) - 12;
+  g.style.height = Math.round(innen * 0.895) + 'px';
+  leiste.style.height = Math.round(innen * 0.105) + 'px';
 
   if (hinweis) {
-    hinweis.textContent = `Arbeitsfläche im Seitenverhältnis des Panels (${p.breite} × ${p.hoehe}`
-      + (p.skalierung && p.skalierung !== 1 ? `, ${Math.round(p.skalierung * 100)} % Skalierung` : '')
-      + '). Was hier passt, passt dort auch.'
-      + (p.fenster && (p.fenster.breite !== p.breite || p.fenster.hoehe !== p.hoehe)
-        ? ` ACHTUNG: Das App-Fenster misst ${p.fenster.breite} × ${p.fenster.hoehe} und weicht davon ab.`
-        : '');
+    hinweis.textContent = p && p.breite
+      ? `Arbeitsfläche im Seitenverhältnis des Panels (${p.breite} × ${p.hoehe}`
+        + (p.skalierung && p.skalierung !== 1 ? `, ${Math.round(p.skalierung * 100)} % Skalierung` : '')
+        + '). Unten der Streifen für die Uhr. Was hier passt, passt dort auch.'
+      : 'Unten der Streifen für die Uhr.';
   }
+
 }
+
 
 /**
  * Liste aller Karten, mit Einstellungen und Entfernen.
@@ -266,8 +270,7 @@ async function unterleisteRendern() {
   el.innerHTML = '';
 
   if (!entry) {
-    el.innerHTML = `<button type="button" id="unterleisteAdd"
-      style="width:auto; margin:auto; padding:0.6vh 1.6vh;">+ Karte für die untere Leiste</button>`;
+    el.innerHTML = `<button type="button" id="unterleisteAdd">+ Uhr oder andere Karte</button>`;
     $('unterleisteAdd').addEventListener('click', () => { unterleisteWahl = true; openPicker(); });
     return;
   }
@@ -284,7 +287,8 @@ async function unterleisteRendern() {
   el.appendChild(card);
 
   const leiste = document.createElement('div');
-  leiste.style.cssText = 'display:flex; flex-direction:column; gap:0.4vh; justify-content:center; margin-left:0.6vh;';
+  leiste.style.cssText = 'display:flex; flex-direction:row; gap:0.3vh; align-items:center; '
+    + 'margin-left:0.4vh; flex:0 0 auto;';
   leiste.innerHTML = `
     <button type="button" id="unterleisteSet" style="width:auto; padding:0 1vh; margin:0;" title="Einstellungen">⚙</button>
     <button type="button" id="unterleisteDel" style="width:auto; padding:0 1vh; margin:0; background:#dc3545;" title="Entfernen">×</button>`;

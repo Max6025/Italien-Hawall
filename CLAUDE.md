@@ -107,6 +107,16 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   man das Gegenteil der Wahrheit. Die Bewegung ist dabei keine Spielerei: Sie unterscheidet
   „läuft gerade" (`hvac_action`) von „ist eingestellt" (`state`). Steht die Flamme still,
   heizt die Anlage nicht — das steht sonst nirgends auf der Karte.
+- **`editor.html` lädt `setup/style.css` NICHT.** Es bindet nur `nav.css` und `dashboard.css`
+  ein und bringt seine Regeln in einem eigenen `<style>`-Block mit. Wer dort etwas gestalten
+  will und es in `style.css` schreibt, bekommt keinen Fehler — die Regel wirkt einfach nicht.
+  Genau so ist eine Editor-Änderung zweimal ins Leere gelaufen. Gegenprobe im Browser:
+  `[...document.styleSheets].map(s => s.href)`.
+- **Editor-Änderungen nie ohne Hinsehen ausliefern.** Der Editor braucht eine laufende
+  HA-Verbindung und ließ sich deshalb schlecht prüfen — mit dem Ergebnis, dass er zweimal
+  hintereinander unbrauchbar ausgeliefert wurde. `.scratch/karten-design/editor-probe.js`
+  stellt die nötigen API-Aufrufe mit Beispieldaten nach: `node` starten, dann
+  `http://localhost:9930/setup/editor.html`.
 - **Der Editor läuft auf einem anderen Gerät als das Panel.** Ohne die Panelgröße
   (`panelGroesse` aus `/api/config`, gefüllt von `getPanelSize` in `main.js`) zieht man Karten
   auf einem breiten Notebook zurecht und sieht erst auf der Wand, dass es nicht passt. Und es
