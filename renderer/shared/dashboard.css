@@ -503,8 +503,12 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 
 /* Ankuendigungs-Box: erscheint, wenn die konfigurierte input_text-Entitaet Inhalt hat --
    dunkelt alles ab, der Rahmen "zeichnet" sich zuegig, danach faedet der Text ein. */
+/* Ueber dem Ankunftsschirm (9997). Eine Ankuendigung ist die dringendere Nachricht: Der
+   Ankunftsschirm begruesst, die Box sagt etwas, das jetzt gilt -- "Tor dauerhaft offen"
+   gehoert gesehen, auch wenn gerade ein Termin laeuft. Vorher lag sie auf 80 und wurde
+   waehrend eines Termins vollstaendig zugedeckt; die Box war da, nur sah sie niemand. */
 .notify-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0); display: flex;
-  align-items: center; justify-content: center; z-index: 80; pointer-events: none;
+  align-items: center; justify-content: center; z-index: 9998; pointer-events: none;
   transition: background 0.4s ease; }
 .notify-overlay.show { background: rgba(0,0,0,0.82); pointer-events: auto; }
 .notify-box-svg { position: absolute; width: 70vw; height: 40vh; }

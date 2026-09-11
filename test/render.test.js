@@ -537,3 +537,48 @@ test('Eine fehlende Liste ergibt eine leere, keinen Absturz', () => {
   assert.deepStrictEqual(D.hvacReihenfolge(null), []);
   assert.deepStrictEqual(D.hvacReihenfolge(undefined), []);
 });
+
+// --- Ankuendigungs-Box: was zaehlt als "nichts anzuzeigen"? ------------------------------------
+//
+// Anlass vom Geraet: In der konfigurierten Entitaet stand "unknow" -- ohne das letzte n. Die
+// alte Pruefung kannte nur "unknown", also haette dieses Wort bildschirmfuellend an der Wand
+// gestanden. Daneben gab es eine zweite, richtig geschriebene Entitaet; welche gewaehlt war
+// und was darin stand, sah man nirgends.
+
+test('Echter Text wird angezeigt', () => {
+  assert.strictEqual(D.ankuendigungsText('Tor dauerhaft offen'), 'Tor dauerhaft offen');
+  assert.strictEqual(D.ankuendigungsText('  Paket vor der Tür  '), 'Paket vor der Tür');
+});
+
+test('Home Assistants eigene Platzhalter gelten als leer', () => {
+  ['unknown', 'unavailable', 'none', 'null'].forEach(v =>
+    assert.strictEqual(D.ankuendigungsText(v), '', v));
+});
+
+test('Der Tippfehler vom Geraet gilt auch als leer', () => {
+  // Genau dieser Fall: "unknow" ohne das letzte n.
+  assert.strictEqual(D.ankuendigungsText('unknow'), '');
+});
+
+test('Was Menschen schreiben, wenn sie leeren wollen, gilt als leer', () => {
+  ['-', '--', 'keine', 'kein', 'leer', 'n/a', 'unbekannt'].forEach(v =>
+    assert.strictEqual(D.ankuendigungsText(v), '', v));
+});
+
+test('Gross- und Kleinschreibung sowie Leerzeichen sind egal', () => {
+  assert.strictEqual(D.ankuendigungsText('UNKNOWN'), '');
+  assert.strictEqual(D.ankuendigungsText('  Unknow  '), '');
+});
+
+test('Fehlende Werte stuerzen nicht ab', () => {
+  assert.strictEqual(D.ankuendigungsText(null), '');
+  assert.strictEqual(D.ankuendigungsText(undefined), '');
+  assert.strictEqual(D.ankuendigungsText(''), '');
+});
+
+test('Ein Platzhalter IN einem Satz bleibt stehen', () => {
+  // Nur der exakte Wert gilt als leer. Wer schreibt "Status unknown, bitte prüfen", meint
+  // eine Ankuendigung -- und die soll erscheinen.
+  assert.strictEqual(D.ankuendigungsText('Status unknown, bitte prüfen'), 'Status unknown, bitte prüfen');
+  assert.strictEqual(D.ankuendigungsText('Keine Post heute'), 'Keine Post heute');
+});

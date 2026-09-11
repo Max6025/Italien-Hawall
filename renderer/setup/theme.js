@@ -26,6 +26,34 @@ async function load() {
       notifySelect.appendChild(opt);
     });
   }
+  // Zeigen, was in der gewaehlten Entitaet gerade WIRKLICH steht.
+  //
+  // Ohne diese Zeile sucht man den Fehler an der falschen Stelle: Auf dem Geraet stand
+  // "unknow" (ohne das letzte n) in der konfigurierten Entitaet, und es gab daneben eine
+  // zweite, richtig geschriebene. Welche gewaehlt ist und was drinsteht, sah man nirgends.
+  async function notifyVorschau() {
+    const el = $('notifyVorschau');
+    const id = $('notifyEntity').value;
+    if (!el) return;
+    if (!id) { el.className = 'result'; el.textContent = 'Keine Entität gewählt – die Box erscheint nie.'; return; }
+    try {
+      const st = await (await fetch('/api/ha/states')).json();
+      const e = (st.states || []).find(x => x.entity_id === id);
+      if (!e) { el.className = 'result err'; el.textContent = 'Diese Entität meldet Home Assistant gerade nicht.'; return; }
+      const zeigt = window.DashboardRender
+        ? DashboardRender.ankuendigungsText(e.state)
+        : String(e.state || '').trim();
+      el.className = 'result ok';
+      el.innerHTML = `Steht gerade drin: <code>${(e.state === '' ? '(leer)' : e.state)}</code><br>`
+        + (zeigt ? 'Die Box <strong>wird angezeigt</strong>.' : 'Die Box <strong>bleibt weg</strong> – das gilt als leer.');
+    } catch (err) {
+      el.className = 'result err';
+      el.textContent = 'Zustand nicht lesbar: ' + (err.message || err);
+    }
+  }
+  $('notifyEntity').addEventListener('change', notifyVorschau);
+  notifyVorschau();
+
   $('batteryThreshold').value = configRes.batteryThreshold || 20;
   $('nightEnabled').checked = !!configRes.nightModeEnabled;
   $('nightStart').value = configRes.nightStart || '23:00';

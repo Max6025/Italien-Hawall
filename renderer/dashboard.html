@@ -625,8 +625,10 @@ let notifyVisible = false;
 function applyNotify() {
   if (!config || !config.notifyEntity) return;
   const s = statesById[config.notifyEntity];
-  const text = s ? String(s.state || '').trim() : '';
-  const hasText = text && text.toLowerCase() !== 'unknown' && text.toLowerCase() !== 'unavailable';
+  // Was als "nichts anzuzeigen" gilt, steht in dashboard-render.js -- dort auch die
+  // Begruendung, warum die Liste laenger ist als nur unknown/unavailable.
+  const text = DashboardRender.ankuendigungsText(s ? s.state : '');
+  const hasText = !!text;
   if (hasText && !notifyVisible) {
     $('notifyText').textContent = text;
     $('notifyOverlay').classList.add('show');

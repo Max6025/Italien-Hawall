@@ -452,6 +452,30 @@
     return { richtung: d > 0 ? 1 : -1, delta: d };
   }
 
+  // --- Ankuendigungs-Box: was zaehlt als "nichts anzuzeigen"? -------------------------------------
+  //
+  // Die Box liest eine input_text-Entitaet. Steht dort etwas, wird sie gezeigt, sonst nicht.
+  // Die Frage ist nur, was "nichts" heisst -- und da reicht "leer" nicht:
+  //
+  // Home Assistant liefert selbst `unknown` und `unavailable`. Dazu kommt, was Menschen in
+  // solche Felder schreiben, wenn sie sie leeren wollen: ein Strich, "keine", "none" -- oder
+  // ein Tippfehler. Auf dem Geraet stand tatsaechlich "unknow" ohne das letzte n; mit einer
+  // Pruefung nur auf "unknown" wuerde dieses Wort formatfuellend an der Wand stehen.
+  //
+  // Grosszuegig sein kostet hier fast nichts: Wer wirklich "keine" ankuendigen will, schreibt
+  // einen Satz darum. Umgekehrt ist eine Wand, auf der "unknow" steht, ein sichtbarer Fehler.
+
+  const NICHTS_ANZUZEIGEN = [
+    '', '-', '--', '—', 'unknown', 'unknow', 'unavailable', 'none', 'null', 'undefined',
+    'n/a', 'na', 'leer', 'unbekannt', 'nicht verfuegbar', 'nicht verfügbar', 'keine', 'kein'
+  ];
+
+  /** Der anzuzeigende Text, oder '' wenn nichts anzuzeigen ist. */
+  function ankuendigungsText(roh) {
+    const text = String(roh == null ? '' : roh).trim();
+    return NICHTS_ANZUZEIGEN.includes(text.toLowerCase()) ? '' : text;
+  }
+
   // --- Klimaanlage: das Symbol zeigt, WAS die Anlage tut -----------------------------------------
   //
   // Vorher trug die Karte immer dasselbe Symbol -- auch im ausgeschalteten Zustand stand dort
@@ -1958,6 +1982,7 @@
     kachelRegler, miniVerlaufSvg, tendenz, rueckmeldung,
     ALARM_ZUSTAENDE, ALARM_TOENE, alarmDarstellung, symbolErraten,
     HVAC_SYMBOL, hvacSymbol, hvacReihenfolge,
+    ankuendigungsText, NICHTS_ANZUZEIGEN,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };

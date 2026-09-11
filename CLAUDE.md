@@ -107,6 +107,16 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   man das Gegenteil der Wahrheit. Die Bewegung ist dabei keine Spielerei: Sie unterscheidet
   „läuft gerade" (`hvac_action`) von „ist eingestellt" (`state`). Steht die Flamme still,
   heizt die Anlage nicht — das steht sonst nirgends auf der Karte.
+- **Wer etwas über allem anzeigt, muss die Stapelhöhen kennen.** Der Ankunftsschirm liegt auf
+  `z-index: 9997`. Die Ankündigungs-Box lag auf 80 und war damit während jedes Termins
+  vollständig zugedeckt — sie funktionierte, nur sah sie niemand. Eine Ankündigung ist die
+  dringendere Nachricht und liegt jetzt auf 9998.
+- **„Leer" ist mehr als leer.** Home Assistant liefert `unknown`/`unavailable`, Menschen
+  schreiben `-`, `keine` — und vertippen sich: Auf dem Gerät stand `unknow` ohne das letzte
+  `n`. Mit einer Prüfung nur auf `unknown` hätte dieses Wort bildschirmfüllend an der Wand
+  gestanden. `ankuendigungsText()` sammelt diese Fälle an einer Stelle; die Einstellungsseite
+  benutzt **dieselbe** Funktion für ihre Vorschau, sonst sagt sie etwas anderes voraus, als
+  später passiert.
 - **In `openSettings()` gilt eine Reihenfolge:** Erst wird `html` zusammengebaut, dann
   `$('settingsBody').innerHTML = html`, und **erst danach** darf Code die neuen Elemente
   anfassen. Steht ein `$('…')` davor, liefert es `null`, der Fehler bricht den ganzen Aufbau
@@ -243,7 +253,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-215 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+222 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

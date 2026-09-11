@@ -68,6 +68,12 @@
       Zeichen-Animation). Ist der Text leer oder "unknown", verschwindet die Box wieder.</p>
     <label>input_text-Entität</label>
     <select id="notifyEntity"><option value="">Keine Ankündigungs-Box</option></select>
+    <div id="notifyVorschau" class="result" style="margin-top:0.6rem;"></div>
+    <p class="hint-text">Die Box bleibt stehen, solange dort Text steht. Sie verschwindet erst,
+      wenn das Feld leer ist – oder einen der üblichen Platzhalter enthält
+      (<code>unknown</code>, <code>unavailable</code>, <code>keine</code>, <code>-</code>).
+      Tippfehler wie <code>unknow</code> zählen ebenfalls als leer, sonst stünde das Wort
+      bildschirmfüllend an der Wand.</p>
       </div>
     </details>
 
@@ -312,6 +318,9 @@
   </div>
   </div>
   <script src="/shared/nav.js"></script>
-  <script src="theme.js"></script>
+  <!-- Wegen ankuendigungsText(): Die Vorschau muss GENAU dieselbe Regel anwenden wie die
+     Anzeige, sonst sagt sie etwas anderes voraus, als spaeter passiert. -->
+<script src="/shared/dashboard-render.js"></script>
+<script src="theme.js"></script>
 </body>
 </html>
