@@ -60,6 +60,8 @@ const KARTEN = [
 
 const grid = document.getElementById('grid');
 DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
+// ?hell schaltet das helle Design an -- genau wie die Sonnenstand-Entitaet es im Betrieb tut.
+if (new URLSearchParams(location.search).has('hell')) document.body.classList.add('light-theme');
 
 // Erfundener Verlauf: eine leicht verrauschte Welle, damit die Flaeche im Hintergrund und
 // der Tendenzpfeil ueberhaupt etwas zu zeichnen haben.

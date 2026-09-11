@@ -1291,3 +1291,91 @@ body.ohne-bewegung .lebendig { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .hvac-symbol * , .hvac-symbol svg { animation: none !important; }
 }
+
+
+/* --- Helles Design ------------------------------------------------------------------------
+   Das Dunkle war entworfen, das Helle nur abgeleitet -- und an jeder Stelle, an der eine
+   Farbe fest auf Weiss stand, fiel es auseinander: weisse Schrift auf weissem Glas, weisse
+   Schleier auf hellem Grund, ein Akzent, der Weiss war.
+
+   Hier steht deshalb je Fall der helle Gegenpart. Alles, was ueber --text gerechnet ist
+   (color-mix), kippt schon von allein mit und taucht hier nicht auf. */
+
+/* Die wandernden Farbwolken: auf Weiss traegt schon wenig Deckkraft, auf Schwarz braucht es
+   viel. Unveraendert uebernommen waeren sie hier graue Schlieren. */
+body.light-theme .lebendig span:nth-child(1) {
+  background: radial-gradient(circle, rgba(226,122,104,0.34), transparent 68%);
+}
+body.light-theme .lebendig span:nth-child(2) {
+  background: radial-gradient(circle, rgba(166,124,214,0.30), transparent 68%);
+}
+body.light-theme .lebendig span:nth-child(3) {
+  background: radial-gradient(circle, rgba(104,186,180,0.30), transparent 68%);
+}
+
+/* Der Glanz von oben auf jeder Karte ist ein WEISSER Schleier -- auf weissem Glas unsichtbar
+   und nur ein Nebel. Im Hellen ein leichter Schatten statt eines Glanzes. */
+body.light-theme .card {
+  background-image:
+    linear-gradient(152deg,
+      color-mix(in srgb, var(--kachel-akzent) 22%, transparent) 0%,
+      color-mix(in srgb, var(--kachel-akzent) 7%, transparent) 45%,
+      transparent 72%),
+    linear-gradient(180deg, rgba(255,255,255,0.55) 0%, transparent 32%);
+}
+
+/* Der Vorgabe-Akzent war Weiss -- im Hellen damit unsichtbar. Symbol, Regler und Tendenzpfeil
+   verschwanden auf Karten ohne eigene Geraetefarbe komplett. */
+body.light-theme .card { --kachel-akzent: rgba(58, 48, 82, 0.66); }
+body.light-theme .card.type-alarm.alarm-unscharf { --kachel-akzent: rgba(58, 48, 82, 0.6); }
+body.light-theme .card.type-climate.klima-off { --kachel-akzent: rgba(58, 48, 82, 0.55); }
+
+/* Geraetefarben etwas kraeftiger: Die dunklen Toene sind fuer schwarzen Grund gemischt und
+   verlieren auf Weiss ihre Kraft. */
+body.light-theme .card.type-climate     { --kachel-akzent: #3f6fd8; }
+body.light-theme .card.type-light       { --kachel-akzent: #d68a12; }
+body.light-theme .card.type-cover       { --kachel-akzent: #2b9c68; }
+body.light-theme .card.type-wind        { --kachel-akzent: #2e968a; }
+body.light-theme .card.type-rain        { --kachel-akzent: #4470c4; }
+body.light-theme .card.type-pressure    { --kachel-akzent: #7f5bc4; }
+body.light-theme .card.type-humidity    { --kachel-akzent: #2f8cb4; }
+body.light-theme .card.type-graph,
+body.light-theme .card.type-gate        { --kachel-akzent: #5a6b8c; }
+body.light-theme .card.type-alarm       { --kachel-akzent: #c94a4a; }
+body.light-theme .card.type-lock        { --kachel-akzent: #d68a12; }
+body.light-theme .card.type-fan         { --kachel-akzent: #2e968a; }
+body.light-theme .card.type-switch.on   { --kachel-akzent: #d68a12; }
+body.light-theme .card.type-alarm.alarm-scharf     { --kachel-akzent: #1f8f5c; }
+body.light-theme .card.type-alarm.alarm-wartet     { --kachel-akzent: #c07f0e; }
+body.light-theme .card.type-alarm.alarm-ausgeloest { --kachel-akzent: #d03b3b; }
+body.light-theme .card.type-climate.klima-heat     { --kachel-akzent: #d4691f; }
+body.light-theme .card.type-climate.klima-cool     { --kachel-akzent: #2f7fc4; }
+body.light-theme .card.type-climate.klima-dry      { --kachel-akzent: #2b9284; }
+body.light-theme .card.type-climate.klima-fan_only { --kachel-akzent: #5a6b8c; }
+body.light-theme .card.type-climate.klima-auto,
+body.light-theme .card.type-climate.klima-heat_cool { --kachel-akzent: #7a5bc4; }
+
+/* Der Aktiv-Schein war fuer schwarzen Grund gedacht: Auf Weiss macht dieselbe Deckkraft die
+   Karte matschig statt leuchtend. */
+body.light-theme .card.ist-aktiv::after { opacity: 0.11; }
+body.light-theme .card.type-alarm.alarm-ausgeloest::after { opacity: 0.16; }
+
+/* Der Reglergriff bekam einen schwarzen Schlagschatten -- auf Weiss ein Schmutzfleck. */
+body.light-theme .card .controls.slider-row input[type="range"]::-webkit-slider-thumb {
+  box-shadow: 0 1px 3px rgba(40,34,58,0.28), 0 0 0 0.5vh color-mix(in srgb, var(--kachel-akzent) 16%, transparent);
+}
+
+/* Ankuendigung: Der Text stand fest auf Weiss, die Flaeche war fuer Dunkel gemischt. */
+body.light-theme .notify-overlay.show.vollbild { background: rgba(236, 234, 242, 0.88); }
+body.light-theme .notify-box {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(58, 48, 82, 0.14);
+  box-shadow: 0 2vh 5vh rgba(40, 34, 58, 0.20);
+}
+body.light-theme .notify-overlay { --kachel-akzent: #b8791a; }
+body.light-theme .notify-overlay .notify-text,
+body.light-theme .notify-kurz { color: rgba(23, 21, 29, 0.92); }
+body.light-theme .as-text strong { color: #17151d; }
+
+/* Das Foto-Etikett und die Karten auf einem Foto bleiben bewusst hell: Darunter liegt ein
+   Bild, kein Theme -- und ueber einem Urlaubsfoto ist dunkle Schrift schlechter lesbar. */

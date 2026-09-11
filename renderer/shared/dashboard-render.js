@@ -1899,6 +1899,22 @@
     cardSaturate: '170%',
     cardHighlight: 'rgba(255,255,255,0.34)',
     cardHighlightSide: 'rgba(255,255,255,0.13)',
+    // Der helle Gegenpart. Ohne ihn blieb im hellen Design der DUNKLE Verlauf stehen --
+    // dunkler Text auf fast schwarzem Grund, darueber weisse Glaskarten. Das war der Grund,
+    // warum das helle Design nicht zu gebrauchen war.
+    //
+    // Dieselben vier Farbwolken, nur hell und viel schwaecher: Auf Weiss traegt schon ein
+    // Zehntel der Deckkraft sichtbar Farbe, waehrend auf Schwarz ein Drittel noetig ist.
+    pageBgGradientLight: [
+      'radial-gradient(52% 44% at 14% 18%, rgba(226,122,104,0.30) 0%, transparent 68%)',
+      'radial-gradient(46% 40% at 86% 26%, rgba(166,124,214,0.26) 0%, transparent 66%)',
+      'radial-gradient(60% 46% at 74% 88%, rgba(104,186,180,0.26) 0%, transparent 70%)',
+      'radial-gradient(40% 34% at 38% 72%, rgba(240,186,110,0.24) 0%, transparent 68%)',
+      '#f2f0f6'
+    ].join(', '),
+    // Auf hellem Grund traegt ein harter schwarzer Schatten auf; er wird weicher und
+    // schwaecher, sonst sehen die Karten aus wie aufgeklebt.
+    cardShadowLight: '0 1.2vh 3.4vh rgba(40,34,58,0.14), 0 0.2vh 0.6vh rgba(40,34,58,0.08)',
     pageBgGradient: [
       'radial-gradient(52% 44% at 14% 18%, rgba(196,74,58,0.30) 0%, transparent 68%)',
       'radial-gradient(46% 40% at 86% 26%, rgba(122,58,168,0.28) 0%, transparent 66%)',
@@ -1989,6 +2005,10 @@
     // wenn dahinter etwas Farbiges zum Durchscheinen liegt statt eines flachen Einheitstons.
     if (theme.pageBgImage) css += ` :root { --page-bg-image: url('${theme.pageBgImage}'); }`;
     if (theme.pageBgGradient) css += ` body { background: ${theme.pageBgGradient}; }`;
+    // Getrennt fuers helle Design -- sonst steht dort der dunkle Verlauf und der ebenfalls
+    // dunkle Text ist nicht zu lesen.
+    if (theme.pageBgGradientLight) css += ` body.light-theme { background: ${theme.pageBgGradientLight}; }`;
+    if (theme.cardShadowLight) css += ` body.light-theme .card { box-shadow: ${theme.cardShadowLight} !important; }`;
     // Escape Hatch fuer alles, was die strukturierten Felder oben nicht abdecken -- macht das
     // Design-Import-System generell "komplexeres Design"-faehig statt nur die vordefinierten
     // Stellschrauben zu erlauben. Wird roh als CSS angehaengt (letztes Wort, ueberschreibt alles).

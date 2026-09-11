@@ -107,6 +107,14 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   man das Gegenteil der Wahrheit. Die Bewegung ist dabei keine Spielerei: Sie unterscheidet
   „läuft gerade" (`hvac_action`) von „ist eingestellt" (`state`). Steht die Flamme still,
   heizt die Anlage nicht — das steht sonst nirgends auf der Karte.
+- **Beide Themes prüfen, nicht nur das dunkle.** Das Dunkle war entworfen, das Helle nur
+  abgeleitet — und es fiel an jeder Stelle auseinander, an der eine Farbe **fest auf Weiß**
+  stand: weißer Glanz auf weißem Glas, ein Akzent, der Weiß war, ein schwarzer Schlagschatten
+  als Schmutzfleck. Vor allem aber blieb der **Seitenhintergrund dunkel** (`pageBgGradient`
+  gilt für beide), während der Text auf Dunkel umgestellt wurde. Deshalb gibt es jetzt
+  `pageBgGradientLight` und `cardShadowLight`. Alles, was über `color-mix(… var(--text) …)`
+  gerechnet ist, kippt von allein mit und braucht keine Sonderregel — feste `rgba(255,255,255,…)`
+  brauchen immer eine. Ansehen mit `.scratch/karten-design/vorschau.html?hell`.
 - **Die Ankündigung hat zwei Zustände und einen Weg dazwischen.** Vollbild (auffällig,
   Hintergrund abgedunkelt, Dashboard gesperrt) und Leiste (eine Zeile unten, Dashboard wieder
   bedienbar, die Karte dort weicht). Die Lage der Box wird in **Pixeln aus der echten
