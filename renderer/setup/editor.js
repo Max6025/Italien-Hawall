@@ -189,14 +189,16 @@ function arbeitsflaecheAnpassen() {
   // Zuerst die HOEHE bestimmen, dann die Breite. Andersherum wird die Flaeche bei einer
   // breiten Seite hoeher als das Fenster, und unten ist alles abgeschnitten -- genau das
   // war der Fehler in 1.17.0.
-  const platzBreite = (rahmen.parentElement ? rahmen.parentElement.clientWidth : window.innerWidth) - 8;
+  // Untergrenze, damit ein sehr schmales Fenster (Handy quer, angedockter Browser) die
+  // Flaeche nicht auf Briefmarkengroesse zusammenfallen laesst -- dann lieber scrollen.
+  const platzBreite = Math.max(300,
+    (rahmen.parentElement ? rahmen.parentElement.clientWidth : window.innerWidth) - 8);
   const obenWeg = rahmen.getBoundingClientRect().top;
   // Was unter der Flaeche noch sichtbar bleiben muss: Hinweiszeile und Kartenliste.
-  // Unter der Flaeche bleiben die Hinweiszeile und die eingeklappte Kartenliste stehen.
-  // Gemessen sind das rund 235 Pixel; mit dieser Reserve passt alles ohne Scrollen aufs Bild.
-  // Bewusst eine feste Zahl statt einer Nachmessschleife: Die Liste laesst sich aufklappen,
-  // und dann SOLL die Seite scrollen -- eine Flaeche, die dabei schrumpft, waere schlimmer.
-  const platzHoehe = Math.max(260, window.innerHeight - obenWeg - 245);
+  // So gross wie moeglich. Der Editor ist Arbeitsflaeche -- hier wird gezogen und
+  // eingeordnet, und dafuer braucht es Platz. Unter ihr bleibt nur die Hinweiszeile stehen;
+  // die Kartenliste ist eingeklappt und darf ruhig unterhalb der Falz beginnen.
+  const platzHoehe = Math.max(300, window.innerHeight - obenWeg - 60);
 
   const breite = Math.min(platzBreite, platzHoehe * verhaeltnis);
   const hoehe = breite / verhaeltnis;
@@ -347,11 +349,19 @@ async function render() {
     });
     grid.appendChild(card);
   }
-  const addTile = document.createElement('div');
-  addTile.className = 'card add-tile';
-  addTile.textContent = '+';
-  addTile.addEventListener('click', openPicker);
-  grid.appendChild(addTile);
+  // Das Plus nur zeigen, wenn wirklich noch Platz ist. Vorher rutschte es weiter, sobald
+  // eine Karte groesser gezogen wurde, und stand am Ende in einer Zeile, die es auf dem
+  // Panel gar nicht mehr gibt -- ein Knopf, der etwas anbietet, das nicht geht.
+  const frei = findFreeSpot(1, 1, 'sensor');
+  if (frei) {
+    const addTile = document.createElement('div');
+    addTile.className = 'card add-tile';
+    addTile.textContent = '+';
+    addTile.style.gridColumn = (frei.x + 1) + ' / span 1';
+    addTile.style.gridRow = (frei.y + 1) + ' / span 1';
+    addTile.addEventListener('click', openPicker);
+    grid.appendChild(addTile);
+  }
 }
 
 // --- Feste Arbeitsflaeche: Kollisionspruefung + freie Platzsuche, begrenzt auf 4xMAX_ROWS ---
@@ -649,21 +659,6 @@ function openSettings(entityId) {
         Bisher stand ein Sensor, der 21.34567 meldet, genau so auf der Wand. Leer bedeutet
         weiterhin unverändert – damit sich mit diesem Update keine bestehende Karte still ändert.
         Gesetzt wird deutsch formatiert: 1.234,5 statt 1234.5.</p>`;
-  }
-  if (fields.alarmOpts) {
-    const liste = $('alarmZustandListe');
-    const texte = settings.alarmTexte || {};
-    const toene = settings.alarmToene || {};
-    liste.innerHTML = DashboardRender.ALARM_ZUSTAENDE.map(z => `
-      <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.5vh;">
-        <code style="flex:0 0 8.5vh; font-size:1.05vh; color:var(--muted);">${z.id}</code>
-        <input type="text" class="alarmText" data-id="${z.id}" placeholder="${z.text}"
-               value="${(texte[z.id] || '').replace(/"/g, '&quot;')}" style="flex:1;">
-        <select class="alarmTon" data-id="${z.id}" style="flex:0 0 auto; width:auto; margin:0;">
-          ${DashboardRender.ALARM_TOENE.map(t =>
-            `<option value="${t.id}" ${(toene[z.id] || z.ton) === t.id ? 'selected' : ''}>${t.text}</option>`).join('')}
-        </select>
-      </div>`).join('');
   }
   if (fields.verlaufOpts) {
     html += `<label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
@@ -995,6 +990,26 @@ function openSettings(entityId) {
   }
 
   $('settingsBody').innerHTML = html;
+
+  // ACHTUNG: Alles, was Elemente aus `html` anfasst, MUSS hinter dieser Zeile stehen.
+  // Davor gibt es sie noch nicht, und $() liefert null -- die Einstellungen liessen sich
+  // dann gar nicht mehr oeffnen, weil der Fehler den ganzen Aufbau abbricht. Genau das
+  // ist bei der Alarm-Karte passiert.
+  if (fields.alarmOpts) {
+    const liste = $('alarmZustandListe');
+    const texte = settings.alarmTexte || {};
+    const toene = settings.alarmToene || {};
+    liste.innerHTML = DashboardRender.ALARM_ZUSTAENDE.map(z => `
+      <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.5vh;">
+        <code style="flex:0 0 8.5vh; font-size:1.05vh; color:var(--muted);">${z.id}</code>
+        <input type="text" class="alarmText" data-id="${z.id}" placeholder="${z.text}"
+               value="${(texte[z.id] || '').replace(/"/g, '&quot;')}" style="flex:1;">
+        <select class="alarmTon" data-id="${z.id}" style="flex:0 0 auto; width:auto; margin:0;">
+          ${DashboardRender.ALARM_TOENE.map(t =>
+            `<option value="${t.id}" ${(toene[z.id] || z.ton) === t.id ? 'selected' : ''}>${t.text}</option>`).join('')}
+        </select>
+      </div>`).join('');
+  }
 
   if (fields.iconWahl) {
     // Eine Liste von Namen ohne Bild waere Raten. Die Vorschau zeigt sofort, was man waehlt.

@@ -47,6 +47,15 @@ const ANTWORTEN = {
       entity_id: id, state, attributes: Object.assign({ friendly_name: name }, attrs || {})
     }))
   },
+  // Der Editor holt die Entitaetsliste hierher. Ohne sie ist allEntities undefined und jede
+  // Karten-Einstellung mit Auswahlliste wirft -- das sah beim ersten Anlauf wie ein Fehler
+  // der App aus und war einer der Probe.
+  '/api/entities': {
+    ok: true,
+    entities: ZUSTAENDE.map(([id, name]) => ({
+      entity_id: id, name, domain: id.split('.')[0]
+    }))
+  },
   '/api/dashboards': { ok: true, dashboards: [] },
   '/api/dashboard-format': { ok: true, anleitung: { kartenarten: [] } }
 };
