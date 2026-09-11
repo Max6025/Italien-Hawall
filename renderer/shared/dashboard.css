@@ -51,6 +51,20 @@ body.light-theme {
    sich darauf. */
 [hidden] { display: none !important; }
 
+/* Kein Mauszeiger auf dem Wandpanel.
+   Er gehoert dort nicht hin: Bedient wird mit dem Finger, und ein Pfeil, der mitten auf der
+   Wand stehenbleibt, sieht aus wie ein haengengebliebener Computer. Er taucht ausserdem von
+   allein auf, weil das Aufwecken mit dem Mauszeiger wackeln muss (panel.js) -- ohne diese
+   Regel steht er danach dauerhaft da.
+
+   Mit !important und ueber alles, weil an zwei Dutzend Stellen cursor:pointer gesetzt wird.
+   Nur auf der Anzeige, deshalb an body.wandanzeige gebunden: Der Karten-Editor und die
+   Screensaver-Seite laden dieselbe CSS-Datei, werden aber mit der Maus bedient -- dort waere
+   ein unsichtbarer Zeiger die schlimmere Variante desselben Fehlers. */
+body.wandanzeige, body.wandanzeige *, body.wandanzeige *::before, body.wandanzeige *::after {
+  cursor: none !important;
+}
+
 html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
   background: var(--bg); color: var(--text); font-family: 'Segoe UI', Arial, sans-serif; -webkit-user-select: none;
   transition: background 0.6s ease, color 0.6s ease; }
@@ -139,6 +153,20 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 /* Der Aktiv-Schein sitzt HINTER dem Inhalt und faerbt die Karte nur an, statt sie zu
    fluten. Ein Verlauf von oben, weil das Symbol oben sitzt -- das Licht kommt von dort,
    wo das Geraet ist. */
+/* Ein Hauch der Geraetefarbe auf JEDER Karte, nicht nur auf den aktiven.
+   Zwischenstufe zwischen den alten Farbkacheln (zu bunt, "bastelhaft") und reinem Glas
+   (zu gleichfoermig, "leblos"): Bei acht Prozent traegt die Karte erkennbar ihre Farbe,
+   ohne dass sie als farbige Flaeche liest. Nebeneinander unterscheiden sich die Karten
+   wieder -- und genau das fehlte. */
+.card {
+  background-image:
+    linear-gradient(152deg,
+      color-mix(in srgb, var(--kachel-akzent) 8%, transparent) 0%,
+      transparent 58%),
+    /* Leichter Glanz von oben, damit die Flaeche nicht voellig flach wirkt. */
+    linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 28%);
+}
+
 .card::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: radial-gradient(120% 78% at 50% -12%, var(--kachel-akzent) 0%, transparent 62%);
@@ -740,18 +768,22 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 /* Mit Symbol: Das Bild traegt, der Text erklaert nur noch. Aus fuenf Metern liest man
    "Tor" und "Garage" nicht auseinander -- ein Tor und eine Garage schon. */
 .gate-btn.hat-symbol {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3vh;
-  min-height: 7.5vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5vh;
+  min-height: 8.5vh;
 }
 /* Bewusst gross: Das Symbol IST die Unterscheidung, der Text nur die Bestaetigung. Ein
-   Symbol, das man suchen muss, ersetzt keinen Text -- dann kann man ihn auch lesen. */
+   Symbol, das man suchen muss, ersetzt keinen Text -- dann kann man ihn auch lesen.
+   Es waechst mit der Karte (cqmin), damit eine grosse Karte auch ein grosses Symbol zeigt
+   statt eines kleinen in viel Luft. */
 .gate-btn-symbol {
   display: block; color: var(--kachel-akzent);
-  width: clamp(2.6vh, 26cqmin, 5.2vh); height: clamp(2.6vh, 26cqmin, 5.2vh);
+  width: clamp(3vh, 34cqmin, 8vh); height: clamp(3vh, 34cqmin, 8vh);
 }
 .gate-btn-symbol svg { width: 100%; height: 100%; }
 .gate-btn.hat-symbol .gate-btn-text {
-  font-size: clamp(.65rem, 2.6cqmin, 1rem); color: var(--muted); line-height: 1.1;
+  font-size: clamp(.8rem, 4.4cqmin, 1.5rem); font-weight: 500; line-height: 1.15;
+  color: color-mix(in srgb, var(--muted) 45%, var(--text));
+  text-align: center;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -773,7 +805,7 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .rueckmeldung-zeichen svg {
   /* So gross wie das Symbol, das es kurz ersetzt -- eine Rueckmeldung, die man suchen muss,
      ist keine. */
-  width: clamp(2.6vh, 26cqmin, 5.2vh); height: clamp(2.6vh, 26cqmin, 5.2vh);
+  width: clamp(3vh, 34cqmin, 8vh); height: clamp(3vh, 34cqmin, 8vh);
   /* Der Haken wird gezeichnet statt eingeblendet -- eine Bewegung faellt am Rand des
      Blickfelds auf, ein Farbwechsel nicht.
 

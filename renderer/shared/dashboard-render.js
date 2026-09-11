@@ -443,6 +443,44 @@
     return { richtung: d > 0 ? 1 : -1, delta: d };
   }
 
+  // --- Alarmanlage: Beschriftung und Farbe sind Sache der Anlage, nicht der App ------------------
+  //
+  // "armed_home" heisst nicht ueberall dasselbe. In der einen Anlage ist es scharf mit
+  // Innenbereich frei, in der anderen der ganz normale Zustand, wenn jemand da ist -- also
+  // eher unscharf. Die App kann das nicht wissen; wer es fest verdrahtet, liegt bei der
+  // Haelfte der Anlagen falsch und erzaehlt dem Nutzer etwas Unwahres ueber seine Sicherheit.
+  //
+  // Deshalb nur Vorgaben, die sich je Karte ueberschreiben lassen -- Text UND Farbe.
+
+  const ALARM_ZUSTAENDE = [
+    { id: 'disarmed',    text: 'Unscharf',           ton: 'ruhig' },
+    { id: 'armed_home',  text: 'Scharf (Zuhause)',   ton: 'scharf' },
+    { id: 'armed_away',  text: 'Scharf (Abwesend)',  ton: 'scharf' },
+    { id: 'armed_night', text: 'Scharf (Nacht)',     ton: 'scharf' },
+    { id: 'arming',      text: 'Aktiviert…',         ton: 'achtung' },
+    { id: 'pending',     text: 'Ausstehend…',        ton: 'achtung' },
+    { id: 'triggered',   text: 'ALARM!',             ton: 'alarm' }
+  ];
+
+  const ALARM_TOENE = [
+    { id: 'ruhig',   text: 'ruhig (gedämpft)' },
+    { id: 'scharf',  text: 'scharf (grün)' },
+    { id: 'achtung', text: 'Achtung (gelb)' },
+    { id: 'alarm',   text: 'Alarm (rot)' }
+  ];
+
+  /** Text und Farbton fuer einen Zustand -- eigene Einstellung vor Vorgabe. */
+  function alarmDarstellung(zustand, settings) {
+    const st = settings || {};
+    const eigen = (st.alarmTexte || {})[zustand];
+    const eigenTon = (st.alarmToene || {})[zustand];
+    const vorgabe = ALARM_ZUSTAENDE.find(z => z.id === zustand);
+    return {
+      text: (eigen && String(eigen).trim()) || (vorgabe ? vorgabe.text : zustand),
+      ton: eigenTon || (vorgabe ? vorgabe.ton : 'ruhig')
+    };
+  }
+
   // --- Hat es geklappt? ---------------------------------------------------------------------------
   //
   // Ein Torantrieb braucht Sekunden, bis sich etwas sichtbar tut, und ein Skript gibt ueberhaupt
@@ -955,7 +993,7 @@
         <div class="name">${name}</div>
         <div class="controls">
           <button data-act="open" ${dis} aria-label="Auf">${ICONS.arrowUp}</button>
-          <button data-act="stop" ${dis}>⏸</button>
+          <button data-act="stop" ${dis} aria-label="Stopp">${ICONS.stopSquare}</button>
           <button data-act="close" ${dis} aria-label="Zu">${ICONS.arrowDown}</button>
         </div>
         ${zeigePosition ? `<div class="controls slider-row">
@@ -1361,7 +1399,8 @@
     } else if (type === 'alarm') {
       const s = state ? state.state : 'disarmed';
       const isArmed = s.startsWith('armed');
-      const label = { disarmed: 'Unscharf', armed_home: 'Scharf (Zuhause)', armed_away: 'Scharf (Abwesend)', armed_night: 'Scharf (Nacht)', pending: 'Ausstehend…', triggered: 'ALARM!', arming: 'Aktiviert…' }[s] || s;
+      const darstellung = alarmDarstellung(s, settings);
+      const label = darstellung.text;
       // Nur anbieten, was die Anlage kann. HA meldet die Faehigkeiten in supported_features:
       // 1 = ARM_HOME, 2 = ARM_AWAY, 4 = ARM_NIGHT. Bisher standen hier drei feste Knoepfe, und
       // "Scharf (Nacht)" wurde als Zustand angezeigt, war aber nicht schaltbar.
@@ -1372,12 +1411,19 @@
       // Ohne Einstellung bleibt alles sichtbar -- bestehende Karten aendern sich nicht.
       const gewaehlt = Array.isArray(settings.alarmModi) ? settings.alarmModi : null;
       const gewuenscht = (id) => !gewaehlt || gewaehlt.includes(id);
+      // Auch die Knopfbeschriftungen sind frei: Wer "Zuhause" anders nennt, nennt den Knopf
+      // dazu anders.
+      const knopfText = (id, vorgabe) => {
+        const eigen = (settings.alarmKnopfTexte || {})[id];
+        return (eigen && String(eigen).trim()) || vorgabe;
+      };
       const knoepfe = [
-        { id: 'home', bit: 1, text: 'Zuhause', dienst: 'alarm_arm_home' },
-        { id: 'away', bit: 2, text: 'Abwesend', dienst: 'alarm_arm_away' },
-        { id: 'night', bit: 4, text: 'Nacht', dienst: 'alarm_arm_night' }
+        { id: 'home', bit: 1, text: knopfText('home', 'Zuhause'), dienst: 'alarm_arm_home' },
+        { id: 'away', bit: 2, text: knopfText('away', 'Abwesend'), dienst: 'alarm_arm_away' },
+        { id: 'night', bit: 4, text: knopfText('night', 'Nacht'), dienst: 'alarm_arm_night' }
       ].filter(b => kann(b.bit) && gewuenscht(b.id));
       const zeigeUnscharf = gewuenscht('disarm');
+      const unscharfText = knopfText('disarm', 'Unscharf');
 
       // Verlangt die Anlage einen Code, hat der Druck bisher schlicht nichts bewirkt -- ohne
       // Fehlermeldung. Jetzt klappt die Karte eine Eingabe auf.
@@ -1387,13 +1433,18 @@
 
       const knopfHtml = knoepfe.map(b =>
         `<button data-act="${b.id}" ${dis} class="${s === 'armed_' + b.id ? 'ist-zustand' : ''}">${b.text}</button>`).join('') +
-        (zeigeUnscharf ? `<button data-act="disarm" ${dis} class="${s === 'disarmed' ? 'ist-zustand' : ''}">Unscharf</button>` : '');
+        (zeigeUnscharf ? `<button data-act="disarm" ${dis} class="${s === 'disarmed' ? 'ist-zustand' : ''}">${esc(unscharfText)}</button>` : '');
 
       // Der Zustand ist bei einer Alarmanlage die Hauptaussage, nicht der Name der Karte.
       // Er stand bisher klein unter dem Namen; aus zwei Metern Abstand las man ihn nicht.
       // Jetzt steht er gross an der Stelle, an der auf jeder anderen Karte der Wert steht.
-      const zustandsKlasse = s === 'triggered' ? 'alarm-ausgeloest'
-        : (isArmed ? 'alarm-scharf' : (s === 'pending' || s === 'arming' ? 'alarm-wartet' : 'alarm-unscharf'));
+      // Die Farbe folgt der EINSTELLUNG, nicht der Zustandskennung. Wessen "armed_home" der
+      // normale Zustand mit Leuten im Haus ist, stellt dort "ruhig" ein und bekommt kein
+      // gruenes "scharf" mehr angezeigt, das nicht stimmt.
+      const zustandsKlasse = {
+        ruhig: 'alarm-unscharf', scharf: 'alarm-scharf',
+        achtung: 'alarm-wartet', alarm: 'alarm-ausgeloest'
+      }[darstellung.ton] || 'alarm-unscharf';
 
       card.classList.add(zustandsKlasse);
       card.innerHTML = `
@@ -1812,6 +1863,7 @@
     wasteColor, zahlFormatieren, symbolFuer, symbolNamen,
     quickTileAktion, quickTileAktiv, quickTileText,
     kachelRegler, miniVerlaufSvg, tendenz, rueckmeldung,
+    ALARM_ZUSTAENDE, ALARM_TOENE, alarmDarstellung,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };

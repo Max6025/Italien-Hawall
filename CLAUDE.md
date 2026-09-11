@@ -102,6 +102,15 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   rechts, obwohl beide auf `hidden` standen. Deshalb steht ganz oben in `dashboard.css` ein
   `[hidden] { display: none !important; }`. Wer diese Zeile entfernt, bricht jede
   Sichtbarkeitssteuerung, die über `hidden` läuft — und zwar lautlos.
+- **Kein Mauszeiger auf der Anzeige.** `body.wandanzeige` blendet ihn überall aus. Er taucht
+  sonst von allein auf, weil das Aufwecken mit dem Mauszeiger wackeln muss (`panel.js`), und
+  bleibt dann mitten auf der Wand stehen. Bewusst an die Body-Klasse gebunden: Der
+  Karten-Editor lädt dieselbe CSS-Datei, wird aber mit der Maus bedient.
+- **Die Alarm-Zustände gehören der Anlage, nicht der App.** `armed_home` heißt nicht überall
+  dasselbe — in der einen Anlage scharf mit freiem Innenbereich, in der anderen der ganz
+  normale Zustand, wenn jemand da ist. Wer Text oder Farbe fest verdrahtet, erzählt der Hälfte
+  der Nutzer etwas Unwahres über ihre Sicherheit. `ALARM_ZUSTAENDE` sind deshalb nur Vorgaben;
+  `alarmDarstellung()` lässt Text **und** Farbton je Karte überschreiben.
 - **Ein Knopf muss erkennbar sein, nicht lesbar.** Aus fünf Metern liest niemand „Tor" und
   „Garage" auseinander — ein Tor und eine Garage schon. Deshalb trägt jeder Tor-Knopf ein
   wählbares Symbol, groß, mit dem Text als Bestätigung darunter. Ein Symbol, das man suchen
@@ -202,7 +211,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-195 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+202 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

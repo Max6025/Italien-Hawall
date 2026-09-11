@@ -543,6 +543,21 @@ function openSettings(entityId) {
         weiterhin unverändert – damit sich mit diesem Update keine bestehende Karte still ändert.
         Gesetzt wird deutsch formatiert: 1.234,5 statt 1234.5.</p>`;
   }
+  if (fields.alarmOpts) {
+    const liste = $('alarmZustandListe');
+    const texte = settings.alarmTexte || {};
+    const toene = settings.alarmToene || {};
+    liste.innerHTML = DashboardRender.ALARM_ZUSTAENDE.map(z => `
+      <div style="display:flex; align-items:center; gap:0.6vh; margin-bottom:0.5vh;">
+        <code style="flex:0 0 8.5vh; font-size:1.05vh; color:var(--muted);">${z.id}</code>
+        <input type="text" class="alarmText" data-id="${z.id}" placeholder="${z.text}"
+               value="${(texte[z.id] || '').replace(/"/g, '&quot;')}" style="flex:1;">
+        <select class="alarmTon" data-id="${z.id}" style="flex:0 0 auto; width:auto; margin:0;">
+          ${DashboardRender.ALARM_TOENE.map(t =>
+            `<option value="${t.id}" ${(toene[z.id] || z.ton) === t.id ? 'selected' : ''}>${t.text}</option>`).join('')}
+        </select>
+      </div>`).join('');
+  }
   if (fields.verlaufOpts) {
     html += `<label style="display:flex; align-items:center; gap:0.6vh; margin-top:0.8rem;">
         <input type="checkbox" id="setVerlauf" style="width:auto; margin:0;" ${settings.verlaufAus ? '' : 'checked'}>
@@ -583,7 +598,29 @@ function openSettings(entityId) {
       <p style="font-size:1.1vh; color:var(--muted); margin:0.6vh 0 1vh;">
         <strong>„Unscharf“ abwählen heißt: von dieser Karte aus lässt sich die Anlage nicht
         mehr entschärfen.</strong> Das kann gewollt sein, wenn das Panel für Gäste zugänglich
-        ist – dann braucht es aber einen anderen Weg zum Entschärfen.</p>`;
+        ist – dann braucht es aber einen anderen Weg zum Entschärfen.</p>
+
+      <label style="margin-top:1rem;">Knopf-Beschriftungen (leer = Vorgabe)</label>
+      <div class="row2">
+        <div><input type="text" class="alarmKnopfText" data-id="home" placeholder="Zuhause"
+             value="${((settings.alarmKnopfTexte || {}).home || '').replace(/"/g, '&quot;')}"></div>
+        <div><input type="text" class="alarmKnopfText" data-id="away" placeholder="Abwesend"
+             value="${((settings.alarmKnopfTexte || {}).away || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+      <div class="row2">
+        <div><input type="text" class="alarmKnopfText" data-id="night" placeholder="Nacht"
+             value="${((settings.alarmKnopfTexte || {}).night || '').replace(/"/g, '&quot;')}"></div>
+        <div><input type="text" class="alarmKnopfText" data-id="disarm" placeholder="Unscharf"
+             value="${((settings.alarmKnopfTexte || {}).disarm || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+
+      <label style="margin-top:1rem;">Zustände: Text und Farbe</label>
+      <p style="font-size:1.1vh; color:var(--muted); margin:0 0 0.6vh;">
+        <code>armed_home</code> heißt nicht überall dasselbe. In der einen Anlage ist es scharf
+        mit freiem Innenbereich, in der anderen der ganz normale Zustand, wenn jemand da ist –
+        also eher unscharf. Die App kann das nicht wissen, deshalb steht es hier.
+        Die Farbe entscheidet auch, wie auffällig die Karte wird.</p>
+      <div id="alarmZustandListe"></div>`;
   }
   if (fields.radarOpts) {
     html += `<label>Bild neu laden alle … Sekunden</label>
@@ -1232,6 +1269,28 @@ $('settingsSave').addEventListener('click', () => {
     const an = Array.from(document.querySelectorAll('.alarmModus'))
       .filter(el => el.checked).map(el => el.dataset.modus);
     settings.alarmModi = an;
+
+    // Nur abweichende Werte speichern. Wer nichts eintraegt, bekommt weiterhin die Vorgabe --
+    // auch wenn sich die spaeter einmal aendert.
+    const sammle = (klasse, pruefe) => {
+      const raus = {};
+      document.querySelectorAll('.' + klasse).forEach(el => {
+        const v = (el.value || '').trim();
+        if (v && pruefe(v, el)) raus[el.dataset.id] = v;
+      });
+      return Object.keys(raus).length ? raus : undefined;
+    };
+    const texte = sammle('alarmText', () => true);
+    if (texte) settings.alarmTexte = texte; else delete settings.alarmTexte;
+    const knopf = sammle('alarmKnopfText', () => true);
+    if (knopf) settings.alarmKnopfTexte = knopf; else delete settings.alarmKnopfTexte;
+
+    const toene = {};
+    document.querySelectorAll('.alarmTon').forEach(el => {
+      const vorgabe = (DashboardRender.ALARM_ZUSTAENDE.find(z => z.id === el.dataset.id) || {}).ton;
+      if (el.value && el.value !== vorgabe) toene[el.dataset.id] = el.value;
+    });
+    if (Object.keys(toene).length) settings.alarmToene = toene; else delete settings.alarmToene;
   }
   if (settingsFields.radarOpts) {
     const v = ($('setRadarSeconds') && $('setRadarSeconds').value.trim()) || '';
