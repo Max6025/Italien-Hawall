@@ -155,14 +155,16 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
    wo das Geraet ist. */
 /* Ein Hauch der Geraetefarbe auf JEDER Karte, nicht nur auf den aktiven.
    Zwischenstufe zwischen den alten Farbkacheln (zu bunt, "bastelhaft") und reinem Glas
-   (zu gleichfoermig, "leblos"): Bei acht Prozent traegt die Karte erkennbar ihre Farbe,
-   ohne dass sie als farbige Flaeche liest. Nebeneinander unterscheiden sich die Karten
+   (zu gleichfoermig, "leblos"). Acht Prozent waren zu vorsichtig -- aus zwei Metern sah man
+   sie nicht, und die Rueckmeldung lautete folgerichtig "hat sich nichts geaendert". Bei
+   achtzehn Prozent traegt die Karte erkennbar ihre Farbe, ohne als farbige Flaeche zu lesen. Nebeneinander unterscheiden sich die Karten
    wieder -- und genau das fehlte. */
 .card {
   background-image:
     linear-gradient(152deg,
-      color-mix(in srgb, var(--kachel-akzent) 8%, transparent) 0%,
-      transparent 58%),
+      color-mix(in srgb, var(--kachel-akzent) 18%, transparent) 0%,
+      color-mix(in srgb, var(--kachel-akzent) 5%, transparent) 45%,
+      transparent 72%),
     /* Leichter Glanz von oben, damit die Flaeche nicht voellig flach wirkt. */
     linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 28%);
 }
@@ -1065,4 +1067,49 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
   border-color: color-mix(in srgb, var(--kachel-akzent) 55%, transparent);
   color: color-mix(in srgb, var(--kachel-akzent) 85%, var(--text));
   font-weight: 600;
+}
+
+
+/* --- Bewegung im Hintergrund -------------------------------------------------------------------
+   "Zu leblos" heisst am ehesten: Es bewegt sich nichts. Der Ankunftsschirm lebt von seinen
+   wandernden Farbwolken -- das Dashboard hatte davon ein Standbild.
+
+   Hier dieselbe Idee, nur viel langsamer und schwaecher: drei weiche Flecken, die in einer
+   Minute ein Stueck wandern. Schnell genug, dass die Wand lebt, langsam genug, dass beim
+   Hinsehen nichts ablenkt.
+
+   Bewegt wird ausschliesslich per transform -- das rechnet die Grafikeinheit. Wer statt dessen
+   background-position animiert, laesst den Browser jedes Bild neu zeichnen und kostet das
+   Geraet die Bildrate (siehe die Begruendung zum Ankunftsschirm in CLAUDE.md). */
+.lebendig {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+}
+.lebendig span {
+  position: absolute; border-radius: 50%;
+  filter: blur(9vh);
+  will-change: transform;
+}
+.lebendig span:nth-child(1) {
+  width: 62vh; height: 62vh; left: 6%; top: -14%;
+  background: radial-gradient(circle, rgba(196,74,58,0.34), transparent 68%);
+  animation: lebendig-a 74s ease-in-out infinite alternate;
+}
+.lebendig span:nth-child(2) {
+  width: 70vh; height: 70vh; right: 2%; top: 4%;
+  background: radial-gradient(circle, rgba(122,58,168,0.30), transparent 68%);
+  animation: lebendig-b 91s ease-in-out infinite alternate;
+}
+.lebendig span:nth-child(3) {
+  width: 66vh; height: 66vh; left: 44%; bottom: -18%;
+  background: radial-gradient(circle, rgba(38,124,120,0.30), transparent 68%);
+  animation: lebendig-c 83s ease-in-out infinite alternate;
+}
+@keyframes lebendig-a { to { transform: translate3d(16vh, 12vh, 0) scale(1.16); } }
+@keyframes lebendig-b { to { transform: translate3d(-18vh, 9vh, 0) scale(0.88); } }
+@keyframes lebendig-c { to { transform: translate3d(11vh, -14vh, 0) scale(1.12); } }
+
+/* Abschaltbar -- und wer Bewegung im System abgestellt hat, bekommt sie gar nicht erst. */
+body.ohne-bewegung .lebendig { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lebendig span { animation: none; }
 }

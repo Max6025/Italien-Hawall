@@ -445,3 +445,38 @@ test('Jeder Zustand hat einen gueltigen Farbton', () => {
     assert.ok(gueltig.includes(z.ton), `${z.id} hat Ton "${z.ton}", den es nicht gibt`);
   });
 });
+
+// --- Symbole, die sich von selbst einstellen ---------------------------------------------------
+//
+// Ein Symbol je Knopf hilft nur, wenn eines da ist. Es erst auswaehlen zu muessen heisst: Wer
+// die Einstellungen nie oeffnet, hat nie ein Symbol -- und genau der braucht es.
+
+test('Aus der Beschriftung wird ein Symbol erraten', () => {
+  assert.strictEqual(D.symbolErraten('Tor Dauerhaft', 'input_boolean.tor'), 'gate');
+  assert.strictEqual(D.symbolErraten('Garage', 'switch.x'), 'garage');
+  assert.strictEqual(D.symbolErraten('Haustür', 'lock.y'), 'door');
+});
+
+test('Auch die Entitaets-ID wird herangezogen', () => {
+  // Wer den Knopf "Auf" nennt, hat den Hinweis in der Entitaet.
+  assert.strictEqual(D.symbolErraten('', 'cover.rollladen_wohnzimmer'), 'cover');
+  assert.strictEqual(D.symbolErraten('', 'switch.garage_tor'), 'garage');
+});
+
+test('Grossschreibung und Umlaute sind egal', () => {
+  assert.strictEqual(D.symbolErraten('HAUSTÜR', ''), 'door');
+  assert.strictEqual(D.symbolErraten('Haustuer', ''), 'door');
+});
+
+test('Ohne Anhaltspunkt gibt es das Taster-Symbol, nicht nichts', () => {
+  // Ein Knopf ohne Symbol ist genau das, was bemaengelt wurde.
+  assert.strictEqual(D.symbolErraten('Irgendwas', 'switch.z'), 'button');
+  assert.strictEqual(D.symbolErraten('', ''), 'button');
+  assert.strictEqual(D.symbolErraten(null, null), 'button');
+});
+
+test('Jedes geratene Symbol gibt es wirklich', () => {
+  // Ein Name ohne Symbol dahinter waere ein leerer Knopf.
+  ['Tor', 'Garage', 'Tür', 'Schloss', 'Rollladen', 'Licht', 'Alarm', 'Szene', 'Auf', 'Zu', 'Stopp', 'xyz']
+    .forEach(w => assert.ok(D.ICONS[D.symbolErraten(w, '')], `${w} -> ${D.symbolErraten(w, '')} fehlt`));
+});

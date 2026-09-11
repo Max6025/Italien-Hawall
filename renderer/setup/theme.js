@@ -63,6 +63,7 @@ async function load() {
   $('welcomeCaption').value = configRes.welcomeCaption || '';
   $('welcomeCaption2').value = configRes.welcomeCaption2 || '';
   $('welcomeImageSeconds').value = configRes.welcomeImageSeconds === undefined ? 8 : configRes.welcomeImageSeconds;
+  $('hintergrundBewegung').checked = configRes.hintergrundBewegung !== false;
   $('welcomeTestmodus').checked = !!configRes.welcomeTestmodus;
   $('welcomeTestSekunden').value = configRes.welcomeTestSekunden || 10;
   $('welcomeHours').value = configRes.welcomeHours === undefined ? 5 : configRes.welcomeHours;
@@ -259,6 +260,7 @@ function alleFelder() {
     return Number.isFinite(v) ? v : ersatz;
   };
   const felder = {
+    hintergrundBewegung: $('hintergrundBewegung').checked,
     sunEntity: $('sunEntity').value,
     notifyEntity: $('notifyEntity').value,
     batteryThreshold: zahl('batteryThreshold', 20),

@@ -21,6 +21,7 @@
 </style>
 </head>
 <body>
+<div class="lebendig" aria-hidden="true"><span></span><span></span><span></span></div>
 <div id="grid"></div>
 <script src="../../renderer/shared/dashboard-render.js"></script>
 <script>
@@ -81,7 +82,7 @@ const nur = new URLSearchParams(location.search).get('nur');
       { label: 'Tor', entity: 'switch.a', icon: 'gate' },
       { label: 'Garage', entity: 'switch.b', icon: 'garage' },
       { label: 'Haustür', entity: 'switch.c', icon: 'door' },
-      { label: 'Ohne Symbol', entity: 'switch.d' }
+      { label: 'Haustür Garage', entity: 'switch.d' }
     ] } : {}
     ,
     callbacks: {

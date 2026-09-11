@@ -262,6 +262,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeHours: store.get('welcomeHours') === undefined ? 5 : store.get('welcomeHours'),
       welcomeDismissedFor: store.get('welcomeDismissedFor') || '',
       welcomeErzwungenBis: store.get('welcomeErzwungenBis') || 0,
+      // Standard AN -- die Bewegung ist der sichtbare Teil des Designs.
+      hintergrundBewegung: store.get('hintergrundBewegung') !== false,
       welcomeTestmodus: !!store.get('welcomeTestmodus'),
       welcomeTestSekunden: store.get('welcomeTestSekunden') || 10,
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
@@ -281,7 +283,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       setupCode,
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
       welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle,
-      welcomeTestmodus, welcomeTestSekunden
+      welcomeTestmodus, welcomeTestSekunden, hintergrundBewegung
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -319,6 +321,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (welcomeHours !== undefined) store.set('welcomeHours', Math.max(0, Number(welcomeHours) || 0));
     if (welcomeImageEntity2 !== undefined) store.set('welcomeImageEntity2', String(welcomeImageEntity2 || ''));
     if (welcomeImage2Quelle !== undefined) store.set('welcomeImage2Quelle', String(welcomeImage2Quelle || ''));
+    if (hintergrundBewegung !== undefined) store.set('hintergrundBewegung', !!hintergrundBewegung);
     if (welcomeTestmodus !== undefined) store.set('welcomeTestmodus', !!welcomeTestmodus);
     if (welcomeTestSekunden !== undefined) {
       // Unter drei Sekunden liesse sich der Schirm nicht mehr wegtippen -- er waere

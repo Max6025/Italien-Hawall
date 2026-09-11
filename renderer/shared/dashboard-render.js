@@ -443,6 +443,37 @@
     return { richtung: d > 0 ? 1 : -1, delta: d };
   }
 
+  // --- Symbole, die sich von selbst einstellen ---------------------------------------------------
+  //
+  // Ein Symbol je Knopf hilft nur, wenn eines da ist. Es aber erst auszuwaehlen bedeutet: Wer
+  // die Einstellung nie oeffnet, hat nie ein Symbol -- und genau der braucht es. Also raten,
+  // und zwar aus dem, was ohnehin dasteht: der Beschriftung und der Entitaets-ID.
+  //
+  // Geraten wird nur, wenn nichts gewaehlt ist; eine Auswahl gewinnt immer.
+
+  const SYMBOL_WOERTER = [
+    [['garage'], 'garage'],
+    [['tor', 'gate', 'einfahrt', 'hoftor'], 'gate'],
+    [['tuer', 'tür', 'door', 'haustuer', 'haustür', 'eingang'], 'door'],
+    [['schloss', 'lock', 'riegel'], 'lockClosed'],
+    [['rollladen', 'rolladen', 'jalousie', 'markise'], 'cover'],
+    [['licht', 'lampe', 'light'], 'light'],
+    [['alarm', 'sirene'], 'shield'],
+    [['szene', 'scene'], 'sun2'],
+    [['auf', 'open', 'hoch'], 'arrowUp'],
+    [['zu', 'close', 'runter'], 'arrowDown'],
+    [['stopp', 'stop', 'halt'], 'stopSquare']
+  ];
+
+  /** Ein passendes Symbol aus Beschriftung und Entitaet, oder das Taster-Symbol als Rueckfall. */
+  function symbolErraten(beschriftung, entitaet) {
+    const heu = (String(beschriftung || '') + ' ' + String(entitaet || '')).toLowerCase();
+    for (const [woerter, symbol] of SYMBOL_WOERTER) {
+      if (woerter.some(w => heu.includes(w))) return symbol;
+    }
+    return 'button';
+  }
+
   // --- Alarmanlage: Beschriftung und Farbe sind Sache der Anlage, nicht der App ------------------
   //
   // "armed_home" heisst nicht ueberall dasselbe. In der einen Anlage ist es scharf mit
@@ -1296,7 +1327,11 @@
             ? knoepfe.map((b, i) => {
                 // Das Symbol ist die eigentliche Unterscheidung. Aus fuenf Metern liest man
                 // "Tor" und "Garage" nicht auseinander, ein Tor und eine Garage schon.
-                const symbol = (b.icon && ICONS[b.icon]) ? ICONS[b.icon] : '';
+                // Gewaehltes Symbol, sonst eins geraten -- ein Knopf ohne Symbol waere das,
+                // was der Nutzer gerade bemaengelt hat.
+                const symbolName = (b.icon && ICONS[b.icon]) ? b.icon
+                  : (b.icon === '' ? '' : symbolErraten(b.label, b.entity));
+                const symbol = symbolName ? ICONS[symbolName] : '';
                 return `<button class="gate-btn${symbol ? ' hat-symbol' : ''}" data-gate="${i}" ${dis}>`
                   + (symbol ? `<span class="gate-btn-symbol">${symbol}</span>` : '')
                   + `<span class="gate-btn-text">${esc(b.label || b.entity || '?')}</span></button>`;
@@ -1863,7 +1898,7 @@
     wasteColor, zahlFormatieren, symbolFuer, symbolNamen,
     quickTileAktion, quickTileAktiv, quickTileText,
     kachelRegler, miniVerlaufSvg, tendenz, rueckmeldung,
-    ALARM_ZUSTAENDE, ALARM_TOENE, alarmDarstellung,
+    ALARM_ZUSTAENDE, ALARM_TOENE, alarmDarstellung, symbolErraten,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
   };

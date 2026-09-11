@@ -102,6 +102,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   rechts, obwohl beide auf `hidden` standen. Deshalb steht ganz oben in `dashboard.css` ein
   `[hidden] { display: none !important; }`. Wer diese Zeile entfernt, bricht jede
   Sichtbarkeitssteuerung, die über `hidden` läuft — und zwar lautlos.
+- **Eine Verbesserung, die man erst einschalten muss, ist für die meisten keine.** Drei
+  Releases in Folge bestanden fast nur aus Einstellungen — Symbole, Beschriftungen, untere
+  Leiste, Testmodus —, und die Rückmeldung lautete folgerichtig „hat sich nichts geändert".
+  Wer die Einstellungen nie öffnet, braucht die Hilfe am dringendsten. Deshalb: sinnvolle
+  Vorgabe ab Werk, Einstellung nur zum Abweichen. `symbolErraten()` rät ein Knopfsymbol aus
+  Beschriftung und Entitäts-ID, statt auf eine Auswahl zu warten.
 - **Kein Mauszeiger auf der Anzeige.** `body.wandanzeige` blendet ihn überall aus. Er taucht
   sonst von allein auf, weil das Aufwecken mit dem Mauszeiger wackeln muss (`panel.js`), und
   bleibt dann mitten auf der Wand stehen. Bewusst an die Body-Klasse gebunden: Der
@@ -211,7 +217,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-202 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
+207 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
 und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

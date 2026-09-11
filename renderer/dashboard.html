@@ -9,6 +9,9 @@
 </head>
 <body class="wandanzeige">
   <div class="motion-indicator" id="motionIndicator" title="Annäherungserkennung: Anwesenheit erkannt"></div>
+  <!-- Drei weiche Farbflecken, die sehr langsam wandern. Liegt HINTER allem (z-index:-1) und
+       faengt keine Beruehrungen ab. -->
+  <div class="lebendig" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="app">
     <div class="main">
       <header class="statusbar">
@@ -168,6 +171,8 @@ async function loadConfig() {
   // Ohne eigenes Design greift das eingebaute "Ankunft" -- ab Werk aktiv, aber kein Zwang:
   // ein importiertes Design gewinnt, und "Design zuruecksetzen" landet wieder hier.
   DashboardRender.applyCustomTheme(config.customTheme || DashboardRender.DEFAULT_THEME);
+  // Bewegung ab Werk an -- sie ist der sichtbare Teil. Wem es zu unruhig ist, schaltet sie ab.
+  document.body.classList.toggle('ohne-bewegung', config.hintergrundBewegung === false);
   testmodusTaktAnpassen();
   await loadDashboardOrder();
   ankunftsschirmPruefen();
