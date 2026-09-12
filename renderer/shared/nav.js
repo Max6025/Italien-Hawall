@@ -36,14 +36,8 @@
       + '</svg>';
   }
 
-  async function holen() {
-    let d;
-    try {
-      d = await fetch('/api/geraet/akku').then(r => r.json());
-    } catch (e) {
-      return;   // Server nicht erreichbar -- die letzte Anzeige stehen lassen
-    }
-    if (!d || !d.ok || !d.akku || d.alterSekunden > ZU_ALT_SEKUNDEN) {
+  function zeigen(d) {
+    if (!d || !d.akku || (d.alterSekunden !== undefined && d.alterSekunden > ZU_ALT_SEKUNDEN)) {
       feld.hidden = true;
       return;
     }
@@ -57,6 +51,25 @@
     feld.hidden = false;
   }
 
+  async function holen() {
+    try {
+      zeigen(await fetch('/api/geraet/akku').then(r => r.json()));
+    } catch (e) { /* Server nicht erreichbar -- die letzte Anzeige stehen lassen */ }
+  }
+
+  // Sofort statt beim naechsten Abruf: Wer das Netzteil ansteckt, soll das hier sehen, ohne
+  // die Seite neu zu laden.
+  //
+  // Der Abruf bleibt als Netz daneben stehen -- seltener als vorher, weil er jetzt nur noch
+  // den Fall abdeckt, dass der Ereignisstrom gar nicht zustande kommt. Ein verpasstes Ereignis
+  // holt niemand nach; ein verpasster Abruf schon.
+  try {
+    const strom = new EventSource('/api/geraet/akku/live');
+    strom.onmessage = (e) => {
+      try { zeigen(JSON.parse(e.data)); } catch (err) { /* unlesbar -- naechstes Mal */ }
+    };
+  } catch (e) { /* ohne EventSource bleibt es beim Abruf */ }
+
   holen();
-  setInterval(holen, 30000);
+  setInterval(holen, 60000);
 })();

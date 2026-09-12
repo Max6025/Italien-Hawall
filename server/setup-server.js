@@ -235,6 +235,11 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
   // sondern eine Falle. Nach einem Neustart ist er weg, und die Leiste sagt ehrlich "unbekannt",
   // bis sich das Panel das naechste Mal meldet.
   let geraetAkku = null;
+  const akkuHoerer = new Set();
+
+  const akkuStand = () => (geraetAkku
+    ? { akku: { prozent: geraetAkku.prozent, laedt: geraetAkku.laedt }, alterSekunden: Math.round((Date.now() - geraetAkku.zeit) / 1000) }
+    : { akku: null });
 
   app.post('/api/geraet/akku', (req, res) => {
     const { prozent, laedt } = req.body || {};
@@ -242,19 +247,40 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (!Number.isFinite(p) || p < 0 || p > 100) {
       return res.status(400).json({ ok: false, error: 'prozent muss zwischen 0 und 100 liegen' });
     }
+    const vorher = geraetAkku;
     geraetAkku = { prozent: Math.round(p), laedt: !!laedt, zeit: Date.now() };
+    // Nur bei echter Aenderung weitersagen. Die Anzeige meldet sich auch alle fuenf Minuten
+    // unveraendert als Lebenszeichen -- daraus ein Ereignis zu machen waere Laerm ohne Inhalt.
+    if (!vorher || vorher.prozent !== geraetAkku.prozent || vorher.laedt !== geraetAkku.laedt) {
+      const zeile = 'data: ' + JSON.stringify(akkuStand()) + '\n\n';
+      for (const h of akkuHoerer) {
+        try { h.write(zeile); } catch (e) { akkuHoerer.delete(h); }
+      }
+    }
     res.json({ ok: true });
   });
 
-  app.get('/api/geraet/akku', (req, res) => {
-    if (!geraetAkku) return res.json({ ok: true, akku: null });
-    // Das Alter gehoert dazu: Laeuft die Anzeige nicht mehr, steht sonst ein Stand von vor drei
-    // Tagen in der Leiste und sieht aus wie die Gegenwart.
-    res.json({
-      ok: true,
-      akku: { prozent: geraetAkku.prozent, laedt: geraetAkku.laedt },
-      alterSekunden: Math.round((Date.now() - geraetAkku.zeit) / 1000)
+  // Der Akkustand als Ereignisstrom: Wer die Einrichtungsseite offen hat, soll ein
+  // angestecktes Netzteil sehen, ohne die Seite neu zu laden. Derselbe Weg wie bei den
+  // Zustaenden aus Home Assistant (siehe /api/ha/live) -- Server-Sent Events, eine Richtung,
+  // und der Browser verbindet sich nach einem Abbruch von selbst wieder.
+  app.get('/api/geraet/akku/live', (req, res) => {
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
     });
+    res.flushHeaders();
+    res.write('data: ' + JSON.stringify(akkuStand()) + '\n\n');
+    akkuHoerer.add(res);
+    req.on('close', () => akkuHoerer.delete(res));
+  });
+
+  // Das Alter gehoert zur Antwort: Laeuft die Anzeige nicht mehr, steht sonst ein Stand von
+  // vor drei Tagen in der Leiste und sieht aus wie die Gegenwart.
+  app.get('/api/geraet/akku', (req, res) => {
+    res.json(Object.assign({ ok: true }, akkuStand()));
   });
 
   app.get('/api/config', (req, res) => {

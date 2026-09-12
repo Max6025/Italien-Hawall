@@ -151,10 +151,18 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 /* Eine flache, breite Karte braucht ihre Angaben nebeneinander, nicht untereinander --
    sonst steht die Uhrzeit oben und das Datum ausserhalb des Streifens. */
 .unterleiste > .card.type-clock {
-  flex-direction: row; align-items: center; justify-content: center; gap: 2vh;
+  flex-direction: row; align-items: center; justify-content: center; gap: 2.4vh;
+  /* Weniger Rand als bei den uebrigen Karten: Der Streifen ist nur ein paar Zentimeter hoch,
+     und was hier an Polsterung steht, fehlt der Schrift. Aus fuenf Metern zaehlt jeder
+     Millimeter Zeichenhoehe -- eine Uhr, die man suchen muss, ist keine. */
+  padding: 0.3vh 1.2vw;
 }
-.unterleiste > .card.type-clock .clock-time { font-size: clamp(1.6vh, 46cqmin, 5vh); }
-.unterleiste > .card.type-clock .clock-date { font-size: clamp(1.1vh, 26cqmin, 2.6vh); }
+.unterleiste > .card.type-clock .clock-time { font-size: clamp(2vh, 90cqmin, 8vh); }
+.unterleiste > .card.type-clock .clock-date {
+  font-size: clamp(1.3vh, 38cqmin, 3.8vh);
+  margin-top: 0;                 /* im Streifen steht es NEBEN der Uhrzeit, nicht darunter */
+  white-space: nowrap;           /* "Samstag, 12. September 2026" darf nicht umbrechen */
+}
 
 .card { position: relative; container-type: size; border-radius: 22px; padding: 1.4vh 1.2vw;
   display: flex; flex-direction: column; justify-content: space-between; background: var(--panel2);

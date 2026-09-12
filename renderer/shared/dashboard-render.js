@@ -847,8 +847,12 @@
     if (opt.stunden12 === false) zeitFormat.hour12 = false;
     if (timeEl) timeEl.textContent = now.toLocaleTimeString(sprache, zeitFormat);
     if (dateEl) {
+      // Mit Jahr: Das Datum stand vorher als "Samstag, 12. September" da und liess eine
+      // Zeile halb leer. Auf einem Wandpanel ist die Frage nach dem Jahr selten, aber der
+      // Platz ist ohnehin da -- und eine ausgeschriebene Zeile liest sich von weitem besser
+      // als eine abgekuerzte.
       dateEl.textContent = opt.ohneDatum ? ''
-        : now.toLocaleDateString(sprache, { weekday: 'long', day: '2-digit', month: 'long' });
+        : now.toLocaleDateString(sprache, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
       dateEl.style.display = opt.ohneDatum ? 'none' : '';
     }
   }

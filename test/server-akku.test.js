@@ -89,3 +89,49 @@ test('Die Einstellung fuer den Warnton steht in der Konfiguration', async () => 
   const cfg = await fetch(U('/api/config')).then(r => r.json());
   assert.strictEqual(cfg.batterySound, true);
 });
+
+test('Eine Aenderung erreicht den Ereignisstrom sofort', async () => {
+  // Ohne diesen Weg saehe man ein angestecktes Netzteil erst beim naechsten Abruf -- und der
+  // laeuft, seit es den Strom gibt, nur noch jede Minute.
+  await melden({ prozent: 30, laedt: false });
+
+  const controller = new AbortController();
+  const r = await fetch(U('/api/geraet/akku/live'), { signal: controller.signal });
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get('content-type') || '', /text\/event-stream/);
+
+  const leser = r.body.getReader();
+  const text = () => leser.read().then(({ value }) => new TextDecoder().decode(value));
+
+  // Der erste Block kommt sofort: Wer sich anmeldet, soll nicht auf die naechste Aenderung
+  // warten muessen, um ueberhaupt etwas zu sehen.
+  const erst = await text();
+  assert.match(erst, /"prozent":30/, erst);
+
+  await melden({ prozent: 31, laedt: true });
+  const zweit = await text();
+  assert.match(zweit, /"prozent":31/, zweit);
+  assert.match(zweit, /"laedt":true/, zweit);
+
+  controller.abort();
+});
+
+test('Ein Lebenszeichen ohne Aenderung loest kein Ereignis aus', async () => {
+  // Die Anzeige meldet sich alle fuenf Minuten auch unveraendert, damit die Leiste sie nicht
+  // fuer abgeschaltet haelt. Daraus ein Ereignis zu machen waere Laerm ohne Inhalt.
+  await melden({ prozent: 44, laedt: false });
+
+  const controller = new AbortController();
+  const r = await fetch(U('/api/geraet/akku/live'), { signal: controller.signal });
+  const leser = r.body.getReader();
+  await leser.read();                       // der erste Block
+
+  await melden({ prozent: 44, laedt: false });   // unveraendert
+  await melden({ prozent: 45, laedt: false });   // geaendert
+
+  const { value } = await leser.read();
+  const block = new TextDecoder().decode(value);
+  assert.match(block, /"prozent":45/, 'der unveraenderte Stand haette nicht kommen duerfen: ' + block);
+
+  controller.abort();
+});

@@ -228,7 +228,9 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   Falle), und die Anzeige schickt **alle fünf Minuten ein Lebenszeichen**, auch wenn sich
   nichts geändert hat. Ohne das verschwände die Leiste ausgerechnet bei einem voll geladenen
   Gerät: Die Battery-API meldet sich nur bei Änderungen, und die Leiste blendet alles aus, was
-  älter als eine Viertelstunde ist.
+  älter als eine Viertelstunde ist. Eine **Änderung** geht zusätzlich sofort über
+  `/api/geraet/akku/live` (Server-Sent Events) raus — das Lebenszeichen dagegen nicht, sonst
+  wäre es Lärm ohne Inhalt.
 - **Ton braucht in Chromium eine Freigabe, die an einer Wand niemand erteilt.** Ohne
   `--autoplay-policy=no-user-gesture-required` (gesetzt in `main.js`) bleibt der Tonkontext
   angehalten, bis jemand die Seite anfasst — und ein angehaltener Kontext gibt **lautlos**
@@ -263,6 +265,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   einer anderen, und man musste erst merken, dass da zwei sind. Jetzt liefert es `null`, und
   jeder Aufrufer muss das behandeln. Vorher wird noch mit kleineren Maßen gesucht, damit eine
   große Vorgabegröße nicht daran scheitert, dass nur ein Feld frei ist.
+- **Im Streifen unten zählt jeder Millimeter Zeichenhöhe.** Die Karte dort ist nur ein paar
+  Zentimeter hoch, und `cqmin` rechnet auf der **Inhaltsbox** — was an Polsterung steht, fehlt
+  der Schrift doppelt. Die Uhr war deshalb 17 px groß, obwohl 49 px hineinpassen: Die normale
+  Kartenpolsterung (1,4 vh oben und unten) fraß die Hälfte der Höhe. Wer hier etwas ändert,
+  misst am besten mit `.scratch/karten-design/unterleiste-probe.html` bei 1280×854 nach —
+  das ist die echte Panelgröße.
 - **Das Raster hat feste sechs Zeilen, kein `flex: 1`.** Nur so ist der Streifen darunter
   (`.unterleiste`) vorhersagbar groß: Was das Raster übrig lässt, bekommt er. Mit `flex: 1`
   nähme das Raster die ganze Höhe und der Streifen wäre mal da, mal nicht. Die Karte dort
@@ -371,7 +379,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-287 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+289 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
 Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
