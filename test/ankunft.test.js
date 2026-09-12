@@ -117,3 +117,16 @@ test('Eine Ankunft VOR dem Terminbeginn verschiebt nichts nach vorn', () => {
   const frueher = Date.parse('2026-06-02T22:00:00');
   assert.strictEqual(bezugsbeginn('2026-06-03T00:00:00', frueher), Date.parse('2026-06-03T00:00:00'));
 });
+
+test('Ab dem zweiten Tag wird nicht mehr gewartet', () => {
+  // Ein mehrtaegiger Termin, bei dem die Anlage nie auf "zu Hause" wechselt -- weil sie
+  // umbenannt wurde, weil die Gaeste sie gar nicht anfassen -- bliebe sonst die ganze Woche
+  // dunkel. Gewartet wird nur am Anreisetag.
+  assert.strictEqual(lage({ ersterTag: true }).wartet, true);
+  assert.strictEqual(lage({ ersterTag: false }).wartet, false);
+});
+
+test('Ohne Angabe gilt der erste Tag', () => {
+  // Ein fehlendes Feld darf nicht stillschweigend das Warten abschalten.
+  assert.strictEqual(lage({ ersterTag: undefined }).wartet, true);
+});

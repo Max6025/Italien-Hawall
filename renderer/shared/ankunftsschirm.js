@@ -21,6 +21,12 @@
 
   const z = (a, b) => a + Math.random() * (b - a);
 
+  /** Der wievielte KALENDERTAG eines Anzeigefensters ein Zeitpunkt ist (1 = Anreisetag). */
+  function tagNummer(fensterBeginn, zeitpunkt) {
+    const mitternacht = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    return Math.round((mitternacht(zeitpunkt) - mitternacht(fensterBeginn)) / 86400000) + 1;
+  }
+
   /**
    * Soll der Ankunftsschirm gerade sichtbar sein?
    *
@@ -77,10 +83,24 @@
     // Ohne diese Verschiebung wäre die Anzeigedauer längst abgelaufen, bevor der erste Gast zur
     // Tür hereinkommt -- der Begrüßungsschirm hätte die ganze Nacht eine leere Wand begrüßt.
     // Wann jemand angekommen ist, weiß die Steuerung (siehe control/ankunft.js).
+    const fensterBeginn = beginn;
     const ankunftZeit = Number(p.ankunftZeit) || 0;
     if (ankunftZeit > beginn) beginn = ankunftZeit;
 
     const stunden = Number(p.stunden);
+
+    // Begrüßt wird nur am ANREISETAG. Wer am dritten Tag eines Aufenthalts an der Wand
+    // vorbeigeht, ist kein ankommender Gast mehr -- eine Begrüßung wäre dort nur noch im Weg.
+    //
+    // Zwei Bedingungen, und beide werden gebraucht:
+    //  * Der Bezugspunkt (Ankunft, sonst Terminbeginn) muss am ersten Tag liegen. Sonst
+    //    begrüßte ein Neustart am vierten Tag die Gäste noch einmal.
+    //  * Heute muss der erste Tag sein -- es sei denn, eine Anzeigedauer läuft noch. Damit
+    //    verschwindet der Schirm nicht um Punkt Mitternacht, wenn jemand um 23:50 Uhr ankommt,
+    //    bleibt aber bei "bis zum Wegtippen" (0 Stunden) trotzdem auf den ersten Tag begrenzt.
+    if (tagNummer(fensterBeginn, beginn) > 1) return false;
+    const heute = (p.jetzt || new Date()).getTime();
+    if (tagNummer(fensterBeginn, heute) > 1 && !(stunden > 0)) return false;
     // 0 Stunden heißt ausdrücklich "bis zum Wegtippen", nicht "gar nicht".
     if (stunden > 0) {
       const jetzt = (p.jetzt || new Date()).getTime();

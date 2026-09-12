@@ -9,9 +9,16 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { sollAnzeigen } = require('../renderer/shared/ankunftsschirm.js');
 
-const START = '2026-09-12T14:00:00.000Z';
-const FENSTER = { start: START, end: '2026-09-14T10:00:00.000Z' };
+// Absichtlich aus ORTSZEIT gebaut, nicht aus einer Z-Zeichenkette: Seit der Schirm nur noch
+// am Anreisetag begruesst, haengt das Ergebnis am Kalendertag -- und der ist ortsabhaengig.
+// Mit '...T14:00Z' lagen dieselben Tests je nach Zeitzone auf einem anderen Tag.
+const STUNDE = 3600000;
+const BEGINN = new Date(2026, 8, 12, 16, 0, 0);          // 12.09.2026, 16:00 Ortszeit
+const START = BEGINN.toISOString();
+const FENSTER = { start: START, end: new Date(2026, 8, 14, 12, 0, 0).toISOString() };
 const beiUhrzeit = (iso) => new Date(iso);
+/** Ortszeit-Zeitpunkt, n Stunden nach Terminbeginn. Der erste Tag endet nach 8 Stunden. */
+const nachStunden = (n) => new Date(BEGINN.getTime() + n * STUNDE);
 
 const basis = (ueberschreiben) => Object.assign({
   aktiviert: true,
@@ -58,9 +65,38 @@ test('Nach Ablauf der Anzeigedauer verschwindet er', () => {
 test('Dauer 0 heisst "bis zum Wegtippen", nicht "gar nicht"', () => {
   // Sonst waere eine 0 im Eingabefeld ein stiller Ausschalter -- genau die Sorte
   // Ueberraschung, die man ein Jahr spaeter sucht.
-  const spaeter = basis({ stunden: 0, jetzt: beiUhrzeit('2026-09-13T22:00:00.000Z') });
+  const spaeter = basis({ stunden: 0, jetzt: nachStunden(6) });   // 22:00 Uhr, noch Tag eins
   assert.strictEqual(sollAnzeigen(spaeter), true);
   assert.strictEqual(sollAnzeigen(Object.assign(spaeter, { verworfenFuer: START })), false);
+});
+
+// --- Nur am Anreisetag -------------------------------------------------------------------------
+//
+// Wer am dritten Tag eines Aufenthalts an der Wand vorbeigeht, ist kein ankommender Gast mehr.
+
+test('Am zweiten Tag begruesst er niemanden mehr, auch ohne Anzeigedauer', () => {
+  assert.strictEqual(sollAnzeigen(basis({ stunden: 0, jetzt: nachStunden(20) })), false);
+});
+
+test('Eine laufende Anzeigedauer darf ueber Mitternacht reichen', () => {
+  // Wer um 23:50 Uhr ankommt, soll nicht zehn Minuten begruesst werden und dann vor dem
+  // Dashboard stehen. Die Dauer laeuft ab der Ankunft und endet, wenn sie abgelaufen ist.
+  const spaet = basis({
+    stunden: 3,
+    ankunftZeit: nachStunden(7.5).getTime(),   // 23:30 Uhr, kurz vor Mitternacht
+    jetzt: nachStunden(9)                      // 01:00 Uhr, schon der zweite Kalendertag
+  });
+  assert.strictEqual(sollAnzeigen(spaet), true);
+});
+
+test('Eine Ankunft an einem spaeteren Tag begruesst nicht noch einmal', () => {
+  // Sonst begruesste ein Neustart am vierten Tag die Gaeste erneut.
+  const spaet = basis({
+    stunden: 5,
+    ankunftZeit: nachStunden(26).getTime(),    // zweiter Tag
+    jetzt: nachStunden(27)
+  });
+  assert.strictEqual(sollAnzeigen(spaet), false);
 });
 
 test('Ein unbrauchbarer Beginn fuehrt nicht zu einem Schirm, der ewig steht', () => {

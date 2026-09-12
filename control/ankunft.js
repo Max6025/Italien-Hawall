@@ -14,6 +14,13 @@
 // (scharf) und wird auf "zu Hause" gestellt, kurz bevor jemand ins Haus kommt. Genau dieser
 // Wechsel ist die Ankunft.
 //
+// NUR AM ERSTEN TAG
+//
+// Gewartet wird ausschliesslich am Anreisetag. Ein mehrtaegiger Termin, bei dem die Anlage
+// nie auf "zu Hause" wechselt -- weil sie umbenannt wurde, weil die Gaeste sie gar nicht
+// benutzen -- bliebe sonst die ganze Woche dunkel. Ab dem zweiten Tag geht der Bildschirm
+// wieder ganz normal mit dem Anzeigefenster an.
+//
 // EINMAL UND DANN NIE WIEDER
 //
 // Erkannt wird nur der ERSTE Uebergang je Anzeigefenster, und danach bleibt es dabei. Wer
@@ -67,6 +74,7 @@ function istZuhause(zustand, roheListe) {
  * @param {string}  p.zuhause        eingetragene "zu Hause"-Zustaende
  * @param {number}  p.erkanntZeit    Zeitpunkt der Ankunft in ms, oder 0
  * @param {number}  p.nachMinuten    wie lange nach der Ankunft die Nachtsperre zurueckstehen muss
+ * @param {boolean} p.ersterTag      laeuft heute der erste Tag des Anzeigefensters?
  * @param {Date}    p.jetzt
  * @returns {{wartet: boolean, frisch: boolean, greift: boolean}}
  *   wartet -- Termin laeuft, Ankunft steht aus: Panel bleibt aus
@@ -85,9 +93,11 @@ function ankunftLage(p) {
     return { wartet: false, frisch: jetzt - erkannt < minuten * 60000, greift: true };
   }
 
-  // Noch nicht angekommen. Gewartet wird nur, solange sich der Zustand ueberhaupt ablesen
-  // laesst -- sonst gaebe es keinen Weg mehr zurueck zu einem hellen Bildschirm.
-  return { wartet: zustandBekannt(p.zustand), frisch: false, greift: true };
+  // Noch nicht angekommen. Gewartet wird nur am Anreisetag und nur, solange sich der Zustand
+  // ueberhaupt ablesen laesst -- sonst gaebe es keinen Weg mehr zurueck zu einem hellen
+  // Bildschirm.
+  const ersterTag = p.ersterTag === undefined ? true : !!p.ersterTag;
+  return { wartet: ersterTag && zustandBekannt(p.zustand), frisch: false, greift: true };
 }
 
 /**

@@ -158,10 +158,15 @@ class Controller {
 
   /** Die Ankunftslage zum gegebenen Zeitpunkt -- ohne Seiteneffekte. */
   ankunftLage(cfg, now = new Date()) {
+    const fenster = calendar.activeWindow(this.windows, now);
+    const lauf = fenster ? calendar.verlauf({ start: fenster.start, end: fenster.end }, now) : null;
     return ankunft.ankunftLage({
       aktiv: cfg.ankunftEnabled,
       entitaet: cfg.ankunftEntity,
-      fenster: calendar.activeWindow(this.windows, now),
+      fenster,
+      // Nur am Anreisetag wird gewartet: Ein mehrtaegiger Termin, bei dem die Anlage nie auf
+      // "zu Hause" wechselt, bliebe sonst die ganze Woche dunkel.
+      ersterTag: !lauf || lauf.tag === 1,
       zustand: this.ankunftZustand,
       zuhause: cfg.ankunftZuhause,
       erkanntZeit: this.ankunftZeit,
