@@ -7,9 +7,9 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const DASHBOARD_ID = params.get('dashboard') || 'main'; // 'main' = normales Dashboard, sonst Unterdashboard-ID
 
-// Die Uhr war frueher nur im Screensaver waehlbar. Seit die Kopfzeile entfaellt, ist sie der
-// einzige Weg, Uhrzeit und Datum aufs Dashboard zu bekommen -- und zwar dort, wo der Nutzer
-// sie haben will, statt fest oben in einer Leiste.
+// Die Uhr-Karte ist seit dem Wegfall der Kopfzeile der einzige Weg, Uhrzeit und Datum aufs
+// Dashboard zu bekommen -- und zwar dort, wo der Nutzer sie haben will, statt fest oben in
+// einer Leiste.
 const PICKER_TYPES = Object.keys(CARD_TYPES);
 
 // Feste, bildschirmgrosse Arbeitsflaeche: 4 Spalten x MAX_ROWS Zeilen a 14vh -- entspricht
@@ -1354,7 +1354,7 @@ function openSettings(entityId) {
 }
 
 // Verkleinert ein Bild vor dem Hochladen auf max. maxDim Pixel (laengste Seite) und
-// komprimiert als JPEG -- siehe screensaver.js fuer dieselbe Logik/Begruendung.
+// komprimiert als JPEG.
 function resizeImageFile(file, maxDim) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

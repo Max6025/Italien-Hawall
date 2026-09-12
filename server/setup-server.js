@@ -228,9 +228,6 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       entities: store.get('entities') || [],
       layout: store.get('layout') || [],
       sunEntity: store.get('sunEntity') || '',
-      screensaverSeconds: store.get('screensaverSeconds') || 0,
-      screensaverEntities: store.get('screensaverEntities') || [],
-      screensaverLayout: store.get('screensaverLayout') || [],
       notifyEntity: store.get('notifyEntity') || '',
       notifyTitel: store.get('notifyTitel') || 'Ankündigung',
       // Wie lange die Ankuendigung gross bleibt, bevor sie in die Leiste wandert.
@@ -241,10 +238,6 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       nightStart: store.get('nightStart') || '23:00',
       nightEnd: store.get('nightEnd') || '06:30',
       nightModeForceOn: store.get('nightModeForceOn') || false,
-      screensaverBackground: !!store.get('screensaverBgExt'),
-      screensaverBgVersion: store.get('screensaverBgVersion') || 0,
-      motionWakeEnabled: store.get('motionWakeEnabled') || false,
-      motionThreshold: store.get('motionThreshold') || 34,
       customTheme: store.get('customTheme') || null,
       // Kalendersteuerung
       calendarEnabled: store.get('calendarEnabled') || false,
@@ -282,13 +275,13 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     });
   });
 
-  // Speichert Verbindung UND/ODER Entitaeten-Auswahl UND/ODER Theme-Einstellung UND/ODER
-  // Screensaver-Einstellung unabhaengig voneinander: jeweils fehlende Felder bleiben unveraendert.
+  // Speichert Verbindung UND/ODER Entitaeten-Auswahl UND/ODER Theme-Einstellung unabhaengig
+  // voneinander: jeweils fehlende Felder bleiben unveraendert.
   app.post('/api/config', (req, res) => {
     const {
-      haUrl, token, title, entities, layout, sunEntity, screensaverSeconds, screensaverEntities,
-      screensaverLayout, notifyEntity, batteryThreshold, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
-      motionWakeEnabled, motionThreshold, notifyTitel, notifySekunden,
+      haUrl, token, title, entities, layout, sunEntity,
+      notifyEntity, batteryThreshold, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
+      notifyTitel, notifySekunden,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
@@ -307,9 +300,6 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (entities !== undefined) store.set('entities', entities);
     if (layout !== undefined) store.set('layout', layout);
     if (sunEntity !== undefined) store.set('sunEntity', sunEntity);
-    if (screensaverSeconds !== undefined) store.set('screensaverSeconds', screensaverSeconds);
-    if (screensaverEntities !== undefined) store.set('screensaverEntities', screensaverEntities);
-    if (screensaverLayout !== undefined) store.set('screensaverLayout', screensaverLayout);
     if (notifyEntity !== undefined) store.set('notifyEntity', notifyEntity);
     if (notifyTitel !== undefined) store.set('notifyTitel', String(notifyTitel || '').slice(0, 40));
     if (notifySekunden !== undefined) store.set('notifySekunden', Math.max(0, Math.min(600, parseInt(notifySekunden, 10) || 0)));
@@ -318,8 +308,6 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (nightStart !== undefined) store.set('nightStart', nightStart);
     if (nightEnd !== undefined) store.set('nightEnd', nightEnd);
     if (nightModeForceOn !== undefined) store.set('nightModeForceOn', nightModeForceOn);
-    if (motionWakeEnabled !== undefined) store.set('motionWakeEnabled', motionWakeEnabled);
-    if (motionThreshold !== undefined) store.set('motionThreshold', motionThreshold);
 
     if (calendarEnabled !== undefined) store.set('calendarEnabled', !!calendarEnabled);
     if (calendarEntity !== undefined) store.set('calendarEntity', String(calendarEntity || ''));
@@ -934,46 +922,9 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     }
   });
 
-  // --- Screensaver-Hintergrundbild: als Base64-Data-URL hochgeladen, direkt neben der
-  // Config-Datei auf der Platte gespeichert (kein separater Ordner noetig).
   function bgDir() { return path.dirname(store.path); }
-  function bgFilePath(ext) { return path.join(bgDir(), 'screensaver-bg' + ext); }
 
-  app.post('/api/screensaver/background', (req, res) => {
-    const { dataUrl } = req.body || {};
-    const match = dataUrl && dataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
-    if (!match) return res.status(400).json({ ok: false, error: 'Ungültiges Bildformat (JPEG, PNG oder WEBP erwartet)' });
-    try {
-      const oldExt = store.get('screensaverBgExt');
-      if (oldExt) { try { fs.unlinkSync(bgFilePath(oldExt)); } catch (e) { /* gab es evtl. nicht mehr */ } }
-      const ext = '.' + (match[1] === 'jpeg' ? 'jpg' : match[1]);
-      fs.writeFileSync(bgFilePath(ext), Buffer.from(match[2], 'base64'));
-      store.set('screensaverBgExt', ext);
-      store.set('screensaverBgVersion', Date.now());
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(500).json({ ok: false, error: String(err.message || err) });
-    }
-  });
-
-  app.get('/api/screensaver/background', (req, res) => {
-    const ext = store.get('screensaverBgExt');
-    if (!ext) return res.status(404).end();
-    const filePath = bgFilePath(ext);
-    if (!fs.existsSync(filePath)) return res.status(404).end();
-    res.sendFile(filePath);
-  });
-
-  app.post('/api/screensaver/background/remove', (req, res) => {
-    const ext = store.get('screensaverBgExt');
-    if (ext) { try { fs.unlinkSync(bgFilePath(ext)); } catch (e) { /* gab es evtl. nicht mehr */ } }
-    store.delete('screensaverBgExt');
-    store.delete('screensaverBgVersion');
-    res.json({ ok: true });
-  });
-
-  // --- Foto-Bereich-Karte: eigenes Bild pro Karte (nicht nur eine globale wie beim
-  // Screensaver) -- Karten-ID (z.B. "photo:1712345678") wird fuer den Dateinamen bereinigt.
+  // --- Foto-Bereich-Karte: eigenes Bild pro Karte -- Karten-ID (z.B. "photo:1712345678") wird fuer den Dateinamen bereinigt.
   function photoCardFilePath(cardId, ext) {
     const safeId = String(cardId).replace(/[^a-zA-Z0-9_-]/g, '_');
     return path.join(bgDir(), 'photo-card-' + safeId + ext);

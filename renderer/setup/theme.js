@@ -61,9 +61,6 @@ async function load() {
   $('nightStart').value = configRes.nightStart || '23:00';
   $('nightEnd').value = configRes.nightEnd || '06:30';
   $('nightForceOn').checked = !!configRes.nightModeForceOn;
-  $('motionEnabled').checked = !!configRes.motionWakeEnabled;
-  $('motionThreshold').value = configRes.motionThreshold || 34;
-  $('screensaverSeconds').value = configRes.screensaverSeconds || 0;
 
   // Kalendersteuerung
   $('calEnabled').checked = !!configRes.calendarEnabled;
@@ -321,11 +318,7 @@ function alleFelder() {
     welcomeImageEntity2: $('welcomeImage2Quelle').value === 'entity' ? $('welcomeImageEntity2').value : '',
     welcomeImageSeconds: zahl('welcomeImageSeconds', 8),
     welcomeTestmodus: $('welcomeTestmodus').checked,
-    welcomeTestSekunden: zahl('welcomeTestSekunden', 10),
-
-    motionWakeEnabled: $('motionEnabled').checked,
-    motionThreshold: zahl('motionThreshold', 0),
-    screensaverSeconds: zahl('screensaverSeconds', 0)
+    welcomeTestSekunden: zahl('welcomeTestSekunden', 10)
   };
 
   // Der Zugangscode NUR, wenn wirklich etwas eingegeben wurde. Ein leeres Feld heisst

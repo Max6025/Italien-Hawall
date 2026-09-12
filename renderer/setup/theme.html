@@ -13,7 +13,6 @@
     <div class="hawall-nav-links">
       <a href="index.html">Verbindung</a>
       <a href="editor.html">Karten</a>
-      <a href="screensaver.html">Screensaver</a>
       <a href="theme.html">Einstellungen</a>
       <a href="design-import.html">Design-Import</a>
       <a href="dashboards.html">Unterdashboards</a>
@@ -279,49 +278,6 @@
     <p class="hint-text" id="codeState"></p>
     <label>Neuer Code (mindestens 4 Zeichen)</label>
     <input type="password" id="setupCode" autocomplete="new-password" placeholder="leer lassen = unverändert">
-      </div>
-    </details>
-
-    <details class="einstellungsblock">
-      <summary>
-        <span class="eb-titel">Screensaver</span>
-        <span class="eb-unter">Nach welcher Ruhezeit</span>
-      </summary>
-      <div class="eb-inhalt">
-    <p class="note">Nach wie viel Zeit ohne Berührung der Screensaver erscheint. Das eigentliche
-      Aussehen richtest du auf der separaten <a href="screensaver.html">Screensaver-Seite</a> ein.</p>
-    <label>Erscheint nach</label>
-    <div style="display:flex; align-items:center; gap:0.6rem;">
-      <input type="number" id="screensaverSeconds" min="0" step="5" value="0" style="max-width:140px;">
-      <span style="color:var(--muted); font-size:0.85rem;">Sek. (0 = aus)</span>
-    </div>
-      </div>
-    </details>
-
-    <details class="einstellungsblock">
-      <summary>
-        <span class="eb-titel">Annäherungserkennung</span>
-        <span class="eb-unter">Aufwecken, wenn jemand davorsteht</span>
-      </summary>
-      <div class="eb-inhalt">
-    <p class="note">Nutzt die Frontkamera des Geräts, um zu erkennen, ob noch jemand vor dem
-      Bildschirm steht (per einfacher Bild-Differenz, keine Gesichtserkennung o.ä.). Läuft nur,
-      während der Bildschirm ohnehin schon wach ist – erkennt sie, dass niemand mehr da ist,
-      wird sofort der Screensaver gezeigt, statt auf die normale Wartezeit zu warten. Weckt den
-      Bildschirm selbst NICHT auf – das macht weiterhin ausschließlich eine Berührung. Es wird
-      nichts gespeichert oder übertragen – die Bilder bleiben ausschließlich lokal im
-      Arbeitsspeicher. Standardmäßig aus.</p>
-    <label><input type="checkbox" id="motionEnabled" style="width:auto; margin-right:0.5rem;">Annäherungserkennung aktivieren</label>
-    <label style="margin-top:1.2rem;">Empfindlichkeit</label>
-    <div style="display:flex; align-items:center; gap:0.8rem;">
-      <span style="font-size:0.8rem; color:var(--muted);">Empfindlich</span>
-      <input type="range" id="motionThreshold" min="12" max="70" step="2" value="34" style="flex:1;">
-      <span style="font-size:0.8rem; color:var(--muted);">Unempfindlich</span>
-    </div>
-    <p class="hint-text">Meldet sie zu oft/leicht "jemand da" (z.B. durch Lichtwechsel oder den eigenen Bildschirm),
-      den Regler nach rechts stellen. Erkennt sie eine Person zu spät/gar nicht, nach links.</p>
-    <p class="hint-text">Solange die Erkennung aktiv ist, zeigt ein kleiner grüner Punkt oben links auf dem
-      Wall Display an, ob gerade "jemand da" erkannt wird – praktisch zum Einstellen der Empfindlichkeit.</p>
       </div>
     </details>
 

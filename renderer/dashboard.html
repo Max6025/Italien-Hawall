@@ -8,7 +8,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body class="wandanzeige">
-  <div class="motion-indicator" id="motionIndicator" title="Annäherungserkennung: Anwesenheit erkannt"></div>
   <!-- Drei weiche Farbflecken, die sehr langsam wandern. Liegt HINTER allem (z-index:-1) und
        faengt keine Beruehrungen ab. -->
   <div class="lebendig" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -66,7 +65,6 @@
       <p>Verbindung ändern: Pfad <code>/setup/</code>.</p>
       <p>Update: Pfad <code>/setup/update.html</code>.</p>
       <p>Design, Ankündigungs-Box, Batteriewarnung, Nachtmodus: Pfad <code>/setup/theme.html</code>.</p>
-      <p>Screensaver: Pfad <code>/setup/screensaver.html</code>.</p>
       <p>Unterdashboards: Pfad <code>/setup/dashboards.html</code>.</p>
       <p>App beenden: <code>Strg+Alt+Q</code></p>
       <button class="close" id="modalClose">Schließen</button>
@@ -79,11 +77,6 @@
       <div id="batteryList"></div>
       <button class="close" id="batteryModalClose">Schließen</button>
     </div>
-  </div>
-
-  <div class="screensaver" id="screensaver">
-    <div class="ss-battery-banner" id="ssBatteryBanner"></div>
-    <div class="ss-grid" id="ssGrid"></div>
   </div>
 
   <div class="night-overlay" id="nightOverlay"></div>
@@ -172,9 +165,6 @@ async function loadConfig() {
   const r = await fetch(`${API}/api/config`);
   config = await r.json();
   if (currentDashboardId === 'main') $('title').textContent = config.title || 'Wall Display';
-  applyScreensaverBackground();
-  MOTION_THRESHOLD = config.motionThreshold || 34;
-  applyMotionWakeSetting();
   // Ohne eigenes Design greift das eingebaute "Ankunft" -- ab Werk aktiv, aber kein Zwang:
   // ein importiertes Design gewinnt, und "Design zuruecksetzen" landet wieder hier.
   DashboardRender.applyCustomTheme(config.customTheme || DashboardRender.DEFAULT_THEME);
@@ -209,24 +199,6 @@ function renderRoomTabs() {
   const el = $('zurueckKnopf');
   if (!el) return;
   el.hidden = currentDashboardId === 'main';
-}
-
-// Screensaver-Hintergrundbild: eigenes Foto statt der neutralen Theme-Farbe. Karten
-// bekommen ueber "has-bg-image" (siehe CSS) automatisch einen Dimm-Schleier fuer Lesbarkeit.
-let lastBgVersion = null;
-function applyScreensaverBackground() {
-  const el = $('screensaver');
-  if (!config || !config.screensaverBackground) {
-    el.style.backgroundImage = '';
-    el.classList.remove('has-bg-image');
-    lastBgVersion = null;
-    return;
-  }
-  if (config.screensaverBgVersion !== lastBgVersion) {
-    el.style.backgroundImage = `url(${API}/api/screensaver/background?v=${config.screensaverBgVersion})`;
-    lastBgVersion = config.screensaverBgVersion;
-  }
-  el.classList.add('has-bg-image');
 }
 
 async function loadStatus() {
@@ -769,7 +741,6 @@ async function refresh() {
     } else {
       await render();
     }
-    if (screensaverActive) renderScreensaver();
   }
 }
 
@@ -905,19 +876,15 @@ async function initDeviceBattery() {
 
 function checkDeviceBattery() {
   const btn = $('batteryWarnBtn');
-  const banner = $('ssBatteryBanner');
-  if (!batteryObj) { btn.style.display = 'none'; banner.classList.remove('show'); return; }
+  if (!batteryObj) { btn.style.display = 'none'; return; }
   const pct = Math.round(batteryObj.level * 100);
   const threshold = (config && config.batteryThreshold) || 20;
   const low = !batteryObj.charging && pct <= threshold;
   if (low) {
     btn.style.display = 'flex';
     btn.dataset.pct = pct;
-    banner.textContent = `🔋 Akku niedrig: ${pct}% – bitte Netzteil anschließen`;
-    banner.classList.add('show');
   } else {
     btn.style.display = 'none';
-    banner.classList.remove('show');
   }
 }
 
@@ -927,81 +894,10 @@ function showBatteryModal() {
   $('batteryModal').classList.add('show');
 }
 
-// --- Screensaver: bei Inaktivitaet werden die grossen Wetterkarten (Temperatur/Wind/Regen)
-// bzw. die gezielt ausgewaehlten Karten gross angezeigt; jede Beruehrung beendet ihn sofort. ---
-let idleTimer = null;
-let screensaverActive = false;
-
-function updateScreensaverClock() {
-  document.querySelectorAll('#ssGrid .card.type-clock').forEach(DashboardRender.renderClockNow);
-}
-
-async function renderScreensaver() {
-  const grid = $('ssGrid');
-  grid.innerHTML = '';
-  const layout = (config && config.screensaverLayout) || [];
-  if (!layout.length) {
-    grid.innerHTML = '<div class="empty">Kein Screensaver-Layout eingerichtet. /setup/screensaver.html auf einem anderen Gerät öffnen.</div>';
-    return;
-  }
-  for (const entry of layout) {
-    const type = entry.card_type || 'sensor';
-    const s = (type === 'clock' || type === 'energy') ? null : statesById[entry.entity_id];
-    if (type !== 'clock' && type !== 'energy' && !s) continue;
-    const span = resolveSpan(entry, type);
-    let history, forecast, forecastError, energy, waste, wasteError;
-    if (MIT_VERLAUF.includes(type)) history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
-    if (type === 'forecast') { const fr = await ensureForecast(entry.entity_id, (entry.settings || {}).forecastType); forecast = fr.forecast; forecastError = fr.error; }
-    if (type === 'waste') { const wr = await ensureWasteEvents(entry.entity_id); waste = wr.events; wasteError = wr.error; }
-    if (type === 'energy') {
-      const es = entry.settings || {};
-      energy = {
-        grid: statesById[es.gridEntity], gridReturn: statesById[es.gridReturnEntity],
-        solar: statesById[es.solarEntity], battery: statesById[es.batteryEntity],
-        batterySoc: statesById[es.batterySocEntity]
-      };
-    }
-    grid.appendChild(buildCard(entry.entity_id, s, type, span, {
-      editable: false, history, forecast, forecastError, energy, waste, wasteError, apiBase: API, settings: entry.settings || {}
-    }));
-  }
-}
-
-async function enterScreensaver() {
-  if (screensaverActive) return;
-  screensaverActive = true;
-  await renderScreensaver();
-  updateScreensaverClock();
-  $('screensaver').classList.add('show');
-  stopMotionWake(); // Kamera laeuft nur, waehrend der Bildschirm wach ist
-}
-
-function exitScreensaver() {
-  if (!screensaverActive) return;
-  hideScreensaverOnly();
-  startMotionWakeIfEnabled();
-}
-
-// Blendet den Screensaver rein visuell aus, OHNE die Kamera zu starten -- fuer Faelle wie
-// showNightBlack(), wo wir defensiv sicherstellen wollen, dass der Screensaver nicht sichtbar
-// bleibt, aber gerade NICHT aufwachen (die Kamera darf hier nicht anspringen). exitScreensaver()
-// selbst bleibt fuer echtes Aufwecken per Beruehrung reserviert.
-function hideScreensaverOnly() {
-  screensaverActive = false;
-  $('screensaver').classList.remove('show');
-}
-
-function resetIdleTimer() {
-  exitScreensaver();
-  clearTimeout(idleTimer);
-  const seconds = config ? (config.screensaverSeconds || 0) : 0;
-  if (seconds > 0) idleTimer = setTimeout(enterScreensaver, seconds * 1000);
-}
-
 // --- Nachtmodus: in einem konfigurierten Zeitfenster (z.B. 23:00-06:30) rein schwarzer,
 // inhaltsloser Bildschirm zum Energiesparen (kein Kartenrefresh waehrend dieser Zeit).
-// Beruehrung zeigt sofort das normale Dashboard (NICHT den Screensaver), nach kurzer
-// Inaktivitaet geht es automatisch zurueck ins Schwarz, solange die Nachtzeit andauert. ---
+// Beruehrung zeigt sofort das normale Dashboard, nach kurzer Inaktivitaet geht es automatisch
+// zurueck ins Schwarz, solange die Nachtzeit andauert. ---
 let nightActive = false;
 let nightWakeTimer = null;
 
@@ -1033,15 +929,12 @@ function setBrightnessSafe(pct) {
 }
 
 function showNightBlack() {
-  hideScreensaverOnly(); // nur die Anzeige wegnehmen -- wir gehen schlafen, nicht aufwachen, die Kamera darf hier nicht anspringen
   $('nightOverlay').classList.add('show');
   setBrightnessSafe(5);
-  stopMotionWake(); // Kamera laeuft nur, waehrend der Bildschirm wach ist
 }
 
 async function wakeFromNight() {
   if (!nightActive) return;
-  exitScreensaver(); // defensiv: der Screensaver darf beim Aufwecken nie sichtbar sein
   $('nightOverlay').classList.remove('show');
   setBrightnessSafe(100);
   clearTimeout(nightWakeTimer);
@@ -1051,13 +944,11 @@ async function wakeFromNight() {
   await refresh();
   nightActive = true;
   nightWakeTimer = setTimeout(showNightBlack, 10000); // 10s beruehrt -> danach wieder schwarz
-  startMotionWakeIfEnabled(); // ab jetzt wach -- Kamera darf wieder mitschauen
 }
 
 function enterNightMode() {
   if (nightActive) return;
   nightActive = true;
-  clearTimeout(idleTimer); // regulaerer Screensaver-Timer pausiert waehrend der Nacht
   showNightBlack();
 }
 
@@ -1067,9 +958,7 @@ function leaveNightMode() {
   clearTimeout(nightWakeTimer);
   $('nightOverlay').classList.remove('show');
   setBrightnessSafe(100);
-  resetIdleTimer(); // normaler Screensaver-Ablauf greift wieder
   refresh(); // Refresh war waehrend der Nacht pausiert -- sofort aktuell holen
-  startMotionWakeIfEnabled();
 }
 
 function checkNightMode() {
@@ -1080,165 +969,11 @@ function checkNightMode() {
 
 function onActivity() {
   if (nightActive) wakeFromNight();
-  else resetIdleTimer();
-}
-
-// --- Neues Verhalten der Praesenzerkennung (auf Wunsch): die Kamera weckt den Bildschirm
-// NIE von sich aus auf -- das macht ausschliesslich eine Beruehrung. Die Kamera laeuft nur,
-// waehrend der Bildschirm bereits wach ist (siehe stopMotionWake()/startMotionWakeIfEnabled()
-// in enterScreensaver/exitScreensaver/showNightBlack/wakeFromNight), und hat dort zwei Aufgaben:
-// 1) solange jemand erkannt wird, den normalen Screensaver-/Nacht-Timer immer wieder verlaengern
-//    (er kommt also nicht an, solange jemand da ist), 2) sobald "besetzt" zu "nicht besetzt"
-//    wechselt, SOFORT den Screensaver/die Nacht auslösen, statt auf den Timer zu warten.
-function isCurrentlyAsleep() {
-  return screensaverActive || ($('nightOverlay') && $('nightOverlay').classList.contains('show'));
-}
-
-function onPresenceContinues() {
-  if (isCurrentlyAsleep()) return; // Kamera sollte hier ohnehin nicht laufen -- defensiv
-  if (nightActive) {
-    clearTimeout(nightWakeTimer);
-    nightWakeTimer = setTimeout(showNightBlack, 10000);
-  } else {
-    clearTimeout(idleTimer);
-    const seconds = config ? (config.screensaverSeconds || 0) : 0;
-    if (seconds > 0) idleTimer = setTimeout(enterScreensaver, seconds * 1000);
-  }
-}
-
-function onPresenceLost() {
-  if (isCurrentlyAsleep()) return;
-  if (nightActive) showNightBlack();
-  else enterScreensaver();
 }
 
 ['pointerdown', 'pointermove', 'touchstart', 'mousedown', 'keydown', 'wheel'].forEach(evt => {
   document.addEventListener(evt, onActivity, { passive: true });
 });
-
-// --- Annaeherungserkennung: einfache Bild-Differenz ueber die Frontkamera. Weckt den
-// Bildschirm NICHT von sich aus auf (das macht nur eine Beruehrung) -- haelt ihn aber wach,
-// solange jemand erkannt wird, und legt ihn sofort schlafen, sobald niemand mehr da ist
-// (siehe onPresenceContinues()/onPresenceLost() weiter oben). Komplett lokal (Frame-Vergleich
-// im Speicher), es wird nichts gespeichert oder uebertragen. Standardmaessig aus, siehe
-// /setup/theme.html. ---
-let motionStream = null;
-let motionInterval = null;
-let motionVideo = null;
-let motionCtx = null;
-let motionBaseline = null; // langsam nachgefuehrter "leerer Raum"-Hintergrund
-let motionHitCount = 0;
-let motionMissCount = 0;
-let motionOccupied = false;
-const MOTION_W = 32, MOTION_H = 24;
-let MOTION_THRESHOLD = 34; // durchschnittliche Helligkeitsdifferenz pro Pixel (0-255) -- per Einstellung anpassbar (siehe /setup/theme.html)
-
-async function startMotionWake() {
-  if (motionStream) return; // laeuft schon
-  try {
-    motionStream = await navigator.mediaDevices.getUserMedia({ video: { width: 160, height: 120 }, audio: false });
-    motionVideo = document.createElement('video');
-    motionVideo.srcObject = motionStream;
-    motionVideo.muted = true;
-    motionVideo.playsInline = true;
-    await motionVideo.play();
-    const canvas = document.createElement('canvas');
-    canvas.width = MOTION_W;
-    canvas.height = MOTION_H;
-    motionCtx = canvas.getContext('2d', { willReadFrequently: true });
-    motionBaseline = null;
-    motionHitCount = 0;
-    motionMissCount = 0;
-    motionOccupied = false;
-    motionInterval = setInterval(sampleMotion, 400);
-  } catch (e) {
-    console.warn('Annäherungserkennung nicht verfügbar:', e.message);
-    stopMotionWake();
-  }
-}
-
-function stopMotionWake() {
-  if (motionInterval) { clearInterval(motionInterval); motionInterval = null; }
-  if (motionStream) { motionStream.getTracks().forEach(t => t.stop()); motionStream = null; }
-  motionVideo = null; motionCtx = null; motionBaseline = null; motionOccupied = false;
-  motionHitCount = 0; motionMissCount = 0;
-  $('motionIndicator').classList.remove('occupied');
-}
-
-// Echte Anwesenheitserkennung statt reiner Bewegungserkennung: das aktuelle Bild wird
-// gegen einen langsam nachgefuehrten "leerer Raum"-Hintergrund verglichen (nicht nur gegen
-// das letzte Bild) -- so bleibt eine ruhig stehende Person weiterhin erkannt, statt nach
-// ein paar Sekunden Stillstand wieder als "niemand da" zu gelten. Der Hintergrund wird nur
-// nachgefuehrt, WAEHREND niemand erkannt wird, damit eine stehende Person nicht selbst zum
-// Hintergrund verschmilzt.
-// Bereichsbasierte Erkennung statt eines einzelnen globalen Durchschnittswerts: das Bild wird
-// in ein Raster aus Zonen aufgeteilt, und eine Person zaehlt nur, wenn MEHRERE Zonen gleichzeitig
-// eine deutliche Abweichung zeigen. Das macht die Erkennung robuster gegen einzelne Stoerquellen
-// (Kamera-Rauschen in einer Bildecke, Lichtreflexion an einer Stelle) und gegen "verwaschene"
-// Ergebnisse, wenn eine Person nur einen Teil des Bilds einnimmt (ein globaler Durchschnitt
-// verwaesserte das bisher, je nach Abstand/Position schwankte die Erkennung stark).
-const MOTION_GRID_COLS = 4, MOTION_GRID_ROWS = 3;
-const MOTION_MIN_ACTIVE_ZONES = 2; // mind. 2 von 12 Zonen muessen "aktiv" sein
-
-function sampleMotion() {
-  if (!motionVideo || motionVideo.readyState < 2) return;
-  motionCtx.drawImage(motionVideo, 0, 0, MOTION_W, MOTION_H);
-  const frame = motionCtx.getImageData(0, 0, MOTION_W, MOTION_H).data;
-  if (!motionBaseline) { motionBaseline = Float64Array.from(frame); return; }
-
-  const zoneW = Math.ceil(MOTION_W / MOTION_GRID_COLS), zoneH = Math.ceil(MOTION_H / MOTION_GRID_ROWS);
-  const zoneSum = new Array(MOTION_GRID_COLS * MOTION_GRID_ROWS).fill(0);
-  const zoneCount = new Array(MOTION_GRID_COLS * MOTION_GRID_ROWS).fill(0);
-  for (let y = 0; y < MOTION_H; y++) {
-    for (let x = 0; x < MOTION_W; x++) {
-      const i = (y * MOTION_W + x) * 4;
-      const zone = Math.floor(y / zoneH) * MOTION_GRID_COLS + Math.floor(x / zoneW);
-      zoneSum[zone] += Math.abs(frame[i] - motionBaseline[i]);
-      zoneCount[zone]++;
-    }
-  }
-  let activeZones = 0;
-  for (let z = 0; z < zoneSum.length; z++) {
-    if (zoneSum[z] / zoneCount[z] > MOTION_THRESHOLD) activeZones++;
-  }
-
-  if (activeZones >= MOTION_MIN_ACTIVE_ZONES) {
-    motionHitCount++;
-    motionMissCount = 0;
-    if (motionHitCount >= 3) {
-      motionOccupied = true;
-      $('motionIndicator').classList.add('occupied');
-      onPresenceContinues(); // haelt den Bildschirm wach, solange die Anwesenheit anhaelt
-    }
-  } else {
-    motionHitCount = 0;
-    motionMissCount++;
-    // Symmetrische Traegheit: erst nach 3 aufeinanderfolgenden "niemand da"-Messungen wirklich
-    // als weg werten (vorher reichte EINE einzelne schwache Messung -- dadurch verschwand die
-    // Erkennung manchmal kurz, obwohl noch jemand da war).
-    if (motionMissCount >= 3) {
-      const wasOccupied = motionOccupied;
-      motionOccupied = false;
-      $('motionIndicator').classList.remove('occupied');
-      if (wasOccupied) onPresenceLost(); // Uebergang besetzt -> nicht besetzt -- sofort schlafen legen
-      for (let i = 0; i < frame.length; i += 4) {
-        motionBaseline[i] = motionBaseline[i] * 0.9 + frame[i] * 0.1; // Hintergrund langsam nachfuehren
-      }
-    }
-  }
-}
-
-// Startet die Kamera nur, wenn die Einstellung an ist UND der Bildschirm gerade wach ist --
-// die Kamera soll (auf Wunsch) nicht laufen, waehrend geschlafen wird.
-function startMotionWakeIfEnabled() {
-  if (config && config.motionWakeEnabled && !isCurrentlyAsleep()) startMotionWake();
-}
-
-function applyMotionWakeSetting() {
-  if (!config || !config.motionWakeEnabled || isCurrentlyAsleep()) stopMotionWake();
-  else startMotionWake();
-  $('motionIndicator').classList.toggle('relevant', !!(config && config.motionWakeEnabled));
-}
 
 /**
  * Schickt einen Dienstaufruf an Home Assistant. Liefert true, wenn er angekommen ist.
@@ -1587,7 +1322,6 @@ function showPauseToast() {
 (async () => {
   updateClock();
   setInterval(updateClock, 1000 * 30);
-  setInterval(() => { if (screensaverActive) updateScreensaverClock(); }, 1000 * 20);
   await loadConfig();
 
   // Steuerungszustand einmal holen und danach auf Aenderungen lauschen.
@@ -1605,7 +1339,6 @@ function showPauseToast() {
   checkNightMode();
   initDeviceBattery();
   await refresh(); // immer, auch nachts -- fuer Batteriewarnung/Ankuendigungs-Box; Karten-Rendering pausiert intern
-  resetIdleTimer();
 
   // Adaptives Intervall statt festem setInterval: 5s tagsueber, 30s nachts (Energiesparen).
   //

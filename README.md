@@ -25,8 +25,7 @@ können auf demselben Gerät nebeneinander laufen.
 - **Zugangscode** für die Einrichtungsseite
 - **Updates nur auf Knopfdruck** und nur mit den geänderten Teilen — die Anwendung
   kontaktiert GitHub von sich aus nie
-- das komplette Karten-Dashboard von HA Wall Display: Editor, Unterdashboards, Themes,
-  Screensaver (standardmäßig aus), Annäherungserkennung
+- das komplette Karten-Dashboard von HA Wall Display: Editor, Unterdashboards, Themes
 
 ## Installation
 

@@ -783,9 +783,8 @@
   // Aktualisiert Uhrzeit/Datum einer Uhr-Karte -- wird beim Bauen einmal aufgerufen
   // und kann von aussen periodisch erneut aufgerufen werden (Karte bleibt bestehen).
   // Das Format haengt an der Karte, nicht am Modul. renderClockNow wird auch als
-  // forEach-Rueckruf uebergeben (dashboard.html, screensaver.js) -- deshalb liest die Funktion
-  // die Einstellungen aus dem Element statt aus einem zweiten Argument, das dort niemand
-  // uebergeben koennte.
+  // forEach-Rueckruf uebergeben -- deshalb liest die Funktion die Einstellungen aus dem
+  // Element statt aus einem zweiten Argument, das dort niemand uebergeben koennte.
   function renderClockNow(card) {
     let opt = {};
     try { opt = JSON.parse(card.dataset.uhr || '{}'); } catch (e) { opt = {}; }
@@ -1790,8 +1789,8 @@
       card.appendChild(handle);
 
       if (opts.freeMove) {
-        // Screensaver: Griff verschiebt die Karte frei auf feste x/y-Positionen statt
-        // sie in eine Liste einzusortieren -- Position bleibt danach fix liegen.
+        // Der Griff verschiebt die Karte frei auf feste x/y-Positionen, statt sie in eine
+        // Liste einzusortieren -- die Position bleibt danach fix liegen.
         card.draggable = false;
         handle.style.cursor = 'grab';
         if (cb.onMoveStart) {
