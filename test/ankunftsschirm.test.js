@@ -16,7 +16,6 @@ const STUNDE = 3600000;
 const BEGINN = new Date(2026, 8, 12, 16, 0, 0);          // 12.09.2026, 16:00 Ortszeit
 const START = BEGINN.toISOString();
 const FENSTER = { start: START, end: new Date(2026, 8, 14, 12, 0, 0).toISOString() };
-const beiUhrzeit = (iso) => new Date(iso);
 /** Ortszeit-Zeitpunkt, n Stunden nach Terminbeginn. Der erste Tag endet nach 8 Stunden. */
 const nachStunden = (n) => new Date(BEGINN.getTime() + n * STUNDE);
 
@@ -25,7 +24,7 @@ const basis = (ueberschreiben) => Object.assign({
   anzeigefenster: FENSTER,
   verworfenFuer: '',
   stunden: 5,
-  jetzt: beiUhrzeit('2026-09-12T14:30:00.000Z')
+  jetzt: nachStunden(0.5)
 }, ueberschreiben);
 
 test('Bei laufendem Termin erscheint er', () => {
@@ -46,20 +45,21 @@ test('Weggetippt bleibt weggetippt -- fuer genau dieses Anzeigefenster', () => {
 
 test('Beim NAECHSTEN Termin erscheint er wieder', () => {
   // Anderes Fenster, anderer Beginn -- der alte Verworfen-Eintrag darf nicht mehr greifen.
-  const naechstes = { start: '2026-09-19T14:00:00.000Z', end: '2026-09-21T10:00:00.000Z' };
+  const naechsterBeginn = new Date(2026, 8, 19, 16, 0, 0);
+  const naechstes = { start: naechsterBeginn.toISOString(), end: new Date(2026, 8, 21, 12, 0, 0).toISOString() };
   const s = sollAnzeigen(basis({
     anzeigefenster: naechstes,
     verworfenFuer: START,
-    jetzt: beiUhrzeit('2026-09-19T14:30:00.000Z')
+    jetzt: new Date(naechsterBeginn.getTime() + 0.5 * STUNDE)
   }));
   assert.strictEqual(s, true);
 });
 
 test('Nach Ablauf der Anzeigedauer verschwindet er', () => {
-  // 5 Stunden ab 14:00 -- um 19:01 ist Schluss.
-  assert.strictEqual(sollAnzeigen(basis({ jetzt: beiUhrzeit('2026-09-12T18:59:00.000Z') })), true);
-  assert.strictEqual(sollAnzeigen(basis({ jetzt: beiUhrzeit('2026-09-12T19:00:00.000Z') })), false);
-  assert.strictEqual(sollAnzeigen(basis({ jetzt: beiUhrzeit('2026-09-12T19:30:00.000Z') })), false);
+  // 5 Stunden ab Terminbeginn -- danach ist Schluss, auf die Minute.
+  assert.strictEqual(sollAnzeigen(basis({ jetzt: nachStunden(4.9) })), true);
+  assert.strictEqual(sollAnzeigen(basis({ jetzt: nachStunden(5) })), false);
+  assert.strictEqual(sollAnzeigen(basis({ jetzt: nachStunden(5.5) })), false);
 });
 
 test('Dauer 0 heisst "bis zum Wegtippen", nicht "gar nicht"', () => {
@@ -273,7 +273,7 @@ test('Erzwungen schlaegt den Verworfen-Zustand', () => {
 });
 
 test('Erzwungen schlaegt die abgelaufene Anzeigedauer', () => {
-  const p = basis({ jetzt: beiUhrzeit('2026-09-13T22:00:00.000Z') });
+  const p = basis({ jetzt: nachStunden(30) });   // Dauer laengst vorbei, und schon der zweite Tag
   assert.strictEqual(sollAnzeigen(Object.assign(p, { erzwungenBis: nachPruefuhr(p, 10) })), true);
 });
 
