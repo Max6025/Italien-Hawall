@@ -11,7 +11,7 @@ Projekt, siehe [ADR 0001](docs/adr/0001-eigenes-projekt-statt-einstellung-in-haw
 - [CONTEXT.md](CONTEXT.md) — das Glossar. **Panel** ist das Gerät, **Wall Display** die Anzeige;
   **Panel aus** ist echtes Abschalten, **Nachtschwarz** nur ein Overlay. Diese Unterscheidungen
   ernst nehmen, sie waren die Ursache der meisten Missverständnisse beim Entwurf.
-- [docs/adr/](docs/adr/) — vier Entscheidungen, die im Code wie Versehen aussehen und keine sind.
+- [docs/adr/](docs/adr/) — fünf Entscheidungen, die im Code wie Versehen aussehen und keine sind.
 
 ## Architektur
 
@@ -25,6 +25,7 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `control/controller.js` | Zustandsautomat; die Rangfolge steht vollständig in `decide()` |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
 | `server/dashboard-austausch.js` | Dashboards als Datei aus- und eingeben; Prüfung beim Import |
+| `server/ha-live.js` | Dauerverbindung zu HA; meldet jede Zustandsänderung weiter |
 | `renderer/dashboard.html` | Anzeige; empfängt den Steuerungszustand per IPC, entscheidet nichts selbst |
 | `renderer/shared/ankunftsschirm.js` | Ankunftsschirm: `sollAnzeigen()` ist reine Entscheidung ohne DOM und ohne Uhr, der Rest ist Anzeige |
 | `renderer/shared/dashboard-render.js` | Kartenkatalog und Rendering; enthält auch das eingebaute Design `DEFAULT_THEME` |
@@ -255,6 +256,26 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   Test prüft, dass die Anleitung **genau** die Arten nennt, die der Import akzeptiert. Eine
   Anleitung, die etwas vorschlägt, das beim Einspielen abgelehnt wird, ist schlimmer als keine.
 
+- **Push und Abruf sind kein Entweder-oder.** `ha-live.js` hält eine WebSocket-Verbindung zu
+  Home Assistant offen, damit eine Änderung aus der HA-App in Sekundenbruchteilen auf der Wand
+  steht. Der regelmäßige Abruf bleibt trotzdem — er läuft nur seltener, solange die Verbindung
+  steht, und geht von allein wieder auf den kurzen Takt, wenn sie abbricht. Wer den Abruf
+  „weil es jetzt ja Push gibt" entfernt, baut genau den Fehler ein, den
+  [ADR 0002](docs/adr/0002-kalender-abrufen-statt-benachrichtigen.md) beschreibt. Begründung
+  vollständig in [ADR 0005](docs/adr/0005-zustaende-schieben-und-trotzdem-abrufen.md).
+- **Ein Zeitgeber in einem Modul, das Tests laden, muss `unref()`.** `HaLive` hält drei davon
+  (Rückfall, Wiederholung, Ping). Ohne `unref()` beendet sich `node --test` nicht mehr: Der
+  Lauf ist fertig, alle Tests grün, und der Prozess hängt bis zum Zeitlimit. Von außen sieht
+  das aus wie ein hängender Test, nicht wie ein Zeitgeber. Zusätzlich hängt die Instanz als
+  `app.haLive` am Express-Objekt — genauso wie `app.server` —, damit ein Test sie stoppen kann.
+- **Ein selbst geschalteter Wert muss stehen bleiben, bis HA ihn bestätigt.** Sonst springt die
+  Anzeige: 23 Grad gedrückt, 23 angezeigt, nächste Meldung bringt die alten 22, die Zahl hüpft
+  zurück. `erwarteteWerte` in `dashboard.html` hält ihn bis zu zwanzig Sekunden fest. Zahlen
+  werden dabei nur **ungefähr** verglichen — Home Assistant rechnet Helligkeit von Prozent in
+  0–255 und zurück, ein exakter Vergleich wäre nie erfüllt und die Erwartung liefe immer ins
+  Zeitlimit. Nach Ablauf hat Home Assistant das letzte Wort: Ein Befehl, der nie ankam, darf
+  nicht dauerhaft als Wahrheit an der Wand stehen.
+
 ## Design
 
 **Farbe ist Akzent, nicht Fläche.** Eine Karte bekommt Farbe ausschließlich über
@@ -294,8 +315,8 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-229 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm
-und den PowerShell-Vorspann.
+240 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm,
+die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
 Neue Regeln in `decide()` gehören durch einen Test abgedeckt — dort steckt die Logik. Aber die

@@ -9,6 +9,7 @@ const austausch = require('./dashboard-austausch');
 // seinerzeit vom Fenster geloest) -- so gibt es die Liste nur EINMAL, statt sie hier ein
 // zweites Mal zu pflegen und beim naechsten neuen Kartentyp zu vergessen.
 const { CARD_TYPES } = require('../renderer/shared/dashboard-render.js');
+const { HaLive } = require('./ha-live');
 
 // Domains, die keine sinnvollen Wall-Display-Karten sind (Helfer/System-Entitaeten)
 // -- werden weder im Editor angeboten noch als Karten dargestellt.
@@ -299,6 +300,9 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (!finalHaUrl || !finalToken) return res.status(400).json({ ok: false, error: 'haUrl und token erforderlich' });
     store.set('haUrl', finalHaUrl);
     store.set('token', finalToken);
+    // Adresse oder Token koennen sich geaendert haben -- die Live-Verbindung haengt sonst
+    // weiter an der alten und meldet nie wieder etwas.
+    if (haLive) haLive.neuVerbinden();
     if (title !== undefined) store.set('title', title);
     if (entities !== undefined) store.set('entities', entities);
     if (layout !== undefined) store.set('layout', layout);
@@ -807,6 +811,52 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (onConfigSaved) onConfigSaved();
   });
 
+  // --- Zustandsaenderungen sofort weiterreichen -------------------------------------------------
+  //
+  // Die Anzeige fragt die Zustaende ohnehin regelmaessig ab. Das ist das Netz; hier kommt die
+  // Abkuerzung: Aendert jemand etwas in der Home-Assistant-App, weiss das Panel es in
+  // Sekundenbruchteilen statt beim naechsten Abruf.
+  //
+  // Weitergereicht wird ueber Server-Sent Events, nicht ueber einen zweiten WebSocket: Die
+  // Anzeige spricht ohnehin nur HTTP mit diesem Server, EventSource verbindet sich nach einem
+  // Abbruch von selbst wieder, und es geht nur in eine Richtung -- mehr braucht es nicht.
+
+  const liveHoerer = new Set();
+
+  const haLive = new HaLive({
+    getConfig: () => ({ haUrl: store.get('haUrl'), token: store.get('token') }),
+    onAenderung: (aenderung) => {
+      const zeile = 'data: ' + JSON.stringify(aenderung) + '\n\n';
+      for (const res of liveHoerer) {
+        try { res.write(zeile); } catch (e) { liveHoerer.delete(res); }
+      }
+    },
+    onStatus: (verbunden) => {
+      const zeile = 'event: status\ndata: ' + JSON.stringify({ verbunden }) + '\n\n';
+      for (const res of liveHoerer) {
+        try { res.write(zeile); } catch (e) { liveHoerer.delete(res); }
+      }
+    },
+    log: (text) => console.log('[HA-Live] ' + text)
+  });
+  haLive.start();
+
+  app.get('/api/ha/live', (req, res) => {
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      // Ohne das puffert mancher Zwischenspeicher den Strom und nichts kommt an.
+      'X-Accel-Buffering': 'no'
+    });
+    res.flushHeaders();
+    // Sofort sagen, woran man ist -- sonst weiss die Anzeige nicht, ob sie sich auf die
+    // Verbindung verlassen kann und wie oft sie selbst abfragen muss.
+    res.write('event: status\ndata: ' + JSON.stringify({ verbunden: haLive.istVerbunden() }) + '\n\n');
+    liveHoerer.add(res);
+    req.on('close', () => liveHoerer.delete(res));
+  });
+
   // --- Dashboards aus- und eingeben ------------------------------------------------------------
   //
   // Eine Datei, die man weitergeben, sichern und in einem Chatfenster bearbeiten kann. Das
@@ -1001,11 +1051,13 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
   });
 
   // Der HTTP-Server haengt am app-Objekt, damit Tests ihn wieder schliessen koennen -- ohne das
-  // bleibt der Node-Prozess nach einem Test ewig offen.
+  // bleibt der Node-Prozess nach einem Test ewig offen. Fuer die Live-Verbindung gilt dasselbe:
+  // Sie versucht sonst im Hintergrund weiter, Home Assistant zu erreichen.
   app.server = app.listen(port, '0.0.0.0', () => {
     console.log(`Setup-Server laeuft auf Port ${port}`);
   });
 
+  app.haLive = haLive;
   return app;
 }
 

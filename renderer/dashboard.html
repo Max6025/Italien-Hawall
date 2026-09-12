@@ -458,15 +458,76 @@ async function ensureWasteEvents(entityId) {
  * mit dem, was die Anlage wirklich sagt. Falsch liegt er nur, wenn der Befehl gar nicht
  * ankam -- und das meldet der Knopf ohnehin mit einem Kreuz.
  */
+// Was gerade geschaltet wurde und worauf Home Assistant noch nicht geantwortet hat.
+//
+// Ohne dieses Gedaechtnis springt die Anzeige: Man drueckt auf 23 Grad, die Karte zeigt 23,
+// der naechste Abruf bringt noch die alten 22 -- und die Zahl huepft zurueck, bis HA
+// nachgezogen hat. Bei fuenf Sekunden Takt sah man das frueher selten, bei Push sieht man es
+// jedes Mal.
+const erwarteteWerte = new Map();
+
+// Wie lange an einer Erwartung festgehalten wird. Lang genug fuer eine traege Klimaanlage,
+// kurz genug, dass ein Geraet, das den Befehl verschluckt hat, nicht ewig falsch angezeigt
+// wird. Danach gilt wieder, was Home Assistant sagt -- auch wenn es einem nicht gefaellt.
+const ERWARTUNG_MS = 20000;
+
 function zustandVorwegnehmen(entityId, aenderung) {
   const alt = statesById[entityId];
   if (!alt) return;
-  statesById[entityId] = Object.assign({}, alt, {
+  const neu = Object.assign({}, alt, {
     state: aenderung.state !== undefined ? aenderung.state : alt.state,
     attributes: Object.assign({}, alt.attributes, aenderung.attributes || {})
   });
+  statesById[entityId] = neu;
+  erwarteteWerte.set(entityId, { aenderung, bis: Date.now() + ERWARTUNG_MS });
   aufbauErzwingen = true;
   render();
+}
+
+/** Stimmt der gemeldete Zustand mit dem ueberein, was wir geschaltet haben? */
+function erwartungErfuellt(erwartung, gemeldet) {
+  if (!gemeldet) return false;
+  const a = erwartung.aenderung;
+  if (a.state !== undefined && String(gemeldet.state) !== String(a.state)) return false;
+  for (const [schluessel, wert] of Object.entries(a.attributes || {})) {
+    const ist = (gemeldet.attributes || {})[schluessel];
+    // Zahlen nur ungefaehr vergleichen: Home Assistant rechnet Helligkeit von Prozent in
+    // 0-255 und zurueck, dabei geht ein Punkt verloren. Ein exakter Vergleich waere nie erfuellt.
+    if (typeof wert === 'number' && typeof ist === 'number') {
+      if (Math.abs(ist - wert) > 1.01) return false;
+    } else if (String(ist) !== String(wert)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Haelt geschaltete Werte fest, bis Home Assistant sie bestaetigt.
+ *
+ * Aufgerufen, nachdem neue Zustaende angekommen sind -- egal ob per Abruf oder ueber die
+ * Live-Verbindung.
+ */
+function erwartungenAnwenden() {
+  const jetzt = Date.now();
+  for (const [entityId, erwartung] of erwarteteWerte) {
+    const gemeldet = statesById[entityId];
+    if (erwartungErfuellt(erwartung, gemeldet)) {
+      erwarteteWerte.delete(entityId);      // HA ist nachgezogen
+      continue;
+    }
+    if (jetzt > erwartung.bis) {
+      erwarteteWerte.delete(entityId);      // aufgegeben -- HA hat das letzte Wort
+      continue;
+    }
+    // Noch nicht bestaetigt und noch nicht abgelaufen: bei unserem Wert bleiben.
+    if (gemeldet) {
+      statesById[entityId] = Object.assign({}, gemeldet, {
+        state: erwartung.aenderung.state !== undefined ? erwartung.aenderung.state : gemeldet.state,
+        attributes: Object.assign({}, gemeldet.attributes, erwartung.aenderung.attributes || {})
+      });
+    }
+  }
 }
 
 function dashboardRueckrufe() {
@@ -569,6 +630,11 @@ async function unterleisteAufbauen(entry) {
 // schnell dreihundert Entitaeten, und die allermeisten stehen auf keiner Karte.
 let letzteSignatur = null;
 
+// Welche Entitaeten gerade auf dem Bildschirm stehen -- die Live-Verbindung filtert danach.
+// Die Deklaration gehoert VOR render(): `let` hat keine Hochziehung, und eine Zuweisung vor der
+// Deklarationszeile wirft einen ReferenceError, sobald jemand render() frueher aufruft.
+let letzteAnzeigeEntitaeten = null;
+
 function zustandsSignatur(layout) {
   return layout.map(e => {
     const s = statesById[e.entity_id];
@@ -592,6 +658,22 @@ async function render() {
 
   // Nichts geaendert, nichts zu tun. Der Vergleich kostet den Bruchteil dessen, was ein
   // Neuaufbau kostet -- und bei fuenf Sekunden Takt faellt das ins Gewicht.
+  // Welche Entitaeten gerade zu sehen sind -- die Live-Verbindung filtert danach.
+  letzteAnzeigeEntitaeten = new Set(layout.map(e => e.entity_id));
+  // Die Energie-Karte zeigt fremde Entitaeten an; ohne sie kaeme deren Aenderung nie durch.
+  layout.forEach(e => {
+    const st = e.settings || {};
+    ['gridEntity', 'gridReturnEntity', 'solarEntity', 'batteryEntity', 'batterySocEntity',
+     'welcomeImageEntity'].forEach(f => { if (st[f]) letzteAnzeigeEntitaeten.add(st[f]); });
+    (st.gateButtons || []).forEach(b => { if (b.entity) letzteAnzeigeEntitaeten.add(b.entity); });
+    (st.tiles || []).forEach(t => {
+      if (t.mediaPlayerEntity) letzteAnzeigeEntitaeten.add(t.mediaPlayerEntity);
+      if (t.entity) letzteAnzeigeEntitaeten.add(t.entity);
+    });
+  });
+  if (config && config.sunEntity) letzteAnzeigeEntitaeten.add(config.sunEntity);
+  if (config && config.notifyEntity) letzteAnzeigeEntitaeten.add(config.notifyEntity);
+
   const signatur = zustandsSignatur(layout);
   if (!aufbauErzwingen && grid.children.length && signatur === letzteSignatur) return;
   letzteSignatur = signatur;
@@ -677,6 +759,7 @@ async function refresh() {
   const data = await r.json();
   if (!data.ok) return;
   statesById = Object.fromEntries(data.states.map(s => [s.entity_id, s]));
+  erwartungenAnwenden();
   applyTheme();
   applyNotify();
   if (!nightActive) {
@@ -1295,6 +1378,58 @@ function ankunftsschirmAufbauen() {
 // Zeigt bei einem mehrtaegigen Termin, der wievielte Tag laeuft -- und hebt den letzten
 // hervor. Bei eintaegigen Terminen erscheint nichts: Da waere "Tag 1 von 1" kein Hinweis,
 // sondern Rauschen auf einer Wand, die man den ganzen Tag ansieht.
+// --- Live-Verbindung zu Home Assistant ---------------------------------------------------------
+//
+// Der regelmaessige Abruf bleibt das Netz -- ein verpasster Anstoss wird nie nachgeholt, ein
+// verpasster Abruf schon (siehe ADR 0002). Hier kommt die Abkuerzung: Aendert jemand etwas in
+// der Home-Assistant-App, steht es in Sekundenbruchteilen auf der Wand statt beim naechsten
+// Abruf.
+//
+// Solange die Verbindung steht, darf der Abruf seltener laufen. Bricht sie ab, geht er wieder
+// auf den kurzen Takt -- ohne dass jemand etwas tun muss.
+let liveVerbunden = false;
+let liveQuelle = null;
+let liveSammler = null;
+
+function liveVerbinden() {
+  if (liveQuelle) return;
+  try {
+    liveQuelle = new EventSource(`${API}/api/ha/live`);
+  } catch (e) {
+    return;   // kein EventSource -- dann bleibt es beim Abruf
+  }
+
+  liveQuelle.addEventListener('status', (e) => {
+    try { liveVerbunden = !!JSON.parse(e.data).verbunden; } catch (err) { /* egal */ }
+  });
+
+  liveQuelle.onmessage = (e) => {
+    let aenderung;
+    try { aenderung = JSON.parse(e.data); } catch (err) { return; }
+    if (!aenderung || !aenderung.entity_id) return;
+    // Nur, was auf DIESEM Dashboard steht. Ein Haushalt meldet hunderte Aenderungen pro
+    // Minute; fuer die allermeisten gibt es hier keine Karte.
+    if (!betrifftDiesesDashboard(aenderung.entity_id)) return;
+
+    // Nicht bei jeder einzelnen Meldung neu zeichnen: Eine Automation schaltet gern fuenf
+    // Dinge in derselben Sekunde, und fuenf Neuaufbauten hintereinander sieht man.
+    clearTimeout(liveSammler);
+    liveSammler = setTimeout(() => { aufbauErzwingen = true; refresh(); }, 120);
+  };
+
+  liveQuelle.onerror = () => {
+    liveVerbunden = false;
+    // EventSource verbindet sich selbst wieder -- hier nur merken, dass der Abruf wieder
+    // haeufiger laufen muss.
+  };
+}
+
+/** Steht die Entitaet auf dem gerade angezeigten Dashboard? */
+function betrifftDiesesDashboard(entityId) {
+  if (!letzteAnzeigeEntitaeten) return true;   // noch nichts gezeichnet: lieber einmal zuviel
+  return letzteAnzeigeEntitaeten.has(entityId);
+}
+
 // --- Von allein zurueck aufs Hauptdashboard ----------------------------------------------------
 //
 // Wer auf einem Unterdashboard etwas nachgesehen hat, laesst es dort stehen. Beim naechsten
@@ -1480,8 +1615,12 @@ function showPauseToast() {
   // Haeufiger abzufragen kostet hier fast nichts, weil der Neuaufbau nur noch stattfindet,
   // wenn sich wirklich etwas geaendert hat (siehe zustandsSignatur). Das Abrufen selbst ist
   // eine lokale Anfrage im eigenen Netz; der teure Teil war immer das Neuzeichnen.
+  liveVerbinden();
   function scheduleRefresh() {
-    setTimeout(async () => { await refresh(); scheduleRefresh(); }, nightActive ? 30000 : 5000);
+    // Steht die Live-Verbindung, ist der Abruf nur noch das Netz -- dann genuegt er seltener.
+    // Ist sie weg, uebernimmt er wieder allein und laeuft entsprechend haeufig.
+    const takt = nightActive ? (liveVerbunden ? 60000 : 30000) : (liveVerbunden ? 20000 : 5000);
+    setTimeout(async () => { await refresh(); scheduleRefresh(); }, takt);
   }
   scheduleRefresh();
 

@@ -35,6 +35,7 @@ const store = fakeStore({
   dashboards: [{ id: 'db_test', name: 'Küche', type: 'cards', layout: HAUPT }]
 });
 let server;
+let live;
 const U = (pfad) => `http://127.0.0.1:${PORT}${pfad}`;
 
 test.before(() => {
@@ -44,9 +45,14 @@ test.before(() => {
     controller: null
   });
   server = app.server;
+  live = app.haLive;
 });
 
-test.after(() => { if (server) server.close(); });
+test.after(() => {
+  if (server) server.close();
+  // Ohne das versucht die Live-Verbindung im Hintergrund weiter, Home Assistant zu erreichen.
+  if (live) live.stop();
+});
 
 test('Ein Unterdashboard laesst sich exportieren', async () => {
   const r = await fetch(U('/api/dashboards/db_test/export'));

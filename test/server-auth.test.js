@@ -32,6 +32,7 @@ function lanAddress() {
 const PORT = 18788;
 const store = fakeStore({ haUrl: 'http://ha.invalid', token: 'geheim' });
 let server;
+let live;
 
 test.before(() => {
   const app = startServer({
@@ -43,10 +44,13 @@ test.before(() => {
     controller: null
   });
   server = app.server;
+  live = app.haLive;
 });
 
 test.after(() => {
   if (server) server.close();
+  // Ohne das versucht die Live-Verbindung im Hintergrund weiter, Home Assistant zu erreichen.
+  if (live) live.stop();
 });
 
 test('Ohne gesetzten Code ist die Ersteinrichtung erreichbar', async () => {
