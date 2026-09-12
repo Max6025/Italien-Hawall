@@ -1212,26 +1212,35 @@ body.ohne-bewegung .lebendig { display: none; }
 .hvac-symbol.hvac-laeuft .flamme-innen {
   transform-origin: 50% 80%;
   animation: flamme-zucken 1.1s ease-in-out infinite alternate;
+  animation-delay: var(--ph-zucken, 0s);
 }
 .hvac-symbol.hvac-laeuft .flamme-aussen {
   transform-origin: 50% 85%;
   animation: flamme-atmen 2.3s ease-in-out infinite alternate;
+  animation-delay: var(--ph-atmen, 0s);
 }
 @keyframes flamme-zucken { from { transform: scaleY(.82) translateY(1px); opacity: .75; }
                            to   { transform: scaleY(1.12); opacity: 1; } }
 @keyframes flamme-atmen  { from { transform: scale(.97); } to { transform: scale(1.03); } }
+
+/* Die Startversaetze (--ph-*) kommen aus hvacPhasenStil() in dashboard-render.js und sind
+   aus der Uhrzeit gerechnet. Ohne sie faengt jede Animation nach einem Neuaufbau der Karte
+   wieder bei null an -- die Flocke sprang mitten in der Drehung zurueck. Wer hier eine Dauer
+   aendert, muss sie dort mitaendern: Die Zahl steht an beiden Stellen. */
 
 /* Kuehlen: die Flocke dreht sich langsam. Eine ganze Umdrehung dauert zwoelf Sekunden --
    schneller wirkt es hektisch, und eine Klimaanlage ist nichts Hektisches. */
 .hvac-symbol.hvac-laeuft .flocke {
   transform-origin: 50% 50%;
   animation: flocke-drehen 12s linear infinite;
+  animation-delay: var(--ph-flocke, 0s);
 }
 @keyframes flocke-drehen { to { transform: rotate(360deg); } }
 
 /* Entfeuchten: ein Tropfen loest sich und faellt. */
 .hvac-symbol.hvac-laeuft .tropfen {
   animation: tropfen-fallen 2.4s ease-in infinite;
+  animation-delay: var(--ph-tropfen, 0s);
 }
 @keyframes tropfen-fallen {
   0%, 55% { opacity: 0; transform: translateY(-2px); }
@@ -1243,6 +1252,7 @@ body.ohne-bewegung .lebendig { display: none; }
 .hvac-symbol.hvac-laeuft .luefter {
   transform-origin: 50% 50%;
   animation: flocke-drehen 3.2s linear infinite;
+  animation-delay: var(--ph-luefter, 0s);
 }
 
 /* Automatik: sanftes Pulsieren, weil die Anlage selbst entscheidet, was sie gerade tut. */
@@ -1250,6 +1260,7 @@ body.ohne-bewegung .lebendig { display: none; }
 .card.type-climate.klima-auto .hvac-symbol.hvac-laeuft svg,
 .card.type-climate.klima-heat_cool .hvac-symbol.hvac-laeuft svg {
   animation: auto-pulsieren 3.4s ease-in-out infinite alternate;
+  animation-delay: var(--ph-auto, 0s);
 }
 @keyframes auto-pulsieren { from { opacity: .62; } to { opacity: 1; } }
 

@@ -520,6 +520,53 @@
     heat_cool: 'hvacAuto'
   };
 
+  // Die Bewegung haengt an der UHR, nicht am Alter des Elements.
+  //
+  // Eine Karte wird bei jeder Aenderung neu gebaut -- und seit die Live-Verbindung besteht,
+  // passiert das oft und unregelmaessig. Eine CSS-Animation faengt in einem frisch gebauten
+  // Element aber immer bei null an: Die Schneeflocke sprang dann mitten in der Drehung zurueck
+  // auf ihre Ausgangslage, die Flamme setzte neu an. Von aussen sah das aus wie eine
+  // stotternde Animation; gemeldet wurde es als "die spackt rum".
+  //
+  // Ein negativer animation-delay verschiebt den Startpunkt in die Vergangenheit: Mit
+  // -3s beginnt eine 12-Sekunden-Drehung bei einem Viertel. Rechnet man ihn aus der aktuellen
+  // Uhrzeit, steht jedes neu gebaute Element genau dort, wo das alte gerade war -- die
+  // Bewegung laeuft ueber den Neuaufbau hinweg weiter, ohne dass jemand das Element
+  // aufheben muesste.
+  //
+  // Bei `alternate` ist der volle Zyklus doppelt so lang (hin und zurueck), sonst sprangen
+  // die Flammen bei jedem zweiten Neuaufbau an den Wendepunkt.
+
+  /** Negativer Startversatz, damit eine Animation dort weiterlaeuft, wo sie gerade waere. */
+  function animationsPhase(dauerSekunden, wechselnd, jetztMs) {
+    const dauer = Number(dauerSekunden);
+    if (!(dauer > 0)) return '0s';
+    const zyklus = wechselnd ? dauer * 2 : dauer;
+    const jetzt = (jetztMs === undefined ? Date.now() : jetztMs) / 1000;
+    const versatz = ((jetzt % zyklus) + zyklus) % zyklus;
+    return '-' + versatz.toFixed(2) + 's';
+  }
+
+  // Die Dauern stehen in dashboard.css; hier stehen sie ein zweites Mal, und das ist die
+  // Schwachstelle dieser Loesung: Wer dort eine Dauer aendert und hier nicht, bekommt keinen
+  // Fehler, sondern einen Sprung beim Neuaufbau -- also genau das, was das hier verhindern
+  // soll. Deshalb tragen beide Seiten denselben Namen.
+  const HVAC_ANIMATIONEN = [
+    ['zucken', 1.1, true],
+    ['atmen', 2.3, true],
+    ['flocke', 12, false],
+    ['tropfen', 2.4, false],
+    ['luefter', 3.2, false],
+    ['auto', 3.4, true]
+  ];
+
+  /** style-Attribut fuer das Klima-Symbol: je Animation ein Startversatz. */
+  function hvacPhasenStil(jetztMs) {
+    return HVAC_ANIMATIONEN
+      .map(([name, dauer, wechselnd]) => '--ph-' + name + ':' + animationsPhase(dauer, wechselnd, jetztMs))
+      .join(';');
+  }
+
   /** Symbolname und Bewegungsklasse fuer eine Betriebsart. */
   function hvacSymbol(modus, laeuftGerade) {
     const name = HVAC_SYMBOL[modus] || 'climate';
@@ -1016,7 +1063,7 @@
 
       card.classList.add('klima-' + (modus || 'unbekannt').replace(/[^a-z_]/g, ''));
       card.innerHTML = `
-        <div class="row"><span class="icon hvac-symbol ${sym.klasse}">${ICONS[sym.name]}</span><span class="badge">${esc(HVAC_LABEL[modus] || modus || '–')}</span></div>
+        <div class="row"><span class="icon hvac-symbol ${sym.klasse}" style="${hvacPhasenStil()}">${ICONS[sym.name]}</span><span class="badge">${esc(HVAC_LABEL[modus] || modus || '–')}</span></div>
         <div class="value">${modus === 'off'
           ? 'Aus'
           : (target !== undefined ? target + einheit : (cur !== undefined ? cur + einheit : esc(modus)))}</div>
@@ -2026,7 +2073,7 @@
     quickTileAktion, quickTileAktiv, quickTileText,
     kachelRegler, miniVerlaufSvg, tendenz, rueckmeldung,
     ALARM_ZUSTAENDE, ALARM_TOENE, alarmDarstellung, symbolErraten,
-    HVAC_SYMBOL, hvacSymbol, hvacReihenfolge,
+    HVAC_SYMBOL, hvacSymbol, hvacReihenfolge, animationsPhase, hvacPhasenStil,
     ankuendigungsText, ankuendigungKurz, NICHTS_ANZUZEIGEN,
     fotoBildId, fotoVersionen, fotoUrls,
     DEFAULT_THEME
