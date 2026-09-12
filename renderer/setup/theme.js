@@ -58,6 +58,7 @@ async function load() {
   $('notifySekunden').value = configRes.notifySekunden === undefined ? 20 : configRes.notifySekunden;
   $('batteryThreshold').value = configRes.batteryThreshold || 20;
   $('batterySound').checked = configRes.batterySound !== false;
+  $('batteryVolume').checked = configRes.batteryVolume !== false;
   $('nightEnabled').checked = !!configRes.nightModeEnabled;
   $('nightStart').value = configRes.nightStart || '23:00';
   $('nightEnd').value = configRes.nightEnd || '06:30';
@@ -304,6 +305,7 @@ function alleFelder() {
     notifySekunden: zahl('notifySekunden', 20),
     batteryThreshold: zahl('batteryThreshold', 20),
     batterySound: $('batterySound').checked,
+    batteryVolume: $('batteryVolume').checked,
 
     nightModeEnabled: $('nightEnabled').checked,
     nightStart: $('nightStart').value || '23:00',

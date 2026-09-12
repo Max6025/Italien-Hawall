@@ -96,19 +96,36 @@
       </summary>
       <div class="eb-inhalt">
     <p class="note">Blendet auf der Wand oben eine Warnung ein, sobald der Akku dieses
-      Windows-Geräts unter diesen Wert fällt und es gerade nicht am Ladegerät hängt. Unter
-      <strong>10 %</strong> wird sie rot und pulsiert. Betrifft nicht HA-Sensoren, sondern nur
-      das Gerät, auf dem diese App läuft.</p>
+      Windows-Geräts unter diesen Wert fällt und es gerade nicht am Ladegerät hängt. Betrifft
+      nicht HA-Sensoren, sondern nur das Gerät, auf dem diese App läuft.</p>
+    <p class="note"><strong>Sie wird mit der Zeit dringender.</strong> Erst leise und einmal pro
+      Minute; nach fünf Minuten deutlicher; nach einer Viertelstunde – oder sobald der Akku
+      <strong>15 %</strong> unterschreitet – laut, alle zwölf Sekunden, mit einem anderen Ton,
+      und die Warnung blinkt rot. Wer sofort reagiert, hört sie fast nicht. Wer sie ignoriert,
+      wird sie nicht los.</p>
+    <p class="note">Antippen schaltet den Ton für drei Minuten still – <strong>dreimal</strong>.
+      Danach nicht mehr: Ab da ist es keine Störung mehr, sondern die letzte Warnung vor einem
+      Gerät, das sich abschaltet.</p>
     <p class="note">Den aktuellen Stand siehst du immer rechts oben in dieser Leiste – auch
       dann, wenn noch gar nichts zu warnen ist. Er kommt vom Panel selbst; bleibt er aus, hat
       sich das Panel seit einer Viertelstunde nicht gemeldet.</p>
     <label>Warnen ab wieviel % Geräte-Akku</label>
-    <input type="number" id="batteryThreshold" min="1" max="100" value="20">
+    <input type="number" id="batteryThreshold" min="20" max="100" value="30">
+    <p class="hint-text"><strong>Mindestens 20 %.</strong> Darunter bleibt bei einem Panel, das
+      nebenbei lädt und sich entlädt, keine Reserve mehr, um in Ruhe zu reagieren. 30 oder 40
+      geben dir Luft; unter 15 % wird es ohnehin kritisch, egal was hier steht.</p>
     <label style="margin-top:1rem;"><input type="checkbox" id="batterySound" style="width:auto; margin-right:0.5rem;">Dazu ein Warnton</label>
-    <p class="hint-text">Drei kurze absteigende Töne, danach eine Pause – alle 45 Sekunden, solange
-      der Akku knapp ist, unter 10 % alle 20 Sekunden. Aus fünf Metern sieht man eine Anzeige nur,
-      wenn man gerade hinschaut; hören tut man sie auch aus dem Nebenraum. Ein Dauerton dagegen
-      treibt einen aus dem Zimmer.</p>
+    <p class="hint-text">Absteigende Töne, danach eine Pause. Aus fünf Metern sieht man eine
+      Anzeige nur, wenn man gerade hinschaut; hören tut man sie auch aus dem Nebenraum. Ein
+      Dauerton dagegen treibt einen aus dem Zimmer – und dann zieht jemand den Stecker aus dem
+      Gerät statt das Ladekabel hinein.</p>
+    <label style="margin-top:1rem;"><input type="checkbox" id="batteryVolume" style="width:auto; margin-right:0.5rem;">Dabei die Lautstärke des Geräts anheben</label>
+    <p class="hint-text">Ein Warnton nützt nichts, wenn das Panel stumm an der Wand hängt – und
+      genau so hängt es dort normalerweise. Mit dieser Einstellung dreht die App die
+      Systemlautstärke mit jeder Stufe höher (35 %, 60 %, 90 %) und hebt eine Stummschaltung auf.
+      Sie wird dabei <strong>nie gesenkt</strong>: Steht das Gerät schon lauter, bleibt es dabei.
+      Und nur, solange eine Akkuwarnung läuft.</p>
+
     <button id="tonTestBtn" style="max-width:320px; margin-top:0.6rem;">Warnton auf der Wand abspielen</button>
     <div id="tonTestResult" class="result"></div>
     <p class="hint-text">Spielt den Ton sofort auf dem Panel ab – nicht hier im Browser. Kommt

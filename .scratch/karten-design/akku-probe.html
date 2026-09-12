@@ -13,8 +13,8 @@
 <link rel="stylesheet" href="../../renderer/shared/dashboard.css">
 <style>
   body { margin: 0; min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
-  .reihe { display: flex; flex-direction: column; gap: 6vh; padding: 6vh 4vw; }
-  .fall { position: relative; height: 10vh; }
+  .reihe { display: flex; flex-direction: column; gap: 3.4vh; padding: 4vh 4vw; }
+  .fall { position: relative; }
   /* Die echte Warnung steht fixiert oben mittig -- hier nebeneinander, um sie zu vergleichen. */
   .fall .akku-warnung { position: static; transform: none; display: inline-flex; animation: none; }
   .fall .akku-warnung.kritisch .akku-glyph { animation: akku-pulsieren 1.6s ease-in-out infinite alternate; }
@@ -27,6 +27,7 @@
 <div class="reihe" id="reihe"></div>
 
 <script src="../../renderer/shared/dashboard-render.js"></script>
+<script src="../../renderer/shared/akku.js"></script>
 <script>
 if (new URLSearchParams(location.search).has('hell')) document.body.classList.add('light-theme');
 DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
@@ -43,21 +44,33 @@ function akkuGlyph(pct, laedt) {
     + '</svg>';
 }
 
+// Dieselben Stufen wie im Betrieb -- aus demselben Modul, damit die Probe nicht behauptet,
+// was die Anzeige nicht tut.
 const FAELLE = [
-  ['Knapp (18 %)', 18, false, false],
-  ['Kritisch (7 %)', 7, false, true],
-  ['Fast leer (2 %)', 2, false, true],
-  ['Am Netzteil (18 %)', 18, true, false]
+  ['Stufe 1 – gerade unterschritten (28 %)', 28, 30, 0],
+  ['Stufe 2 – seit fünf Minuten (25 %)', 25, 30, 6],
+  ['Stufe 3 – kritisch, blinkt (12 %)', 12, 30, 0],
+  ['Stufe 3 – fast leer (3 %)', 3, 30, 0],
+  ['Am Netzteil – keine Warnung', 24, 30, 0, true],
+  ['Stummgeschaltet', 25, 30, 6, false, 'Still für 3 Min.'],
+  ['Nicht mehr stummschaltbar', 14, 30, 0, false, 'Lässt sich nicht mehr stummschalten']
 ];
 
-document.getElementById('reihe').innerHTML = FAELLE.map(([titel, pct, laedt, kritisch]) => `
+document.getElementById('reihe').innerHTML = FAELLE.map(([titel, pct, schwelle, minuten, laedt, stummText]) => {
+  const stufe = AkkuModul.akkuStufe({ prozent: pct, laedt: !!laedt, schwelle, minutenSeitStart: minuten });
+  if (stufe === 0) return `<div class="fall"><h2>${titel}</h2><div style="color:var(--muted);font-size:1.6vh;">– keine Warnung –</div></div>`;
+  const e = AkkuModul.stufenEinstellung(stufe);
+  const hinweis = stufe === 3 ? 'Gleich aus – bitte sofort anschließen' : 'Bitte Netzteil anschließen';
+  return `
   <div class="fall">
-    <h2>${titel}</h2>
-    <div class="akku-warnung${kritisch ? ' kritisch' : ''}">
-      <span class="akku-glyph">${akkuGlyph(pct, laedt)}</span>
-      <span class="akku-text"><b>${pct} %</b><span>${kritisch ? 'Gleich aus – bitte sofort anschließen' : 'Bitte Netzteil anschließen'}</span></span>
+    <h2>${titel} · alle ${e.abstandSekunden}s · Lautstärke ${Math.round(e.lautstaerke * 100)}% · System ${e.systemLautstaerke}%</h2>
+    <div class="akku-warnung${e.blinkt ? ' kritisch' : ''}">
+      <span class="akku-glyph">${akkuGlyph(pct, !!laedt)}</span>
+      <span class="akku-text"><b>${pct} %</b><span>${hinweis}</span></span>
+      <span class="akku-stumm">${stummText || 'Antippen: 3 Min. still'}</span>
     </div>
-  </div>`).join('');
+  </div>`;
+}).join('');
 </script>
 </body>
 </html>

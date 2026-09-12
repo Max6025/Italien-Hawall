@@ -19,7 +19,11 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
     pressure: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 13L16 9"/><path d="M12 5v1.5M5 13h1.5M17.5 13H19M7 7.5l1 1M17 7.5l-1 1"/></svg>',
     select: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 12h8M15 9l3 3-3 3"/></svg>',
-    navigate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3"/></svg>',
+    // Ein Pfeil, der in eine Flaeche HINEINGEHT. Vorher stand hier ein Fadenkreuz aus vier
+    // Strichen und einem Kreis -- das liest sich als "Standort" oder "Ziel", nicht als
+    // "hier geht es weiter". Gemeldet wurde das als "man versteht die Karte nicht".
+    navigate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5h4.5A2 2 0 0 1 20.5 5.5v13a2 2 0 0 1-2 2H14"/><path d="M3.5 12h10"/><path d="m9.5 8 4 4-4 4"/></svg>',
+    pfeilRechts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
     forecast: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18a4 4 0 0 1 .5-7.97A5.5 5.5 0 0 1 18 11.5 3.5 3.5 0 0 1 17.5 18H7z"/><path d="M8 21l1-2M12 21l1-2M16 21l1-2"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
@@ -1781,8 +1785,16 @@
         sel.addEventListener('change', () => cb.onSelectOption(domain, entity_id, sel.value));
       }
     } else if (type === 'navigate') {
-      const targetName = settings.targetDashboardName || 'Dashboard';
-      card.innerHTML = `<span class="icon">${ICONS.navigate}</span><span class="name">${targetName}</span>`;
+      // Derselbe Aufbau wie jede andere Karte: Symbolzeile, Wert, Bildunterschrift. Vorher
+      // standen hier nur ein Symbol und ein Wort in der Mitte -- das sah aus wie eine Anzeige
+      // und nicht wie etwas, das man antippt. Der Zieltext steht jetzt gross als WERT, und
+      // darunter steht ausgeschrieben, was passiert, wenn man draufdrueckt.
+      const targetName = esc(settings.targetDashboardName || 'Dashboard');
+      card.innerHTML = `
+        <div class="row"><span class="icon">${ICONS.navigate}</span><span class="badge">Antippen</span></div>
+        <div class="value">${targetName}</div>
+        <div class="name">Dashboard wechseln</div>
+        <span class="navigate-pfeil">${ICONS.pfeilRechts}</span>`;
       if (!editable && cb.onNavigate && settings.targetDashboardId) {
         card.style.cursor = 'pointer';
         card.addEventListener('click', () => cb.onNavigate(settings.targetDashboardId));

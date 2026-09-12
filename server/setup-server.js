@@ -11,6 +11,7 @@ const austausch = require('./dashboard-austausch');
 const { CARD_TYPES } = require('../renderer/shared/dashboard-render.js');
 const { HaLive } = require('./ha-live');
 const { ZUHAUSE_VORGABE } = require('../control/ankunft');
+const { SCHWELLE_MINDESTENS } = require('../renderer/shared/akku.js');
 
 // Domains, die keine sinnvollen Wall-Display-Karten sind (Helfer/System-Entitaeten)
 // -- werden weder im Editor angeboten noch als Karten dargestellt.
@@ -348,8 +349,11 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       // Wie lange die Ankuendigung gross bleibt, bevor sie in die Leiste wandert.
       // 0 heisst ausdruecklich: bleibt gross.
       notifySekunden: store.get('notifySekunden') === undefined ? 20 : store.get('notifySekunden'),
-      batteryThreshold: store.get('batteryThreshold') || 20,
+      // Nie unter das Mindestmass: Ein alter, tiefer Wert aus der Zeit davor darf nicht
+      // stillschweigend weitergelten.
+      batteryThreshold: Math.max(SCHWELLE_MINDESTENS, store.get('batteryThreshold') || 20),
       batterySound: store.get('batterySound') !== false,
+      batteryVolume: store.get('batteryVolume') !== false,
       nightModeEnabled: store.get('nightModeEnabled') || false,
       nightStart: store.get('nightStart') || '23:00',
       nightEnd: store.get('nightEnd') || '06:30',
@@ -402,7 +406,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
   app.post('/api/config', (req, res) => {
     const {
       haUrl, token, title, entities, layout, sunEntity,
-      notifyEntity, batteryThreshold, batterySound, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
+      notifyEntity, batteryThreshold, batterySound, batteryVolume, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
       notifyTitel, notifySekunden,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
@@ -426,8 +430,14 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (notifyEntity !== undefined) store.set('notifyEntity', notifyEntity);
     if (notifyTitel !== undefined) store.set('notifyTitel', String(notifyTitel || '').slice(0, 40));
     if (notifySekunden !== undefined) store.set('notifySekunden', Math.max(0, Math.min(600, parseInt(notifySekunden, 10) || 0)));
-    if (batteryThreshold !== undefined) store.set('batteryThreshold', batteryThreshold);
+    if (batteryThreshold !== undefined) {
+      // Unter zwanzig Prozent bleibt keine Reserve mehr, um in Ruhe zu reagieren -- und ein
+      // Feld, das 5 annimmt und dann doch bei 20 warnt, waere schlimmer als eine Grenze.
+      const v = Math.max(SCHWELLE_MINDESTENS, Math.min(100, parseInt(batteryThreshold, 10) || SCHWELLE_MINDESTENS));
+      store.set('batteryThreshold', v);
+    }
     if (batterySound !== undefined) store.set('batterySound', !!batterySound);
+    if (batteryVolume !== undefined) store.set('batteryVolume', !!batteryVolume);
     if (nightModeEnabled !== undefined) store.set('nightModeEnabled', nightModeEnabled);
     if (nightStart !== undefined) store.set('nightStart', nightStart);
     if (nightEnd !== undefined) store.set('nightEnd', nightEnd);

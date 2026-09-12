@@ -24,6 +24,8 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `control/panel.js` | Panel per `SC_MONITORPOWER` schalten, über einen dauerhaft offenen PowerShell-Prozess |
 | `control/controller.js` | Zustandsautomat; die Rangfolge steht vollständig in `decide()` |
 | `control/ankunft.js` | Warten auf die Ankunft: erst Dashboard, wenn die Alarmanlage „zu Hause“ meldet |
+| `control/lautstaerke.js` | Systemlautstärke anheben (nur während einer Akkuwarnung, nie senken) |
+| `renderer/shared/akku.js` | Wie dringend die Akkuwarnung ist: Stufe, Abstand, Lautstärke, Stummschalten |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
 | `server/dashboard-austausch.js` | Dashboards als Datei aus- und eingeben; Prüfung beim Import |
 | `server/ha-live.js` | Dauerverbindung zu HA; meldet jede Zustandsänderung weiter |
@@ -240,6 +242,29 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   **Schleife mit Pause** (45 s, unter 10 % alle 20 s): Ein einzelner Ton geht unter, wenn man
   im Nebenraum ist; ein Dauerton treibt einen aus dem Zimmer, und nach zehn Minuten zieht
   jemand den Stecker — aus dem Gerät, nicht aus dem Ladekabel.
+- **Eine Warnung, die immer gleich klingt, endet immer gleich.** Entweder sie ist leise genug,
+  dass man sie nach dem dritten Mal überhört — dann ist das Gerät irgendwann leer. Oder sie ist
+  laut genug, dass man sie nicht überhören kann — dann schaltet sie jemand am zweiten Tag
+  dauerhaft ab, und das Gerät ist irgendwann leer. Deshalb hat die Akkuwarnung **Stufen**
+  (`renderer/shared/akku.js`): leise und selten am Anfang, mit der Zeit häufiger und lauter,
+  ab 15 % mit anderem Motiv und blinkend. Und deshalb lässt sie sich **dreimal** für drei
+  Minuten wegdrücken, danach nicht mehr — wer gerade telefoniert, soll das können; wer die
+  Warnung aussitzen will, nicht. Die Schwelle ist nach unten auf **20 %** begrenzt: Darunter
+  bleibt bei einem Panel, das nebenbei lädt und sich entlädt, keine Reserve zum Reagieren.
+- **`Number(null)` ist 0, nicht `NaN`.** In `akkuStufe()` hätte ein fehlender Akkustand damit
+  dieselbe Wirkung wie ein leerer Akku gehabt: sofort die kritische Stufe, volle Lautstärke,
+  blinkende Warnung. Erst aussortieren, dann rechnen — dasselbe gilt überall dort, wo ein
+  fehlender Wert etwas anderes bedeutet als null.
+- **Die App hebt die Systemlautstärke an.** Ein Warnton nützt nichts, wenn das Panel stumm an
+  der Wand hängt — und genau so hängt es dort normalerweise. Am Gerät gemessen: Tonkontext lief,
+  Ton wurde abgespielt, zu hören war nichts. `control/lautstaerke.js` hebt sie deshalb an, aber
+  **nur** während einer Akkuwarnung, **nur** nach oben und **nur**, wenn die Einstellung es
+  erlaubt. Zwei Fallen stecken darin: Das PowerShell-Skript muss als **Datei** abgelegt werden
+  (als `-EncodedCommand` bricht Windows mit „Die Befehlszeile ist zu lang" ab — Base64 von
+  UTF-16 bläht es auf das Vierfache), und die COM-Schnittstelle `IAudioEndpointVolume` braucht
+  **alle** Methoden in der richtigen Reihenfolge. Wer eine auslässt, ruft die nächste auf; ein
+  erster Anlauf hatte zwei Platzhalter zu wenig und bekam „Der Wert liegt außerhalb des
+  erwarteten Bereichs" zu lesen.
 - **Ein stummes Panel ist von einem funktionierenden nicht zu unterscheiden.** Die Anzeige
   steht, der Code lief durch, und trotzdem hört man nichts — weil der Tonkontext angehalten
   ist, weil das Gerät stumm geschaltet wurde, oder weil gar keine Anzeige läuft. Deshalb meldet
@@ -260,6 +285,12 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   normale Zustand, wenn jemand da ist. Wer Text oder Farbe fest verdrahtet, erzählt der Hälfte
   der Nutzer etwas Unwahres über ihre Sicherheit. `ALARM_ZUSTAENDE` sind deshalb nur Vorgaben;
   `alarmDarstellung()` lässt Text **und** Farbton je Karte überschreiben.
+- **Eine Karte, die etwas TUT, muss anders aussehen als eine, die etwas anzeigt.** Die
+  Wechsel-Karte trug ein Fadenkreuz-Symbol und ein Wort, mittig, ohne Akzent — zwischen zwanzig
+  Messwerten sah sie aus wie der einundzwanzigste, und gemeldet wurde sie als „versteht man
+  nicht". Jetzt: ein Pfeil, der in eine Fläche **hineingeht**, derselbe Aufbau wie bei jeder
+  anderen Karte, ein fester Akzent, ein Pfeil am rechten Rand und die Bildunterschrift
+  „Dashboard wechseln". Das Symbol allein reicht nicht, und der Text allein auch nicht.
 - **Ein Knopf muss erkennbar sein, nicht lesbar.** Aus fünf Metern liest niemand „Tor" und
   „Garage" auseinander — ein Tor und eine Garage schon. Deshalb trägt jeder Tor-Knopf ein
   wählbares Symbol, groß, mit dem Text als Bestätigung darunter. Ein Symbol, das man suchen
@@ -366,7 +397,8 @@ Bildunterschrift, Bedienelemente. Linksbündig, ausnahmslos. Abweichungen fallen
 auf und in der Summe sofort.
 
 Die Akkuwarnung hat ihre eigene Probe: `.scratch/karten-design/akku-probe.html` zeigt alle
-vier Zustände (knapp, kritisch, fast leer, am Netzteil) nebeneinander, `?hell` in Hell.
+Stufen nebeneinander — mit ihren echten Werten aus `akku.js`, damit die Probe nicht behauptet,
+was die Anzeige nicht tut. `?hell` zeigt sie im hellen Design.
 
 Ein Design nicht ohne Hinsehen ändern: `.scratch/karten-design/vorschau.html` lädt dieselbe
 CSS-Datei und dasselbe Render-Modul mit erfundenen Zuständen und lässt sich im Browser öffnen —
@@ -389,7 +421,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-293 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+321 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
 Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

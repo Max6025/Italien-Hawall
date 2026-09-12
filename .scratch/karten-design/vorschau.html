@@ -55,7 +55,9 @@ const KARTEN = [
   ['climate.cool', 'climate', Z('cool',     { friendly_name: 'Kühlen',     current_temperature: 25.5, temperature: 21, hvac_action: 'cooling', hvac_modes: ['cool','off'] }), 1, 1],
   ['climate.dry',  'climate', Z('dry',      { friendly_name: 'Entfeuchten', current_temperature: 23, temperature: 22, hvac_modes: ['dry','off'] }), 1, 1],
   ['climate.fan',  'climate', Z('fan_only', { friendly_name: 'Nur Lüfter', current_temperature: 23, temperature: 22, hvac_modes: ['fan_only','off'] }), 1, 1],
-  ['climate.auto', 'climate', Z('auto',     { friendly_name: 'Automatik',  current_temperature: 23, temperature: 22, hvac_modes: ['auto','off'] }), 1, 1]
+  ['climate.auto', 'climate', Z('auto',     { friendly_name: 'Automatik',  current_temperature: 23, temperature: 22, hvac_modes: ['auto','off'] }), 1, 1],
+  ['nav.kueche',   'navigate', null, 1, 1],
+  ['nav.bad',      'navigate', null, 2, 1]
 ];
 
 const grid = document.getElementById('grid');
@@ -86,7 +88,8 @@ const nur = new URLSearchParams(location.search).get('nur');
 (nur ? KARTEN.filter(k => k[1] === nur) : KARTEN).forEach(([id, typ, zustand, c, r]) => {
   const el = DashboardRender.buildCard(id, zustand, typ, { cols: c, rows: r }, {
     editable: false, apiBase: '', statesById: {}, history: VERLAEUFE[id],
-    settings: typ === 'gate' ? { gateButtons: [
+    settings: typ === 'navigate' ? { targetDashboardId: 'db_1', targetDashboardName: id === 'nav.bad' ? 'Badezimmer' : 'Küche' }
+      : typ === 'gate' ? { gateButtons: [
       { label: 'Tor', entity: 'switch.a', icon: 'gate' },
       { label: 'Garage', entity: 'switch.b', icon: 'garage' },
       { label: 'Haustür', entity: 'switch.c', icon: 'door' },

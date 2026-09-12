@@ -75,6 +75,7 @@
   <div class="akku-warnung" id="akkuWarnung" hidden>
     <span class="akku-glyph" id="akkuGlyph"></span>
     <span class="akku-text"><b id="akkuProzent">–</b><span id="akkuHinweis">Bitte Netzteil anschließen</span></span>
+    <span class="akku-stumm" id="akkuStumm">Antippen: 3 Min. still</span>
   </div>
 
   <div class="night-overlay" id="nightOverlay"></div>
@@ -121,6 +122,7 @@
   </div>
 
 <script src="shared/dashboard-render.js"></script>
+<script src="shared/akku.js"></script>
 <script src="shared/ankunftsschirm.js"></script>
 <script>
 const { ICONS, defaultCardType, buildCard, resolveSpan } = DashboardRender;
@@ -872,15 +874,14 @@ async function initDeviceBattery() {
   } catch (e) { /* keine Akku-Info verfuegbar -- Icon bleibt einfach versteckt */ }
 }
 
-// Wann zuletzt gewarnt wurde -- der Ton wiederholt sich, die Anzeige bleibt.
-//
-// In Schleife mit Pause: Ein einzelner Ton geht unter, wenn man gerade im Nebenraum ist. Ein
-// Dauerton dagegen treibt einen aus dem Zimmer, und nach zehn Minuten zieht jemand den
-// Stecker -- aus dem Geraet, nicht aus dem Ladekabel. Dreiviertel Minute Pause ist der
-// Kompromiss; unter zehn Prozent wird sie kuerzer, weil es dann wirklich eilt.
-let akkuTonZuletzt = 0;
-const AKKU_TON_ABSTAND_MS = 45 * 1000;
-const AKKU_TON_ABSTAND_KRITISCH_MS = 20 * 1000;
+// Der Zustand der Akkuwarnung. Die Entscheidungen selbst stehen in shared/akku.js -- hier
+// steht nur, was seit wann gilt.
+let akkuWarnungSeit = 0;        // wann die Warnung angefangen hat (fuer die Eskalation)
+let akkuLetzterTon = 0;
+let akkuStummBis = 0;
+let akkuStummVerwendet = 0;
+let akkuStufeJetzt = 0;
+let akkuLautstaerkeGesetzt = 0; // bis zu welcher Systemlautstaerke schon angehoben wurde
 
 function checkDeviceBattery() {
   const box = $('akkuWarnung');
@@ -888,32 +889,82 @@ function checkDeviceBattery() {
   const pct = Math.round(batteryObj.level * 100);
   const laedt = !!batteryObj.charging;
   const schwelle = (config && config.batteryThreshold) || 20;
-  const knapp = !laedt && pct <= schwelle;
 
   akkuMelden(pct, laedt);
 
-  if (!knapp) {
+  const jetzt = Date.now();
+  const stufe = AkkuModul.akkuStufe({
+    prozent: pct, laedt, schwelle,
+    minutenSeitStart: akkuWarnungSeit ? (jetzt - akkuWarnungSeit) / 60000 : 0
+  });
+
+  if (stufe === 0) {
+    // Vorbei: Alles zuruecksetzen, damit die naechste Warnung wieder leise und selten anfaengt
+    // -- und wieder dreimal wegzudruecken ist.
     box.hidden = true;
-    akkuTonZuletzt = 0;   // beim naechsten Mal sofort wieder hoerbar
+    akkuWarnungSeit = 0;
+    akkuLetzterTon = 0;
+    akkuStummBis = 0;
+    akkuStummVerwendet = 0;
+    akkuStufeJetzt = 0;
+    akkuLautstaerkeGesetzt = 0;
     return;
   }
+  if (!akkuWarnungSeit) akkuWarnungSeit = jetzt;
+  akkuStufeJetzt = stufe;
+  const einstellung = AkkuModul.stufenEinstellung(stufe);
 
   $('akkuGlyph').innerHTML = akkuGlyph(pct, laedt);
   $('akkuProzent').textContent = pct + ' %';
-  // Unter zehn Prozent wird es eine andere Nachricht: Da geht es nicht mehr um Komfort.
-  $('akkuHinweis').textContent = pct <= 10
+  $('akkuHinweis').textContent = stufe === 3
     ? 'Gleich aus – bitte sofort anschließen'
     : 'Bitte Netzteil anschließen';
-  box.classList.toggle('kritisch', pct <= 10);
+  box.classList.toggle('kritisch', einstellung.blinkt);
   box.hidden = false;
+  akkuStummTextSetzen();
 
-  const jetzt = Date.now();
-  const abstand = pct <= 10 ? AKKU_TON_ABSTAND_KRITISCH_MS : AKKU_TON_ABSTAND_MS;
-  if (jetzt - akkuTonZuletzt >= abstand) {
-    akkuTonZuletzt = jetzt;
+  // Lautstaerke nur anheben, wenn die Stufe mehr verlangt als bisher. Sonst liefe bei Stufe 3
+  // alle zwoelf Sekunden ein PowerShell-Aufruf.
+  if (config && config.batterySound !== false && config.batteryVolume !== false
+      && einstellung.systemLautstaerke > akkuLautstaerkeGesetzt) {
+    akkuLautstaerkeGesetzt = einstellung.systemLautstaerke;
+    try {
+      if (window.wallApi && window.wallApi.systemLautstaerkeAnheben) {
+        window.wallApi.systemLautstaerkeAnheben(einstellung.systemLautstaerke).catch(() => {});
+      }
+    } catch (e) { /* Geraet unterstuetzt das evtl. nicht -- die Anzeige bleibt */ }
+  }
+
+  if (AkkuModul.tonFaellig({ stufe, jetzt, letzterTon: akkuLetzterTon, stummBis: akkuStummBis })) {
+    akkuLetzterTon = jetzt;
     akkuTonSpielen();
   }
 }
+
+/** Was auf dem Stumm-Hinweis steht -- inklusive der Auskunft, wie oft es noch geht. */
+function akkuStummTextSetzen() {
+  const el = $('akkuStumm');
+  if (!el) return;
+  const jetzt = Date.now();
+  if (jetzt < akkuStummBis) {
+    el.textContent = 'Still für ' + Math.ceil((akkuStummBis - jetzt) / 60000) + ' Min.';
+    return;
+  }
+  const naechste = AkkuModul.stummschalten(jetzt, akkuStummVerwendet);
+  el.textContent = naechste.erlaubt
+    ? 'Antippen: ' + AkkuModul.STUMM_MINUTEN + ' Min. still'
+    : 'Lässt sich nicht mehr stummschalten';
+}
+
+// Antippen schaltet den Ton fuer ein paar Minuten stumm -- dreimal. Wer gerade telefoniert,
+// soll das koennen; wer die Warnung aussitzen will, nicht.
+$('akkuWarnung').addEventListener('click', () => {
+  const r = AkkuModul.stummschalten(Date.now(), akkuStummVerwendet);
+  if (!r.erlaubt) { akkuStummTextSetzen(); return; }
+  akkuStummVerwendet += 1;
+  akkuStummBis = r.bisMs;
+  $('akkuStumm').textContent = r.text;
+});
 
 /** Batteriesymbol mit einem Fuellstand, der dem echten entspricht. */
 function akkuGlyph(pct, laedt) {
@@ -942,8 +993,6 @@ function akkuGlyph(pct, laedt) {
 let tonKontext = null;
 let tonGesteWartet = false;
 
-const TON_MOTIV = [880, 740, 587];      // a5, fis5, d5 -- ein absteigender Dur-Dreiklang
-
 function akkuTonSpielen(erzwingen) {
   if (!erzwingen && config && config.batterySound === false) return;
   try {
@@ -962,10 +1011,17 @@ function akkuTonSpielen(erzwingen) {
         document.addEventListener('pointerdown', nachholen, { once: true });
       }
     }
+    // Motiv und Lautstaerke haengen an der Stufe: Ein Klang, den man schon kennt, hoert man
+    // irgendwann weg -- auch einen lauten. Beim Ausprobieren (erzwingen) die mittlere Stufe,
+    // damit man hoert, was einen erwartet, ohne dass es gleich schrillt.
+    const stufe = erzwingen ? 2 : Math.max(1, akkuStufeJetzt);
+    const motiv = AkkuModul.stufenMotiv(stufe);
+    const grund = AkkuModul.stufenEinstellung(stufe).lautstaerke;
+
     const start = tonKontext.currentTime + 0.02;
-    TON_MOTIV.forEach((hz, i) => {
-      const versatz = i * 0.26;
-      [[hz, 0.26], [hz * 2, 0.06]].forEach(([f, laut]) => {
+    motiv.toene.forEach((hz, i) => {
+      const versatz = i * motiv.abstand;
+      [[hz, grund], [hz * 2, grund * 0.22]].forEach(([f, laut]) => {
         const ton = tonKontext.createOscillator();
         const huelle = tonKontext.createGain();
         ton.type = 'sine';
@@ -973,11 +1029,11 @@ function akkuTonSpielen(erzwingen) {
         // Weich ein und aus: Ein hart geschalteter Sinuston knackt, und ein Knacken an einer
         // stillen Wand erschrickt mehr als der Ton selbst.
         huelle.gain.setValueAtTime(0.0001, start + versatz);
-        huelle.gain.exponentialRampToValueAtTime(laut, start + versatz + 0.05);
-        huelle.gain.exponentialRampToValueAtTime(0.0001, start + versatz + 0.42);
+        huelle.gain.exponentialRampToValueAtTime(Math.max(0.001, laut), start + versatz + 0.04);
+        huelle.gain.exponentialRampToValueAtTime(0.0001, start + versatz + motiv.dauer);
         ton.connect(huelle).connect(tonKontext.destination);
         ton.start(start + versatz);
-        ton.stop(start + versatz + 0.45);
+        ton.stop(start + versatz + motiv.dauer + 0.03);
       });
     });
     tonZustandMelden();

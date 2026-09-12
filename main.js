@@ -6,6 +6,7 @@ const Store = require('electron-store');
 const { autoUpdater } = require('electron-updater');
 const { startServer } = require('./server/setup-server');
 const { Controller } = require('./control/controller');
+const lautstaerke = require('./control/lautstaerke');
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -411,6 +412,21 @@ ipcMain.handle('get-control-state', () => (controller ? controller.getState() : 
 // den Nachtmodus genutzt, um die Helligkeit zusaetzlich zum schwarzen Bildschirm zu senken.
 // Schlaegt auf nicht unterstuetzter Hardware oder Nicht-Windows-Systemen einfach still fehl --
 // das schwarze Overlay allein reicht dann weiterhin als Nachtmodus-Effekt aus.
+// Hebt die Systemlautstaerke an, waehrend eine Akkuwarnung laeuft. Gesenkt wird sie nie --
+// und ausserhalb einer Warnung ruft niemand das hier auf.
+ipcMain.handle('system-lautstaerke-anheben', async (event, prozent) => {
+  try {
+    const r = await lautstaerke.anheben(prozent, { verzeichnis: app.getPath('userData') });
+    if (controller && r && r.ok && (r.warStumm || r.vorher < r.jetzt)) {
+      controller.log('info', `Akkuwarnung: Lautstaerke von ${r.vorher} % auf ${r.jetzt} % angehoben`
+        + (r.warStumm ? ' und Stummschaltung aufgehoben' : ''));
+    }
+    return r;
+  } catch (e) {
+    return { ok: false, fehler: String(e.message || e) };
+  }
+});
+
 ipcMain.handle('set-brightness', (event, percent) => {
   if (process.platform !== 'win32') return Promise.resolve({ ok: false });
   const value = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
