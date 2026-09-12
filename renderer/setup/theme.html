@@ -105,9 +105,15 @@
     <label>Warnen ab wieviel % Geräte-Akku</label>
     <input type="number" id="batteryThreshold" min="1" max="100" value="20">
     <label style="margin-top:1rem;"><input type="checkbox" id="batterySound" style="width:auto; margin-right:0.5rem;">Dazu ein Warnton</label>
-    <p class="hint-text">Zwei kurze absteigende Töne, alle zehn Minuten, solange der Akku knapp
-      ist. Aus fünf Metern sieht man eine Anzeige nur, wenn man gerade hinschaut – hören tut man
-      sie auch aus dem Nebenraum.</p>
+    <p class="hint-text">Drei kurze absteigende Töne, danach eine Pause – alle 45 Sekunden, solange
+      der Akku knapp ist, unter 10 % alle 20 Sekunden. Aus fünf Metern sieht man eine Anzeige nur,
+      wenn man gerade hinschaut; hören tut man sie auch aus dem Nebenraum. Ein Dauerton dagegen
+      treibt einen aus dem Zimmer.</p>
+    <button id="tonTestBtn" style="max-width:320px; margin-top:0.6rem;">Warnton auf der Wand abspielen</button>
+    <div id="tonTestResult" class="result"></div>
+    <p class="hint-text">Spielt den Ton sofort auf dem Panel ab – nicht hier im Browser. Kommt
+      nichts, sagt die Antwort, woran es lag: keine Anzeige verbunden, Tonausgabe blockiert, oder
+      der Ton lief und das Gerät ist stumm geschaltet.</p>
       </div>
     </details>
 

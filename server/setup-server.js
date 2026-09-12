@@ -283,6 +283,58 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     res.json(Object.assign({ ok: true }, akkuStand()));
   });
 
+  // --- Befehle an die Anzeige ------------------------------------------------------------------
+  //
+  // Bisher lief alles in eine Richtung: Die Einrichtungsseite schrieb in die Konfiguration, die
+  // Anzeige las sie beim naechsten Start. Fuer "Ton testen" reicht das nicht -- man will ihn
+  // JETZT hoeren, auf der Wand, waehrend man danebensteht.
+  //
+  // Derselbe Weg wie bei den Zustaenden aus Home Assistant: Server-Sent Events, eine Richtung,
+  // und die Anzeige verbindet sich nach einem Abbruch von selbst wieder.
+  const anzeigeHoerer = new Set();
+  let tonErgebnis = null;
+
+  app.get('/api/anzeige/befehle', (req, res) => {
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    res.flushHeaders();
+    res.write(': verbunden\n\n');
+    anzeigeHoerer.add(res);
+    req.on('close', () => anzeigeHoerer.delete(res));
+  });
+
+  app.post('/api/anzeige/ton-test', (req, res) => {
+    // Das Ergebnis von vorhin verwerfen, sonst haelt man die alte Antwort fuer die neue.
+    tonErgebnis = null;
+    const zeile = 'data: ' + JSON.stringify({ befehl: 'ton' }) + '\n\n';
+    for (const h of anzeigeHoerer) {
+      try { h.write(zeile); } catch (e) { anzeigeHoerer.delete(h); }
+    }
+    // Wie viele Anzeigen zuhoeren, ist die halbe Antwort: Kommt kein Ton und hoerte niemand zu,
+    // liegt es nicht am Ton.
+    res.json({ ok: true, anzeigen: anzeigeHoerer.size });
+  });
+
+  app.post('/api/geraet/ton-ergebnis', (req, res) => {
+    const { zustand, fehler } = req.body || {};
+    tonErgebnis = { zustand: String(zustand || ''), fehler: String(fehler || ''), zeit: Date.now() };
+    res.json({ ok: true });
+  });
+
+  app.get('/api/geraet/ton-ergebnis', (req, res) => {
+    if (!tonErgebnis) return res.json({ ok: true, ergebnis: null, anzeigen: anzeigeHoerer.size });
+    res.json({
+      ok: true,
+      ergebnis: { zustand: tonErgebnis.zustand, fehler: tonErgebnis.fehler },
+      alterSekunden: Math.round((Date.now() - tonErgebnis.zeit) / 1000),
+      anzeigen: anzeigeHoerer.size
+    });
+  });
+
   app.get('/api/config', (req, res) => {
     res.json({
       haUrl: store.get('haUrl') || '',

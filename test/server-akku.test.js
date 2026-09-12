@@ -135,3 +135,52 @@ test('Ein Lebenszeichen ohne Aenderung loest kein Ereignis aus', async () => {
 
   controller.abort();
 });
+
+// --- Ton auf der Wand ausprobieren -------------------------------------------------------------
+//
+// Der Knopf auf der Einrichtungsseite soll nicht nur "abgeschickt" sagen, sondern woran es lag.
+// Das hier ist der Weg dorthin: Befehl raus, Antwort rein.
+
+test('Ohne verbundene Anzeige sagt der Ton-Test das deutlich', async () => {
+  // Ist das Panel aus, hoert dort niemand zu -- dann liegt es nicht am Ton.
+  const d = await fetch(U('/api/anzeige/ton-test'), { method: 'POST' }).then(r => r.json());
+  assert.strictEqual(d.ok, true);
+  assert.strictEqual(d.anzeigen, 0);
+});
+
+test('Der Befehl erreicht eine verbundene Anzeige', async () => {
+  const controller = new AbortController();
+  const r = await fetch(U('/api/anzeige/befehle'), { signal: controller.signal });
+  assert.match(r.headers.get('content-type') || '', /text\/event-stream/);
+  const leser = r.body.getReader();
+  await leser.read();   // der Begruessungsblock
+
+  const d = await fetch(U('/api/anzeige/ton-test'), { method: 'POST' }).then(r2 => r2.json());
+  assert.strictEqual(d.anzeigen, 1);
+
+  const { value } = await leser.read();
+  assert.match(new TextDecoder().decode(value), /"befehl":"ton"/);
+  controller.abort();
+});
+
+test('Die Rueckmeldung der Anzeige kommt beim Fragenden an', async () => {
+  await fetch(U('/api/geraet/ton-ergebnis'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ zustand: 'suspended', fehler: '' })
+  });
+  const d = await fetch(U('/api/geraet/ton-ergebnis')).then(r => r.json());
+  assert.strictEqual(d.ergebnis.zustand, 'suspended');
+  assert.ok(d.alterSekunden < 5);
+});
+
+test('Ein neuer Test verwirft die alte Antwort', async () => {
+  // Sonst liest man die Antwort von vorhin und haelt sie fuer die neue -- der schlimmste Fall
+  // bei einem Test: eine Auskunft, die stimmt haette koennen.
+  await fetch(U('/api/geraet/ton-ergebnis'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ zustand: 'running' })
+  });
+  await fetch(U('/api/anzeige/ton-test'), { method: 'POST' });
+  const d = await fetch(U('/api/geraet/ton-ergebnis')).then(r => r.json());
+  assert.strictEqual(d.ergebnis, null);
+});

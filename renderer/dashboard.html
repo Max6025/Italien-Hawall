@@ -873,8 +873,14 @@ async function initDeviceBattery() {
 }
 
 // Wann zuletzt gewarnt wurde -- der Ton wiederholt sich, die Anzeige bleibt.
+//
+// In Schleife mit Pause: Ein einzelner Ton geht unter, wenn man gerade im Nebenraum ist. Ein
+// Dauerton dagegen treibt einen aus dem Zimmer, und nach zehn Minuten zieht jemand den
+// Stecker -- aus dem Geraet, nicht aus dem Ladekabel. Dreiviertel Minute Pause ist der
+// Kompromiss; unter zehn Prozent wird sie kuerzer, weil es dann wirklich eilt.
 let akkuTonZuletzt = 0;
-const AKKU_TON_ABSTAND_MS = 10 * 60 * 1000;
+const AKKU_TON_ABSTAND_MS = 45 * 1000;
+const AKKU_TON_ABSTAND_KRITISCH_MS = 20 * 1000;
 
 function checkDeviceBattery() {
   const box = $('akkuWarnung');
@@ -902,7 +908,8 @@ function checkDeviceBattery() {
   box.hidden = false;
 
   const jetzt = Date.now();
-  if (jetzt - akkuTonZuletzt >= AKKU_TON_ABSTAND_MS) {
+  const abstand = pct <= 10 ? AKKU_TON_ABSTAND_KRITISCH_MS : AKKU_TON_ABSTAND_MS;
+  if (jetzt - akkuTonZuletzt >= abstand) {
     akkuTonZuletzt = jetzt;
     akkuTonSpielen();
   }
@@ -922,34 +929,97 @@ function akkuGlyph(pct, laedt) {
 // --- Der Warnton -------------------------------------------------------------------------------
 //
 // Gerechnet statt abgespielt: Eine Tondatei muesste mitgebaut, mitgeliefert und mit dem
-// Installer aktuell gehalten werden -- fuer zwei Toene. Zwei absteigende Sinustoene sind das,
-// was ein Geraet sagt, wenn ihm die Kraft ausgeht; eine steigende Folge klaenge nach Erfolg.
+// Installer aktuell gehalten werden -- fuer drei Toene.
 //
-// Der Tonkontext wird ERST beim ersten Ton gebaut. Ein Browser laesst ihn sonst in aller Regel
-// angehalten liegen, und ein angehaltener Kontext gibt lautlos nichts von sich.
+// Drei ABSTEIGENDE Toene (a - fis - d), weil das die Richtung ist, in die es geht; eine
+// steigende Folge klaenge nach Erfolg. Reine Sinustoene mit weicher Huellkurve und einer
+// leisen Oktave darueber: Das passt zu einer Anzeige aus Glas und gedeckten Farben. Ein
+// Rechteckton waere lauter und billiger, und man haette ihn nach dem zweiten Mal abgeschaltet.
+//
+// Der Tonkontext wird ERST beim ersten Ton gebaut. Ein Browser laesst ihn sonst angehalten
+// liegen, und ein angehaltener Kontext gibt LAUTLOS nichts von sich -- deshalb meldet diese
+// Funktion ihren Zustand zurueck, statt ihn zu verschlucken.
 let tonKontext = null;
+let tonGesteWartet = false;
 
-function akkuTonSpielen() {
-  if (config && config.batterySound === false) return;
+const TON_MOTIV = [880, 740, 587];      // a5, fis5, d5 -- ein absteigender Dur-Dreiklang
+
+function akkuTonSpielen(erzwingen) {
+  if (!erzwingen && config && config.batterySound === false) return;
   try {
     if (!tonKontext) tonKontext = new (window.AudioContext || window.webkitAudioContext)();
-    if (tonKontext.state === 'suspended') tonKontext.resume();
-    const jetzt = tonKontext.currentTime;
-    [[880, 0], [660, 0.28]].forEach(([hz, versatz]) => {
-      const ton = tonKontext.createOscillator();
-      const lautstaerke = tonKontext.createGain();
-      ton.type = 'sine';
-      ton.frequency.value = hz;
-      // Weich ein und aus: Ein hart geschalteter Sinuston knackt, und ein Knacken an einer
-      // stillen Wand erschrickt mehr als der Ton selbst.
-      lautstaerke.gain.setValueAtTime(0.0001, jetzt + versatz);
-      lautstaerke.gain.exponentialRampToValueAtTime(0.25, jetzt + versatz + 0.04);
-      lautstaerke.gain.exponentialRampToValueAtTime(0.0001, jetzt + versatz + 0.26);
-      ton.connect(lautstaerke).connect(tonKontext.destination);
-      ton.start(jetzt + versatz);
-      ton.stop(jetzt + versatz + 0.3);
+    if (tonKontext.state === 'suspended') {
+      tonKontext.resume().then(() => tonZustandMelden()).catch(() => tonZustandMelden());
+      // Bleibt er angehalten, hilft nur eine echte Beruehrung. Einmal darauf warten -- ohne
+      // das bliebe die Wand fuer immer still, und niemand wuesste warum.
+      if (!tonGesteWartet) {
+        tonGesteWartet = true;
+        const nachholen = () => {
+          tonGesteWartet = false;
+          document.removeEventListener('pointerdown', nachholen);
+          if (tonKontext && tonKontext.state === 'suspended') tonKontext.resume();
+        };
+        document.addEventListener('pointerdown', nachholen, { once: true });
+      }
+    }
+    const start = tonKontext.currentTime + 0.02;
+    TON_MOTIV.forEach((hz, i) => {
+      const versatz = i * 0.26;
+      [[hz, 0.26], [hz * 2, 0.06]].forEach(([f, laut]) => {
+        const ton = tonKontext.createOscillator();
+        const huelle = tonKontext.createGain();
+        ton.type = 'sine';
+        ton.frequency.value = f;
+        // Weich ein und aus: Ein hart geschalteter Sinuston knackt, und ein Knacken an einer
+        // stillen Wand erschrickt mehr als der Ton selbst.
+        huelle.gain.setValueAtTime(0.0001, start + versatz);
+        huelle.gain.exponentialRampToValueAtTime(laut, start + versatz + 0.05);
+        huelle.gain.exponentialRampToValueAtTime(0.0001, start + versatz + 0.42);
+        ton.connect(huelle).connect(tonKontext.destination);
+        ton.start(start + versatz);
+        ton.stop(start + versatz + 0.45);
+      });
     });
-  } catch (e) { /* ohne Ton bleibt die Anzeige -- die ist das Wichtigere */ }
+    tonZustandMelden();
+  } catch (e) {
+    tonZustandMelden(String(e && e.message || e));
+  }
+}
+
+/**
+ * Meldet dem Server, ob der Ton wirklich herauskam.
+ *
+ * Ohne diese Rueckmeldung ist ein stummes Panel nicht von einem funktionierenden zu
+ * unterscheiden: Die Anzeige steht, der Code lief durch, und trotzdem hoert man nichts --
+ * weil der Tonkontext angehalten ist oder das Geraet stumm geschaltet wurde. Die
+ * Einstellungsseite kann das dann sagen, statt dass jemand raet.
+ */
+function tonZustandMelden(fehler) {
+  const zustand = fehler ? 'fehler' : (tonKontext ? tonKontext.state : 'kein-kontext');
+  fetch(`${API}/api/geraet/ton-ergebnis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ zustand, fehler: fehler || '' })
+  }).catch(() => {});
+}
+
+// --- Befehle von der Einrichtungsseite ---------------------------------------------------------
+//
+// Bisher lief alles in eine Richtung: Die Seite schrieb in die Konfiguration, die Anzeige las
+// sie beim naechsten Start. Fuer "Ton testen" reicht das nicht -- man will ihn JETZT hoeren,
+// auf der Wand, waehrend man danebensteht.
+function befehleEmpfangen() {
+  let quelle;
+  try {
+    quelle = new EventSource(`${API}/api/anzeige/befehle`);
+  } catch (e) {
+    return;
+  }
+  quelle.onmessage = (e) => {
+    let befehl;
+    try { befehl = JSON.parse(e.data); } catch (err) { return; }
+    if (befehl && befehl.befehl === 'ton') akkuTonSpielen(true);
+  };
 }
 
 // --- Akkustand weitermelden --------------------------------------------------------------------
@@ -1425,7 +1495,8 @@ function showPauseToast() {
   // Die Battery-API meldet sich nur bei Aenderungen. Ein voll geladenes Geraet aendert
   // stundenlang nichts -- nachsehen muss man trotzdem, sonst haelt die Leiste das Panel fuer
   // abgeschaltet und die Warnschwelle aus den Einstellungen greift erst beim naechsten Sprung.
-  setInterval(checkDeviceBattery, 60000);
+  setInterval(checkDeviceBattery, 15000);
+  befehleEmpfangen();
   await refresh(); // immer, auch nachts -- fuer Batteriewarnung/Ankuendigungs-Box; Karten-Rendering pausiert intern
 
   // Adaptives Intervall statt festem setInterval: 5s tagsueber, 30s nachts (Energiesparen).

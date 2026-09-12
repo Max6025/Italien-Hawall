@@ -436,3 +436,53 @@ function ankunftZustandZeigen() {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', ankunftZustandZeigen);
 });
+
+// --- Warnton auf der Wand ausprobieren --------------------------------------------------------
+//
+// Der Ton kommt aus dem Panel, nicht aus diesem Browser. Bleibt es still, gibt es genau drei
+// Gruende, und man kann sie von hier aus nicht auseinanderhalten -- deshalb sagt die Antwort,
+// welcher es war: Es hoerte keine Anzeige zu, die Tonausgabe ist blockiert (dann steht der
+// Tonkontext auf "suspended"), oder alles lief und das Geraet selbst ist stumm.
+const tonTestBtn = document.getElementById('tonTestBtn');
+if (tonTestBtn) {
+  tonTestBtn.addEventListener('click', async () => {
+    const ziel = document.getElementById('tonTestResult');
+    tonTestBtn.disabled = true;
+    ziel.className = 'result';
+    ziel.textContent = 'Wird abgespielt \u2026';
+    try {
+      const start = await fetch('/api/anzeige/ton-test', { method: 'POST' }).then(r => r.json());
+      if (!start.anzeigen) {
+        ziel.className = 'result err';
+        ziel.textContent = 'Keine Anzeige verbunden. L\u00e4uft das Wall Display gerade? '
+          + 'Ist das Panel abgeschaltet, h\u00f6rt dort niemand zu \u2013 dann kommt auch kein Ton.';
+        return;
+      }
+      // Kurz warten: Die Anzeige spielt und meldet danach zurueck.
+      await new Promise(r => setTimeout(r, 1600));
+      const d = await fetch('/api/geraet/ton-ergebnis').then(r => r.json());
+      const e = d.ergebnis;
+      if (!e || d.alterSekunden > 20) {
+        ziel.className = 'result err';
+        ziel.textContent = 'Die Anzeige hat nicht geantwortet. M\u00f6glicherweise l\u00e4uft dort noch eine '
+          + '\u00e4ltere Version \u2013 dann hilft ein Update.';
+      } else if (e.zustand === 'running') {
+        ziel.className = 'result ok';
+        ziel.textContent = 'Der Ton wurde abgespielt. H\u00f6rst du nichts, ist das Ger\u00e4t selbst stumm '
+          + 'geschaltet oder die Lautst\u00e4rke steht auf null \u2013 das l\u00e4sst sich nur am Panel \u00e4ndern.';
+      } else if (e.zustand === 'suspended') {
+        ziel.className = 'result err';
+        ziel.textContent = 'Die Tonausgabe ist blockiert (Tonkontext angehalten). Einmal das Panel '
+          + 'ber\u00fchren und es erneut versuchen.';
+      } else {
+        ziel.className = 'result err';
+        ziel.textContent = 'Ton nicht m\u00f6glich: ' + (e.fehler || e.zustand);
+      }
+    } catch (err) {
+      ziel.className = 'result err';
+      ziel.textContent = 'Fehler: ' + err.message;
+    } finally {
+      tonTestBtn.disabled = false;
+    }
+  });
+}

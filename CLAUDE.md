@@ -236,7 +236,17 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   angehalten, bis jemand die Seite anfasst — und ein angehaltener Kontext gibt **lautlos**
   nichts von sich. Der Akku-Warnton wäre genau dann still, wenn er gebraucht wird.
   Der Ton selbst ist **gerechnet, nicht abgespielt**: Eine Tondatei müsste mitgebaut,
-  mitgeliefert und mit dem Installer aktuell gehalten werden — für zwei Töne.
+  mitgeliefert und mit dem Installer aktuell gehalten werden — für drei Töne. Er läuft in
+  **Schleife mit Pause** (45 s, unter 10 % alle 20 s): Ein einzelner Ton geht unter, wenn man
+  im Nebenraum ist; ein Dauerton treibt einen aus dem Zimmer, und nach zehn Minuten zieht
+  jemand den Stecker — aus dem Gerät, nicht aus dem Ladekabel.
+- **Ein stummes Panel ist von einem funktionierenden nicht zu unterscheiden.** Die Anzeige
+  steht, der Code lief durch, und trotzdem hört man nichts — weil der Tonkontext angehalten
+  ist, weil das Gerät stumm geschaltet wurde, oder weil gar keine Anzeige läuft. Deshalb meldet
+  `akkuTonSpielen()` den Zustand des Tonkontexts an `/api/geraet/ton-ergebnis` zurück, und der
+  Knopf „Warnton auf der Wand abspielen" nennt genau diese drei Fälle beim Namen. Der Befehl
+  dorthin läuft über `/api/anzeige/befehle` — der erste Weg in diesem Projekt, der von der
+  Einrichtungsseite **zur** Anzeige führt statt umgekehrt.
 - **Die alte Akkuwarnung hing in der Kopfzeile — und die ist seit dem Redesign
   `display: none`.** Sie funktionierte, berechnete den richtigen Schwellwert und wurde nie von
   irgendjemandem gesehen. Wer eine Warnung in ein vorhandenes Element hängt, muss nachsehen,
@@ -379,7 +389,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-289 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+293 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
 Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
