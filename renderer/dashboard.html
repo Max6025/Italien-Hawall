@@ -447,16 +447,47 @@ async function ensureWasteEvents(entityId) {
 // Alles, was eine Karte auf dem Dashboard ausloesen kann. Einmal benannt, weil sowohl das
 // Raster als auch die Unterleiste dieselben Rueckrufe brauchen -- zweimal geschrieben waere
 // zweimal zu pflegen.
+/**
+ * Nimmt das Ergebnis einer Schaltaktion sofort vorweg.
+ *
+ * Home Assistant braucht Sekunden, bis es den neuen Zustand meldet -- bei einer Klimaanlage
+ * regelmaessig mehrere. Bis dahin stand auf der Karte der ALTE Wert, und man drueckte ein
+ * zweites Mal, weil nichts passierte.
+ *
+ * Der vorweggenommene Wert ist bewusst nur eine Annahme; der naechste Abruf ueberschreibt ihn
+ * mit dem, was die Anlage wirklich sagt. Falsch liegt er nur, wenn der Befehl gar nicht
+ * ankam -- und das meldet der Knopf ohnehin mit einem Kreuz.
+ */
+function zustandVorwegnehmen(entityId, aenderung) {
+  const alt = statesById[entityId];
+  if (!alt) return;
+  statesById[entityId] = Object.assign({}, alt, {
+    state: aenderung.state !== undefined ? aenderung.state : alt.state,
+    attributes: Object.assign({}, alt.attributes, aenderung.attributes || {})
+  });
+  aufbauErzwingen = true;
+  render();
+}
+
 function dashboardRueckrufe() {
   return {
-    onToggle: (domain, entityId, state) => callService(domain, state === 'on' ? 'turn_off' : 'turn_on', entityId),
+    onToggle: (domain, entityId, state) => {
+      zustandVorwegnehmen(entityId, { state: state === 'on' ? 'off' : 'on' });
+      return callService(domain, state === 'on' ? 'turn_off' : 'turn_on', entityId);
+    },
     onPress: (domain, entityId) => callService(domain, DashboardRender.PRESS_DOMAINS[domain] || 'turn_on', entityId),
-    onSetBrightness: (entityId, pct) => callService('light', 'turn_on', entityId, { brightness_pct: pct }),
+    onSetBrightness: (entityId, pct) => {
+      zustandVorwegnehmen(entityId, { state: 'on', attributes: { brightness: Math.round(pct * 2.55) } });
+      return callService('light', 'turn_on', entityId, { brightness_pct: pct });
+    },
     // Tor-Card: Der passende Dienst wird aus der Entitaet abgeleitet, damit Taster,
     // Rollladen und Skripte in derselben Knopfliste stehen duerfen.
     onSetColorTemp: (entityId, kelvin) => callService('light', 'turn_on', entityId, { color_temp_kelvin: kelvin }),
     onSetColor: (entityId, rgb) => callService('light', 'turn_on', entityId, { rgb_color: rgb }),
-    onSetHvacMode: (entityId, modus) => callService('climate', 'set_hvac_mode', entityId, { hvac_mode: modus }),
+    onSetHvacMode: (entityId, modus) => {
+      zustandVorwegnehmen(entityId, { state: modus });
+      return callService('climate', 'set_hvac_mode', entityId, { hvac_mode: modus });
+    },
     onSetPreset: (entityId, preset) => callService('climate', 'set_preset_mode', entityId, { preset_mode: preset }),
     onGatePress: (entityId, alsSchalter) => {
       const dienst = DashboardRender.serviceFuerEntitaet(entityId);
@@ -472,14 +503,31 @@ function dashboardRueckrufe() {
       // scheitert es, ist der Knopfdruck trotzdem angekommen.
       return versprechen;
     },
-    onSetTemp: (entityId, value) => callService('climate', 'set_temperature', entityId, { temperature: value }),
+    onSetTemp: (entityId, value) => {
+      // Der haeufigste Fall: Plus oder Minus an der Klimaanlage. Genau hier fiel die
+      // Verzoegerung am meisten auf, weil man mehrmals hintereinander drueckt.
+      zustandVorwegnehmen(entityId, { attributes: { temperature: value } });
+      return callService('climate', 'set_temperature', entityId, { temperature: value });
+    },
     onCover: (entityId, service) => callService('cover', service, entityId),
-    onCoverPosition: (entityId, pos) => callService('cover', 'set_cover_position', entityId, { position: pos }),
+    onCoverPosition: (entityId, pos) => {
+      zustandVorwegnehmen(entityId, { attributes: { current_position: pos } });
+      return callService('cover', 'set_cover_position', entityId, { position: pos });
+    },
     onCoverTilt: (entityId, pos) => callService('cover', 'set_cover_tilt_position', entityId, { tilt_position: pos }),
-    onSelectOption: (domain, entityId, option) => callService(domain, 'select_option', entityId, { option }),
+    onSelectOption: (domain, entityId, option) => {
+      zustandVorwegnehmen(entityId, { state: option });
+      return callService(domain, 'select_option', entityId, { option });
+    },
     onMediaControl: (entityId, service, serviceData) => callService('media_player', service, entityId, serviceData),
-    onLockToggle: (entityId, curState) => callService('lock', curState === 'locked' ? 'unlock' : 'lock', entityId),
-    onFanSpeed: (entityId, pct) => callService('fan', 'set_percentage', entityId, { percentage: pct }),
+    onLockToggle: (entityId, curState) => {
+      zustandVorwegnehmen(entityId, { state: curState === 'locked' ? 'unlocking' : 'locking' });
+      return callService('lock', curState === 'locked' ? 'unlock' : 'lock', entityId);
+    },
+    onFanSpeed: (entityId, pct) => {
+      zustandVorwegnehmen(entityId, { state: pct > 0 ? 'on' : 'off', attributes: { percentage: pct } });
+      return callService('fan', 'set_percentage', entityId, { percentage: pct });
+    },
     onVacuumControl: (entityId, service) => callService('vacuum', service, entityId),
     // Der Code wird nur mitgeschickt, wenn die Anlage einen verlangt -- sonst bleibt das
     // Feld weg, statt ein leeres mitzusenden.
@@ -513,6 +561,24 @@ async function unterleisteAufbauen(entry) {
   }));
 }
 
+// Womit sich der letzte Aufbau begruendet hat. Aendert sich daran nichts, braucht es auch
+// keinen neuen -- und alle fuenf Sekunden fuenfundzwanzig Karten neu zu bauen waere auf einem
+// Surface Go verschwendete Rechenzeit.
+//
+// Bewusst nur ueber die Entitaeten, die auf DIESEM Dashboard liegen: Ein Haushalt hat
+// schnell dreihundert Entitaeten, und die allermeisten stehen auf keiner Karte.
+let letzteSignatur = null;
+
+function zustandsSignatur(layout) {
+  return layout.map(e => {
+    const s = statesById[e.entity_id];
+    if (!s) return e.entity_id + '=-';
+    // Die Attribute gehoeren dazu: Eine Klimaanlage aendert beim Verstellen der
+    // Zieltemperatur ihren Zustand NICHT, nur ein Attribut.
+    return e.entity_id + '=' + s.state + '#' + JSON.stringify(s.attributes || {});
+  }).join('|');
+}
+
 async function render() {
   const layout = await activeLayout();
   const grid = $('grid');
@@ -523,6 +589,13 @@ async function render() {
   // sieht zwoelf Sekunden lang weiter den alten Zustand -- der Schutz wuerde genau das
   // verursachen, wogegen er gedacht war.
   if (!aufbauErzwingen && grid.children.length && wirdGeradeBedient()) return;
+
+  // Nichts geaendert, nichts zu tun. Der Vergleich kostet den Bruchteil dessen, was ein
+  // Neuaufbau kostet -- und bei fuenf Sekunden Takt faellt das ins Gewicht.
+  const signatur = zustandsSignatur(layout);
+  if (!aufbauErzwingen && grid.children.length && signatur === letzteSignatur) return;
+  letzteSignatur = signatur;
+
   aufbauErzwingen = false;
   grid.innerHTML = '';
   if (!layout.length) {
@@ -1399,9 +1472,16 @@ function showPauseToast() {
   await refresh(); // immer, auch nachts -- fuer Batteriewarnung/Ankuendigungs-Box; Karten-Rendering pausiert intern
   resetIdleTimer();
 
-  // Adaptives Intervall statt festem setInterval: 15s tagsueber, 60s nachts (Energiesparen)
+  // Adaptives Intervall statt festem setInterval: 5s tagsueber, 30s nachts (Energiesparen).
+  //
+  // Frueher 15 Sekunden. Wer eine Klimaanlage in der Home-Assistant-App umstellt, sah das auf
+  // der Wand bis zu eine Viertelminute lang nicht -- und hielt das Panel fuer eingefroren.
+  //
+  // Haeufiger abzufragen kostet hier fast nichts, weil der Neuaufbau nur noch stattfindet,
+  // wenn sich wirklich etwas geaendert hat (siehe zustandsSignatur). Das Abrufen selbst ist
+  // eine lokale Anfrage im eigenen Netz; der teure Teil war immer das Neuzeichnen.
   function scheduleRefresh() {
-    setTimeout(async () => { await refresh(); scheduleRefresh(); }, nightActive ? 60000 : 15000);
+    setTimeout(async () => { await refresh(); scheduleRefresh(); }, nightActive ? 30000 : 5000);
   }
   scheduleRefresh();
 
@@ -1410,9 +1490,15 @@ function showPauseToast() {
   // und Muelltermine froren beim Start ein und veralteten ueber Tage. Auf einem Geraet, das
   // durchlaeuft, faellt das garantiert auf: Die Vorhersage zeigt vorgestern, und ein laengst
   // vergangener Muelltermin steht weiter als naechster da.
-  setInterval(() => { historyCache = {}; }, 5 * 60000);        // Verlauf: 5 Minuten
-  setInterval(() => { forecastCache = {}; }, 30 * 60000);      // Wettervorhersage: 30 Minuten
-  setInterval(() => { wasteCache = {}; }, 6 * 60 * 60000);     // Muelltermine: 6 Stunden
+  // Nach dem Leeren MUSS ein Neuaufbau folgen. Seit der Aufbau uebersprungen wird, solange
+  // sich kein Zustand geaendert hat, wuerde sonst niemand die frischen Daten je abholen:
+  // Verlauf, Vorhersage und Muelltermine haengen an keiner Entitaet, ihr Wechsel taucht in
+  // der Signatur nicht auf. Die Diagramme blieben stehen, ohne dass irgendetwas darauf
+  // hinweist -- dieselbe stille Veraltung, die diese Zwischenspeicher schon einmal hatten.
+  const leerenUndNeuZeichnen = (leeren) => () => { leeren(); aufbauErzwingen = true; refresh(); };
+  setInterval(leerenUndNeuZeichnen(() => { historyCache = {}; }), 5 * 60000);       // Verlauf: 5 Minuten
+  setInterval(leerenUndNeuZeichnen(() => { forecastCache = {}; }), 30 * 60000);     // Wettervorhersage: 30 Minuten
+  setInterval(leerenUndNeuZeichnen(() => { wasteCache = {}; }), 6 * 60 * 60000);    // Muelltermine: 6 Stunden
   setInterval(loadConfig, 10000); // Config kann sich extern aendern (Editor)
 })();
 </script>

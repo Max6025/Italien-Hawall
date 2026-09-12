@@ -107,6 +107,22 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   man das Gegenteil der Wahrheit. Die Bewegung ist dabei keine Spielerei: Sie unterscheidet
   „läuft gerade" (`hvac_action`) von „ist eingestellt" (`state`). Steht die Flamme still,
   heizt die Anlage nicht — das steht sonst nirgends auf der Karte.
+- **Der Ankunftsschirm hat einen FEST dunklen Hintergrund** (`#07070c`), unabhängig vom
+  Design. Eine pauschale Hell-Regel auf `.as-text` machte die Fettschrift dort dunkel auf
+  dunkel. Die Klasse trägt **Markdown-Regeln, keine Farbannahmen** — sie wird auch von der
+  Ankündigungsbox benutzt, und die ist themenabhängig. Farbregeln dafür immer auf den
+  Container scoped (`.notify-box .as-text …`), nie auf `.as-text` allein.
+- **Der Neuaufbau läuft nur bei echter Änderung** (`zustandsSignatur()` über die Entitäten
+  *dieses* Dashboards, Zustand **und** Attribute — eine Klimaanlage ändert beim Verstellen der
+  Zieltemperatur nur ein Attribut). Erst dadurch sind fünf Sekunden Abfragetakt bezahlbar.
+  **Folge:** Alles, was sich ohne Zustandsänderung ändert — abgelaufene Zwischenspeicher für
+  Verlauf, Vorhersage, Mülltermine — muss selbst `aufbauErzwingen = true` setzen, sonst holt
+  niemand die frischen Daten ab und die Diagramme frieren lautlos ein.
+- **Geschaltetes wird sofort angezeigt** (`zustandVorwegnehmen()`), nicht erst wenn Home
+  Assistant den neuen Zustand meldet — bei einer Klimaanlage dauert das mehrere Sekunden, und
+  bis dahin drückt man ein zweites Mal. Der vorweggenommene Wert ist eine **Annahme**; der
+  nächste Abruf überschreibt ihn. Falsch liegt er nur, wenn der Befehl gar nicht ankam — und
+  das meldet der Knopf ohnehin mit einem Kreuz.
 - **Beide Themes prüfen, nicht nur das dunkle.** Das Dunkle war entworfen, das Helle nur
   abgeleitet — und es fiel an jeder Stelle auseinander, an der eine Farbe **fest auf Weiß**
   stand: weißer Glanz auf weißem Glas, ein Akzent, der Weiß war, ein schwarzer Schlagschatten

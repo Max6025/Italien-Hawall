@@ -1375,7 +1375,12 @@ body.light-theme .notify-box {
 body.light-theme .notify-overlay { --kachel-akzent: #b8791a; }
 body.light-theme .notify-overlay .notify-text,
 body.light-theme .notify-kurz { color: rgba(23, 21, 29, 0.92); }
-body.light-theme .as-text strong { color: #17151d; }
+/* NUR in der Ankuendigungsbox. Der Ankunftsschirm hat einen FEST dunklen Hintergrund
+   (#07070c) -- unabhaengig vom Design. Eine pauschale Regel fuers helle Design machte die
+   Fettschrift dort dunkel auf dunkel und damit unlesbar. Genau das ist in 1.22.0 passiert.
+   Wer .as-text ausserhalb des Ankunftsschirms verwendet, muss das mitbedenken: Die Klasse
+   traegt Markdown-Regeln, keine Farbannahmen. */
+body.light-theme .notify-box .as-text strong { color: #17151d; }
 
 /* Das Foto-Etikett und die Karten auf einem Foto bleiben bewusst hell: Darunter liegt ein
    Bild, kein Theme -- und ueber einem Urlaubsfoto ist dunkle Schrift schlechter lesbar. */
