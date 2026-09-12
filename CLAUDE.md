@@ -249,7 +249,10 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   (`renderer/shared/akku.js`): leise und selten am Anfang, mit der Zeit häufiger und lauter,
   ab 15 % mit anderem Motiv und blinkend. Und deshalb lässt sie sich **dreimal** für drei
   Minuten wegdrücken, danach nicht mehr — wer gerade telefoniert, soll das können; wer die
-  Warnung aussitzen will, nicht. Die Schwelle ist nach unten auf **20 %** begrenzt: Darunter
+  Warnung aussitzen will, nicht. Das Kontingent gilt **je Stufe**: Wer es bei zwanzig Prozent
+  aufgebraucht hat, bekommt bei vierzehn ein neues, weil das eine andere Lage ist (gemeldet
+  wurde das vorher als „ab 15 % geht das Stummschalten nicht mehr"). Ausgesessen wird sie
+  trotzdem nicht — auf der kritischen Stufe dauert eine Stummschaltung nur noch eine Minute. Die Schwelle ist nach unten auf **20 %** begrenzt: Darunter
   bleibt bei einem Panel, das nebenbei lädt und sich entlädt, keine Reserve zum Reagieren.
 - **`Number(null)` ist 0, nicht `NaN`.** In `akkuStufe()` hätte ein fehlender Akkustand damit
   dieselbe Wirkung wie ein leerer Akku gehabt: sofort die kritische Stufe, volle Lautstärke,
@@ -306,6 +309,13 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   einer anderen, und man musste erst merken, dass da zwei sind. Jetzt liefert es `null`, und
   jeder Aufrufer muss das behandeln. Vorher wird noch mit kleineren Maßen gesucht, damit eine
   große Vorgabegröße nicht daran scheitert, dass nur ein Feld frei ist.
+- **Eine Uhr gehört nicht an den Neuaufbau, sondern an die Sekunde.** Karten werden nur neu
+  gebaut, wenn sich ein Zustand geändert hat (`zustandsSignatur`) — für eine Uhr heißt das: Sie
+  springt weiter, wenn irgendwo im Haus eine Lampe schaltet, und bleibt sonst stehen. Seit der
+  Live-Verbindung sah das aus wie „aktualisiert alle fünf Sekunden", weil so oft zufällig eine
+  fremde Änderung kam. `uhrenKartenAktualisieren()` läuft deshalb im Sekundentakt über alle
+  `.card.type-clock` — das schreibt zwei Texte und baut nichts neu. Dasselbe gilt für alles
+  andere, was sich **ohne** Zustandsänderung ändert.
 - **Im Streifen unten zählt jeder Millimeter Zeichenhöhe.** Die Karte dort ist nur ein paar
   Zentimeter hoch, und `cqmin` rechnet auf der **Inhaltsbox** — was an Polsterung steht, fehlt
   der Schrift doppelt. Die Uhr war deshalb 17 px groß, obwohl 49 px hineinpassen: Die normale
@@ -421,7 +431,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-321 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+323 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
 Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

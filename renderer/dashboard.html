@@ -881,6 +881,7 @@ let akkuLetzterTon = 0;
 let akkuStummBis = 0;
 let akkuStummVerwendet = 0;
 let akkuStufeJetzt = 0;
+let akkuStummStufe = 0;         // fuer welche Stufe das Stumm-Kontingent gilt
 let akkuLautstaerkeGesetzt = 0; // bis zu welcher Systemlautstaerke schon angehoben wurde
 
 function checkDeviceBattery() {
@@ -907,11 +908,21 @@ function checkDeviceBattery() {
     akkuStummBis = 0;
     akkuStummVerwendet = 0;
     akkuStufeJetzt = 0;
+    akkuStummStufe = 0;
     akkuLautstaerkeGesetzt = 0;
     return;
   }
   if (!akkuWarnungSeit) akkuWarnungSeit = jetzt;
   akkuStufeJetzt = stufe;
+
+  // Eine neue Stufe ist eine neue Lage: Wer sein Kontingent bei zwanzig Prozent aufgebraucht
+  // hat, muss den Ton bei vierzehn Prozent trotzdem einmal wegdruecken koennen. Ausgesessen
+  // wird die Warnung damit nicht -- auf der kritischen Stufe ist eine Stummschaltung nur noch
+  // eine Minute lang, und danach kommt sie alle zwoelf Sekunden wieder.
+  if (stufe > akkuStummStufe) {
+    akkuStummStufe = stufe;
+    akkuStummVerwendet = 0;
+  }
   const einstellung = AkkuModul.stufenEinstellung(stufe);
 
   $('akkuGlyph').innerHTML = akkuGlyph(pct, laedt);
@@ -950,16 +961,16 @@ function akkuStummTextSetzen() {
     el.textContent = 'Still für ' + Math.ceil((akkuStummBis - jetzt) / 60000) + ' Min.';
     return;
   }
-  const naechste = AkkuModul.stummschalten(jetzt, akkuStummVerwendet);
+  const naechste = AkkuModul.stummschalten(jetzt, akkuStummVerwendet, akkuStufeJetzt);
   el.textContent = naechste.erlaubt
-    ? 'Antippen: ' + AkkuModul.STUMM_MINUTEN + ' Min. still'
+    ? 'Antippen: ' + naechste.minuten + ' Min. still'
     : 'Lässt sich nicht mehr stummschalten';
 }
 
 // Antippen schaltet den Ton fuer ein paar Minuten stumm -- dreimal. Wer gerade telefoniert,
 // soll das koennen; wer die Warnung aussitzen will, nicht.
 $('akkuWarnung').addEventListener('click', () => {
-  const r = AkkuModul.stummschalten(Date.now(), akkuStummVerwendet);
+  const r = AkkuModul.stummschalten(Date.now(), akkuStummVerwendet, akkuStufeJetzt);
   if (!r.erlaubt) { akkuStummTextSetzen(); return; }
   akkuStummVerwendet += 1;
   akkuStummBis = r.bisMs;
@@ -1529,9 +1540,24 @@ function showPauseToast() {
   showPauseToast._t = setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
+// Die Uhr-Karte geht sonst nach -- und zwar unvorhersehbar.
+//
+// Eine Karte wird nur neu gebaut, wenn sich ein Zustand geaendert hat (siehe zustandsSignatur).
+// Fuer eine Uhr heisst das: Sie springt weiter, wenn irgendwo im Haus eine Lampe schaltet, und
+// bleibt sonst stehen. Seit der Live-Verbindung sah das aus wie "aktualisiert alle fuenf
+// Sekunden" -- so oft kam zufaellig eine fremde Aenderung.
+//
+// Eine Uhr gehoert deshalb nicht an den Neuaufbau, sondern an die Sekunde. Das Nachfuehren
+// kostet nichts: Es schreibt zwei Texte, es baut nichts neu.
+function uhrenKartenAktualisieren() {
+  document.querySelectorAll('.card.type-clock').forEach(DashboardRender.renderClockNow);
+}
+
 (async () => {
   updateClock();
   setInterval(updateClock, 1000 * 30);
+  uhrenKartenAktualisieren();
+  setInterval(uhrenKartenAktualisieren, 1000);
   await loadConfig();
 
   // Steuerungszustand einmal holen und danach auf Aenderungen lauschen.
@@ -1551,7 +1577,9 @@ function showPauseToast() {
   // Die Battery-API meldet sich nur bei Aenderungen. Ein voll geladenes Geraet aendert
   // stundenlang nichts -- nachsehen muss man trotzdem, sonst haelt die Leiste das Panel fuer
   // abgeschaltet und die Warnschwelle aus den Einstellungen greift erst beim naechsten Sprung.
-  setInterval(checkDeviceBattery, 15000);
+  // Feiner als der kuerzeste Tonabstand (12 s auf der kritischen Stufe) -- sonst bestimmt
+  // dieser Takt die Haeufigkeit und nicht die Stufe.
+  setInterval(checkDeviceBattery, 4000);
   befehleEmpfangen();
   await refresh(); // immer, auch nachts -- fuer Batteriewarnung/Ankuendigungs-Box; Karten-Rendering pausiert intern
 
