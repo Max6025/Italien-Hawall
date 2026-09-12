@@ -116,15 +116,32 @@ test('Stummgeschaltet kommt kein Ton, danach wieder', () => {
 test('Dreimal darf man wegdruecken', () => {
   const t0 = 5000000;
   [0, 1, 2].forEach(n => {
-    const r = A.stummschalten(t0, n);
+    const r = A.stummschalten(t0, n, 1);
     assert.strictEqual(r.erlaubt, true, 'Versuch ' + n);
     assert.strictEqual(r.bisMs, t0 + A.STUMM_MINUTEN * 60000);
   });
 });
 
+test('Auf der kritischen Stufe ist die Ruhe kuerzer', () => {
+  // Drei Minuten waeren dort ein Viertel der Zeit, die das Geraet noch hat.
+  const t0 = 5000000;
+  assert.strictEqual(A.stummMinuten(1), A.STUMM_MINUTEN);
+  assert.strictEqual(A.stummMinuten(3), A.STUMM_MINUTEN_KRITISCH);
+  assert.strictEqual(A.stummschalten(t0, 0, 3).bisMs, t0 + A.STUMM_MINUTEN_KRITISCH * 60000);
+});
+
+test('Der Text nennt die richtige Einzahl', () => {
+  // "1 Minuten still" ist die Sorte Kleinigkeit, die eine sonst sorgfaeltige Anzeige billig
+  // aussehen laesst.
+  assert.match(A.stummschalten(0, 0, 3).text, /1 Minute still/);
+  assert.match(A.stummschalten(0, 0, 1).text, /3 Minuten still/);
+});
+
 test('Beim vierten Mal nicht mehr', () => {
   // Ab da ist es keine Stoerung mehr, sondern die letzte Warnung vor einem Geraet, das sich
-  // abschaltet.
+  // abschaltet. Das Kontingent gilt aber je STUFE: Wer es bei zwanzig Prozent aufgebraucht
+  // hat, bekommt bei vierzehn ein neues -- das ist eine andere Lage. Diese Zaehlung setzt
+  // die Anzeige zurueck, sobald die Stufe steigt.
   const r = A.stummschalten(5000000, 3);
   assert.strictEqual(r.erlaubt, false);
   assert.strictEqual(r.bisMs, 0);

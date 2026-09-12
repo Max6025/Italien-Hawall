@@ -36,7 +36,10 @@
   // das nebenbei laedt und entlaedt, keine Reserve mehr, um in Ruhe zu reagieren.
   const SCHWELLE_MINDESTENS = 20;
 
+  // Wie lange stumm -- und wie oft. Auf der kritischen Stufe kuerzer: Drei Minuten Ruhe sind
+  // dort ein Viertel der Zeit, die das Geraet noch hat.
   const STUMM_MINUTEN = 3;
+  const STUMM_MINUTEN_KRITISCH = 1;
   const STUMM_MAXIMAL = 3;
 
   // Je Stufe: Abstand zwischen zwei Toenen, Lautstaerke des Tons selbst (0..1), Mindestwert
@@ -131,33 +134,47 @@
     return jetzt - letzter >= stufenEinstellung(stufe).abstandSekunden * 1000;
   }
 
+  /** Wie lange eine Stummschaltung auf dieser Stufe gilt, in Minuten. */
+  function stummMinuten(stufe) {
+    return (Number(stufe) || 0) >= 3 ? STUMM_MINUTEN_KRITISCH : STUMM_MINUTEN;
+  }
+
   /**
    * Was passiert, wenn jemand die Warnung antippt?
    *
-   * @returns {{erlaubt: boolean, bisMs: number, verbleibend: number, text: string}}
+   * Das Kontingent gilt JE STUFE, nicht je Warnung. Vorher war es ein Vorrat fuer die ganze
+   * Warnung -- wer ihn bei zwanzig Prozent aufgebraucht hatte, konnte den Ton bei vierzehn
+   * Prozent nicht mehr wegdruecken, obwohl das eine voellig andere Lage ist. Gemeldet wurde
+   * das als "ab 15 % geht das Stummschalten nicht mehr".
+   *
+   * Ausgesessen werden kann die Warnung trotzdem nicht: Auf der kritischen Stufe sind es
+   * dreimal eine Minute, und danach kommt sie alle zwoelf Sekunden wieder.
+   *
+   * @returns {{erlaubt: boolean, bisMs: number, verbleibend: number, minuten: number, text: string}}
    */
-  function stummschalten(jetzt, bisherVerwendet) {
+  function stummschalten(jetzt, bisherVerwendet, stufe) {
     const verwendet = Math.max(0, Number(bisherVerwendet) || 0);
+    const minuten = stummMinuten(stufe);
     if (verwendet >= STUMM_MAXIMAL) {
       return {
-        erlaubt: false, bisMs: 0, verbleibend: 0,
+        erlaubt: false, bisMs: 0, verbleibend: 0, minuten,
         text: 'Jetzt nicht mehr – bitte anschließen'
       };
     }
     const verbleibend = STUMM_MAXIMAL - verwendet - 1;
     return {
       erlaubt: true,
-      bisMs: (Number(jetzt) || 0) + STUMM_MINUTEN * 60000,
-      verbleibend,
+      bisMs: (Number(jetzt) || 0) + minuten * 60000,
+      verbleibend, minuten,
       text: verbleibend > 0
-        ? STUMM_MINUTEN + ' Minuten still (noch ' + verbleibend + '×)'
-        : STUMM_MINUTEN + ' Minuten still – danach nicht mehr'
+        ? minuten + (minuten === 1 ? ' Minute' : ' Minuten') + ' still (noch ' + verbleibend + '×)'
+        : minuten + (minuten === 1 ? ' Minute' : ' Minuten') + ' still – danach nicht mehr'
     };
   }
 
   const api = {
-    KRITISCH_PROZENT, SCHWELLE_MINDESTENS, STUMM_MINUTEN, STUMM_MAXIMAL,
-    akkuStufe, stufenEinstellung, stufenMotiv, tonFaellig, stummschalten
+    KRITISCH_PROZENT, SCHWELLE_MINDESTENS, STUMM_MINUTEN, STUMM_MINUTEN_KRITISCH, STUMM_MAXIMAL,
+    akkuStufe, stufenEinstellung, stufenMotiv, tonFaellig, stummschalten, stummMinuten
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
