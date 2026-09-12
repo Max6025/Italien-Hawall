@@ -290,6 +290,11 @@ function pushControlState(state) {
   }
 }
 
+// Ohne diesen Schalter laesst Chromium Ton erst zu, nachdem jemand die Seite angefasst hat.
+// An einer Wand fasst wochenlang niemand etwas an -- der Akku-Warnton waere genau dann still,
+// wenn er gebraucht wird, und zwar ohne jede Fehlermeldung.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 app.whenReady().then(() => {
   createWindow();
 

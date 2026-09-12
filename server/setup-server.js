@@ -225,6 +225,38 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     }
   });
 
+  // --- Akkustand des Panels -------------------------------------------------------------------
+  //
+  // Die Einrichtungsseite laeuft auf einem ANDEREN Geraet: Sie kann den Akku des Panels nicht
+  // selbst auslesen -- navigator.getBattery() beantwortet immer nur die Frage nach dem Geraet,
+  // auf dem der Browser gerade steht. Die Anzeige meldet ihn deshalb hierher.
+  //
+  // Bewusst nur im Speicher, nicht im Store: Ein Akkustand von gestern ist keine Information,
+  // sondern eine Falle. Nach einem Neustart ist er weg, und die Leiste sagt ehrlich "unbekannt",
+  // bis sich das Panel das naechste Mal meldet.
+  let geraetAkku = null;
+
+  app.post('/api/geraet/akku', (req, res) => {
+    const { prozent, laedt } = req.body || {};
+    const p = Number(prozent);
+    if (!Number.isFinite(p) || p < 0 || p > 100) {
+      return res.status(400).json({ ok: false, error: 'prozent muss zwischen 0 und 100 liegen' });
+    }
+    geraetAkku = { prozent: Math.round(p), laedt: !!laedt, zeit: Date.now() };
+    res.json({ ok: true });
+  });
+
+  app.get('/api/geraet/akku', (req, res) => {
+    if (!geraetAkku) return res.json({ ok: true, akku: null });
+    // Das Alter gehoert dazu: Laeuft die Anzeige nicht mehr, steht sonst ein Stand von vor drei
+    // Tagen in der Leiste und sieht aus wie die Gegenwart.
+    res.json({
+      ok: true,
+      akku: { prozent: geraetAkku.prozent, laedt: geraetAkku.laedt },
+      alterSekunden: Math.round((Date.now() - geraetAkku.zeit) / 1000)
+    });
+  });
+
   app.get('/api/config', (req, res) => {
     res.json({
       haUrl: store.get('haUrl') || '',
@@ -239,6 +271,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       // 0 heisst ausdruecklich: bleibt gross.
       notifySekunden: store.get('notifySekunden') === undefined ? 20 : store.get('notifySekunden'),
       batteryThreshold: store.get('batteryThreshold') || 20,
+      batterySound: store.get('batterySound') !== false,
       nightModeEnabled: store.get('nightModeEnabled') || false,
       nightStart: store.get('nightStart') || '23:00',
       nightEnd: store.get('nightEnd') || '06:30',
@@ -291,7 +324,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
   app.post('/api/config', (req, res) => {
     const {
       haUrl, token, title, entities, layout, sunEntity,
-      notifyEntity, batteryThreshold, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
+      notifyEntity, batteryThreshold, batterySound, nightModeEnabled, nightStart, nightEnd, nightModeForceOn,
       notifyTitel, notifySekunden,
       calendarEnabled, calendarEntity, calendarKeywords, calendarLeadMinutes, calendarTrailMinutes,
       setupCode,
@@ -316,6 +349,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (notifyTitel !== undefined) store.set('notifyTitel', String(notifyTitel || '').slice(0, 40));
     if (notifySekunden !== undefined) store.set('notifySekunden', Math.max(0, Math.min(600, parseInt(notifySekunden, 10) || 0)));
     if (batteryThreshold !== undefined) store.set('batteryThreshold', batteryThreshold);
+    if (batterySound !== undefined) store.set('batterySound', !!batterySound);
     if (nightModeEnabled !== undefined) store.set('nightModeEnabled', nightModeEnabled);
     if (nightStart !== undefined) store.set('nightStart', nightStart);
     if (nightEnd !== undefined) store.set('nightEnd', nightEnd);

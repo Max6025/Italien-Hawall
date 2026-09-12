@@ -23,3 +23,16 @@
   .hawall-nav { flex-wrap: wrap; height: auto; padding: 0.7rem 2vw; }
   .hawall-nav-links { width: 100%; justify-content: center; margin-top: 0.5rem; }
 }
+
+/* Akkustand des Panels. Steht am rechten Rand und faellt nicht auf, solange alles in Ordnung
+   ist -- eine Statusanzeige, die immer leuchtet, liest nach einer Woche niemand mehr. */
+.hawall-nav-akku {
+  display: flex; align-items: center; gap: 0.4rem;
+  color: #9aa0ac; font-size: 0.8rem; white-space: nowrap;
+  padding: 0.35rem 0.7rem; border-radius: 999px;
+  background: #141519; border: 1px solid rgba(255,255,255,0.06);
+}
+.hawall-nav-akku svg { width: 1.15rem; height: 1.15rem; display: block; }
+.hawall-nav-akku em { font-style: normal; opacity: 0.65; }
+.hawall-nav-akku.laedt { color: #6fd39a; border-color: rgba(111,211,154,0.35); }
+.hawall-nav-akku.schwach { color: #ffb23d; border-color: rgba(255,178,61,0.4); }

@@ -65,6 +65,9 @@ const ANTWORTEN = {
       entity_id: id, name, domain: id.split('.')[0], zustand: state
     }))
   },
+  // Der Akkustand des Panels fuer die Navigationsleiste. Ohne diesen Eintrag antwortet die
+  // Probe nur mit {ok:true}, die Leiste blendet sich aus -- und man haelt es fuer einen Fehler.
+  '/api/geraet/akku': { ok: true, akku: { prozent: 14, laedt: false }, alterSekunden: 12 },
   '/api/dashboards': { ok: true, dashboards: [] },
   '/api/dashboard-format': { ok: true, anleitung: { kartenarten: [] } }
 };

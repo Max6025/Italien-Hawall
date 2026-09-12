@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Akkuwarnung – Vorschau</title>
+<!--
+  Nur zum Ansehen der Akkuwarnung. Lädt dieselbe CSS-Datei wie das echte Dashboard und baut
+  dasselbe Markup mit erfundenen Ständen -- ohne Home Assistant, ohne Electron, ohne Gerät.
+  Beide Themes prüfen: ?hell hängt light-theme an.
+
+  Öffnen: direkt im Browser.
+-->
+<link rel="stylesheet" href="../../renderer/shared/dashboard.css">
+<style>
+  body { margin: 0; min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+  .reihe { display: flex; flex-direction: column; gap: 6vh; padding: 6vh 4vw; }
+  .fall { position: relative; height: 10vh; }
+  /* Die echte Warnung steht fixiert oben mittig -- hier nebeneinander, um sie zu vergleichen. */
+  .fall .akku-warnung { position: static; transform: none; display: inline-flex; animation: none; }
+  .fall .akku-warnung.kritisch .akku-glyph { animation: akku-pulsieren 1.6s ease-in-out infinite alternate; }
+  h2 { color: var(--muted); font-size: 1.6vh; font-weight: 600; margin: 0 0 1vh;
+       text-transform: uppercase; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+<div class="lebendig" aria-hidden="true"><span></span><span></span><span></span></div>
+<div class="reihe" id="reihe"></div>
+
+<script src="../../renderer/shared/dashboard-render.js"></script>
+<script>
+if (new URLSearchParams(location.search).has('hell')) document.body.classList.add('light-theme');
+DashboardRender.applyCustomTheme(DashboardRender.DEFAULT_THEME);
+
+// Dieselbe Zeichenvorschrift wie in dashboard.html. Steht hier bewusst ein zweites Mal:
+// Die Probe soll ohne die App auskommen, und ein Unterschied im Bild fällt sofort auf.
+function akkuGlyph(pct, laedt) {
+  const breite = Math.max(1, Math.round(13 * Math.min(100, Math.max(0, pct)) / 100));
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'
+    + '<rect x="2.5" y="7.5" width="16" height="9" rx="2"/>'
+    + '<path d="M21 10.5v3"/>'
+    + `<rect x="4" y="9" width="${breite}" height="6" rx="1" fill="currentColor" stroke="none"/>`
+    + (laedt ? '<path d="M11 8.5 8.5 12.5h3L10.5 15.5l4-4.5h-3L13 8.5z" fill="var(--bg)" stroke="none"/>' : '')
+    + '</svg>';
+}
+
+const FAELLE = [
+  ['Knapp (18 %)', 18, false, false],
+  ['Kritisch (7 %)', 7, false, true],
+  ['Fast leer (2 %)', 2, false, true],
+  ['Am Netzteil (18 %)', 18, true, false]
+];
+
+document.getElementById('reihe').innerHTML = FAELLE.map(([titel, pct, laedt, kritisch]) => `
+  <div class="fall">
+    <h2>${titel}</h2>
+    <div class="akku-warnung${kritisch ? ' kritisch' : ''}">
+      <span class="akku-glyph">${akkuGlyph(pct, laedt)}</span>
+      <span class="akku-text"><b>${pct} %</b><span>${kritisch ? 'Gleich aus – bitte sofort anschließen' : 'Bitte Netzteil anschließen'}</span></span>
+    </div>
+  </div>`).join('');
+</script>
+</body>
+</html>

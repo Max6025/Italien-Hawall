@@ -18,7 +18,6 @@
         <div id="title">Wall Display</div>
         <div class="icon-row">
           <div class="icon-btn" id="backBtn" title="Zurück zum Hauptdashboard" style="display:none;"></div>
-          <div class="icon-btn warn" id="batteryWarnBtn" title="Batterie niedrig" style="display:none;"></div>
           <div class="icon-btn" id="refreshBtn" title="Aktualisieren"></div>
           <div class="icon-btn" id="settingsBtn" title="Einstellungen"></div>
         </div>
@@ -71,12 +70,11 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="batteryModal">
-    <div class="modal">
-      <h3>Batterie niedrig</h3>
-      <div id="batteryList"></div>
-      <button class="close" id="batteryModalClose">Schließen</button>
-    </div>
+  <!-- Akkuwarnung: schwebt oben mittig ueber dem Dashboard. Bewusst KEIN Vollbild -- die Wand
+       soll weiter bedienbar bleiben, waehrend sie warnt. -->
+  <div class="akku-warnung" id="akkuWarnung" hidden>
+    <span class="akku-glyph" id="akkuGlyph"></span>
+    <span class="akku-text"><b id="akkuProzent">–</b><span id="akkuHinweis">Bitte Netzteil anschließen</span></span>
   </div>
 
   <div class="night-overlay" id="nightOverlay"></div>
@@ -874,24 +872,110 @@ async function initDeviceBattery() {
   } catch (e) { /* keine Akku-Info verfuegbar -- Icon bleibt einfach versteckt */ }
 }
 
+// Wann zuletzt gewarnt wurde -- der Ton wiederholt sich, die Anzeige bleibt.
+let akkuTonZuletzt = 0;
+const AKKU_TON_ABSTAND_MS = 10 * 60 * 1000;
+
 function checkDeviceBattery() {
-  const btn = $('batteryWarnBtn');
-  if (!batteryObj) { btn.style.display = 'none'; return; }
+  const box = $('akkuWarnung');
+  if (!batteryObj) { box.hidden = true; return; }
   const pct = Math.round(batteryObj.level * 100);
-  const threshold = (config && config.batteryThreshold) || 20;
-  const low = !batteryObj.charging && pct <= threshold;
-  if (low) {
-    btn.style.display = 'flex';
-    btn.dataset.pct = pct;
-  } else {
-    btn.style.display = 'none';
+  const laedt = !!batteryObj.charging;
+  const schwelle = (config && config.batteryThreshold) || 20;
+  const knapp = !laedt && pct <= schwelle;
+
+  akkuMelden(pct, laedt);
+
+  if (!knapp) {
+    box.hidden = true;
+    akkuTonZuletzt = 0;   // beim naechsten Mal sofort wieder hoerbar
+    return;
+  }
+
+  $('akkuGlyph').innerHTML = akkuGlyph(pct, laedt);
+  $('akkuProzent').textContent = pct + ' %';
+  // Unter zehn Prozent wird es eine andere Nachricht: Da geht es nicht mehr um Komfort.
+  $('akkuHinweis').textContent = pct <= 10
+    ? 'Gleich aus – bitte sofort anschließen'
+    : 'Bitte Netzteil anschließen';
+  box.classList.toggle('kritisch', pct <= 10);
+  box.hidden = false;
+
+  const jetzt = Date.now();
+  if (jetzt - akkuTonZuletzt >= AKKU_TON_ABSTAND_MS) {
+    akkuTonZuletzt = jetzt;
+    akkuTonSpielen();
   }
 }
 
-function showBatteryModal() {
-  const pct = $('batteryWarnBtn').dataset.pct || '?';
-  $('batteryList').innerHTML = `<p>Akkustand des Geräts: <b>${pct}%</b></p><p>Bitte Netzteil anschließen.</p>`;
-  $('batteryModal').classList.add('show');
+/** Batteriesymbol mit einem Fuellstand, der dem echten entspricht. */
+function akkuGlyph(pct, laedt) {
+  const breite = Math.max(1, Math.round(13 * Math.min(100, Math.max(0, pct)) / 100));
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'
+    + '<rect x="2.5" y="7.5" width="16" height="9" rx="2"/>'
+    + '<path d="M21 10.5v3"/>'
+    + `<rect x="4" y="9" width="${breite}" height="6" rx="1" fill="currentColor" stroke="none"/>`
+    + (laedt ? '<path d="M11 8.5 8.5 12.5h3L10.5 15.5l4-4.5h-3L13 8.5z" fill="var(--bg)" stroke="none"/>' : '')
+    + '</svg>';
+}
+
+// --- Der Warnton -------------------------------------------------------------------------------
+//
+// Gerechnet statt abgespielt: Eine Tondatei muesste mitgebaut, mitgeliefert und mit dem
+// Installer aktuell gehalten werden -- fuer zwei Toene. Zwei absteigende Sinustoene sind das,
+// was ein Geraet sagt, wenn ihm die Kraft ausgeht; eine steigende Folge klaenge nach Erfolg.
+//
+// Der Tonkontext wird ERST beim ersten Ton gebaut. Ein Browser laesst ihn sonst in aller Regel
+// angehalten liegen, und ein angehaltener Kontext gibt lautlos nichts von sich.
+let tonKontext = null;
+
+function akkuTonSpielen() {
+  if (config && config.batterySound === false) return;
+  try {
+    if (!tonKontext) tonKontext = new (window.AudioContext || window.webkitAudioContext)();
+    if (tonKontext.state === 'suspended') tonKontext.resume();
+    const jetzt = tonKontext.currentTime;
+    [[880, 0], [660, 0.28]].forEach(([hz, versatz]) => {
+      const ton = tonKontext.createOscillator();
+      const lautstaerke = tonKontext.createGain();
+      ton.type = 'sine';
+      ton.frequency.value = hz;
+      // Weich ein und aus: Ein hart geschalteter Sinuston knackt, und ein Knacken an einer
+      // stillen Wand erschrickt mehr als der Ton selbst.
+      lautstaerke.gain.setValueAtTime(0.0001, jetzt + versatz);
+      lautstaerke.gain.exponentialRampToValueAtTime(0.25, jetzt + versatz + 0.04);
+      lautstaerke.gain.exponentialRampToValueAtTime(0.0001, jetzt + versatz + 0.26);
+      ton.connect(lautstaerke).connect(tonKontext.destination);
+      ton.start(jetzt + versatz);
+      ton.stop(jetzt + versatz + 0.3);
+    });
+  } catch (e) { /* ohne Ton bleibt die Anzeige -- die ist das Wichtigere */ }
+}
+
+// --- Akkustand weitermelden --------------------------------------------------------------------
+//
+// Die Einrichtungsseite laeuft auf einem ANDEREN Geraet und kann den Akku dieses Panels nicht
+// selbst auslesen.
+//
+// Gemeldet wird bei jeder Aenderung -- und zusaetzlich alle paar Minuten derselbe Wert. Das
+// zweite ist kein Versehen: Die Leiste blendet einen Stand aus, der aelter als eine
+// Viertelstunde ist, weil ein Stand von vorgestern schlimmer waere als gar keiner. Ein voll
+// geladenes Geraet meldet aber stundenlang keine Aenderung -- ohne dieses Lebenszeichen
+// verschwaende die Anzeige genau dann, wenn alles in Ordnung ist.
+let akkuZuletztGemeldet = '';
+let akkuMeldungZeit = 0;
+const AKKU_LEBENSZEICHEN_MS = 5 * 60 * 1000;
+
+function akkuMelden(prozent, laedt) {
+  const stand = prozent + '/' + laedt;
+  if (stand === akkuZuletztGemeldet && Date.now() - akkuMeldungZeit < AKKU_LEBENSZEICHEN_MS) return;
+  akkuZuletztGemeldet = stand;
+  akkuMeldungZeit = Date.now();
+  fetch(`${API}/api/geraet/akku`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prozent, laedt })
+  }).catch(() => { akkuMeldungZeit = 0; });   // beim naechsten Mal neu versuchen
 }
 
 // --- Nachtmodus: in einem konfigurierten Zeitfenster (z.B. 23:00-06:30) rein schwarzer,
@@ -1010,8 +1094,6 @@ $('refreshBtn').addEventListener('click', refresh);
 $('settingsBtn').addEventListener('click', () => { loadStatus(); $('modal').classList.add('show'); });
 $('backBtn').addEventListener('click', () => navigateTo('main'));
 $('modalClose').addEventListener('click', () => $('modal').classList.remove('show'));
-$('batteryWarnBtn').addEventListener('click', showBatteryModal);
-$('batteryModalClose').addEventListener('click', () => $('batteryModal').classList.remove('show'));
 $('refreshBtn').innerHTML = ICONS.refresh;
 $('settingsBtn').innerHTML = ICONS.settings;
 $('backBtn').innerHTML = ICONS.back;
@@ -1031,7 +1113,6 @@ $('notifyOverlay').addEventListener('click', () => {
 window.addEventListener('resize', () => {
   if (notifyVisible) notifyGeometrie($('notifyOverlay').classList.contains('leiste'));
 });
-$('batteryWarnBtn').innerHTML = ICONS.battery2;
 
 // --- Kalendersteuerung: Anzeigeseite der im Hauptprozess laufenden Logik --------------------
 //
@@ -1341,6 +1422,10 @@ function showPauseToast() {
 
   checkNightMode();
   initDeviceBattery();
+  // Die Battery-API meldet sich nur bei Aenderungen. Ein voll geladenes Geraet aendert
+  // stundenlang nichts -- nachsehen muss man trotzdem, sonst haelt die Leiste das Panel fuer
+  // abgeschaltet und die Warnschwelle aus den Einstellungen greift erst beim naechsten Sprung.
+  setInterval(checkDeviceBattery, 60000);
   await refresh(); // immer, auch nachts -- fuer Batteriewarnung/Ankuendigungs-Box; Karten-Rendering pausiert intern
 
   // Adaptives Intervall statt festem setInterval: 5s tagsueber, 30s nachts (Energiesparen).

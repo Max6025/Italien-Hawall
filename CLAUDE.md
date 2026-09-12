@@ -219,6 +219,26 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   `alternate` zählt der **doppelte** Zyklus. Die Dauern stehen in `dashboard.css` **und** in
   `HVAC_ANIMATIONEN`; wer eine nur an einer Stelle ändert, bekommt keinen Fehler, sondern genau
   den Sprung zurück, den das hier verhindern soll.
+- **Der Akkustand des Panels lässt sich von der Einrichtungsseite aus nicht lesen.**
+  `navigator.getBattery()` beantwortet immer nur die Frage nach dem Gerät, auf dem der Browser
+  gerade läuft — auf der Einrichtungsseite wäre das das Notebook, auf dem eingerichtet wird,
+  also genau das falsche Gerät. Die Anzeige meldet ihn deshalb an `/api/geraet/akku`, und die
+  Navigationsleiste liest ihn von dort. Zwei Dinge daran sind leicht zu übersehen: Der Wert
+  liegt **nur im Speicher** (ein Akkustand von gestern ist keine Information, sondern eine
+  Falle), und die Anzeige schickt **alle fünf Minuten ein Lebenszeichen**, auch wenn sich
+  nichts geändert hat. Ohne das verschwände die Leiste ausgerechnet bei einem voll geladenen
+  Gerät: Die Battery-API meldet sich nur bei Änderungen, und die Leiste blendet alles aus, was
+  älter als eine Viertelstunde ist.
+- **Ton braucht in Chromium eine Freigabe, die an einer Wand niemand erteilt.** Ohne
+  `--autoplay-policy=no-user-gesture-required` (gesetzt in `main.js`) bleibt der Tonkontext
+  angehalten, bis jemand die Seite anfasst — und ein angehaltener Kontext gibt **lautlos**
+  nichts von sich. Der Akku-Warnton wäre genau dann still, wenn er gebraucht wird.
+  Der Ton selbst ist **gerechnet, nicht abgespielt**: Eine Tondatei müsste mitgebaut,
+  mitgeliefert und mit dem Installer aktuell gehalten werden — für zwei Töne.
+- **Die alte Akkuwarnung hing in der Kopfzeile — und die ist seit dem Redesign
+  `display: none`.** Sie funktionierte, berechnete den richtigen Schwellwert und wurde nie von
+  irgendjemandem gesehen. Wer eine Warnung in ein vorhandenes Element hängt, muss nachsehen,
+  ob dieses Element überhaupt sichtbar ist.
 - **Kein Mauszeiger auf der Anzeige.** `body.wandanzeige` blendet ihn überall aus. Er taucht
   sonst von allein auf, weil das Aufwecken mit dem Mauszeiger wackeln muss (`panel.js`), und
   bleibt dann mitten auf der Wand stehen. Bewusst an die Body-Klasse gebunden: Der
@@ -327,6 +347,9 @@ Dienstaufruf pro Bild würde Home Assistant fluten und die Lampe flackern lassen
 Bildunterschrift, Bedienelemente. Linksbündig, ausnahmslos. Abweichungen fallen einzeln nicht
 auf und in der Summe sofort.
 
+Die Akkuwarnung hat ihre eigene Probe: `.scratch/karten-design/akku-probe.html` zeigt alle
+vier Zustände (knapp, kritisch, fast leer, am Netzteil) nebeneinander, `?hell` in Hell.
+
 Ein Design nicht ohne Hinsehen ändern: `.scratch/karten-design/vorschau.html` lädt dieselbe
 CSS-Datei und dasselbe Render-Modul mit erfundenen Zuständen und lässt sich im Browser öffnen —
 ohne Home Assistant, ohne Electron, ohne Gerät. **Beide Themes prüfen.** Weiße Auflagen
@@ -348,8 +371,8 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-276 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
-Kartenaufbau, Ankunftsschirm, die Live-Verbindung und den PowerShell-Vorspann.
+287 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
 Neue Regeln in `decide()` gehören durch einen Test abgedeckt — dort steckt die Logik. Aber die

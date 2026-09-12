@@ -87,6 +87,49 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 @keyframes warn-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 .statusbar .icon-row { display: flex; gap: 0.8vh; align-items: center; }
 
+/* Akkuwarnung: schwebt oben mittig, ohne das Dashboard zu sperren.
+   Absichtlich UNTER Ankunftsschirm (9997) und Ankuendigung (9998): Ein ankommender Gast soll
+   begruesst werden und keine Geraetewarnung lesen. Und absichtlich kein Vollbild -- ein leerer
+   Akku ist ein Hinweis, kein Grund, die Wand unbedienbar zu machen.
+
+   Die Farbe kommt aus --kachel-akzent wie bei jeder Karte, damit die Warnung zum Rest gehoert
+   und nicht wie ein Fremdkoerper aus einem anderen Programm aussieht. */
+.akku-warnung {
+  --kachel-akzent: #ffb23d;
+  position: fixed; top: 2.2vh; left: 50%; transform: translateX(-50%);
+  z-index: 9996;
+  display: flex; align-items: center; gap: 1.4vh;
+  padding: 1.3vh 2.4vh;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--kachel-akzent) 45%, transparent);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 1.4vh 4vh rgba(0, 0, 0, 0.45),
+              0 0 0 0.5vh color-mix(in srgb, var(--kachel-akzent) 10%, transparent);
+  color: var(--text);
+  animation: akku-auftauchen 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.akku-warnung .akku-glyph { display: flex; color: var(--kachel-akzent); }
+.akku-warnung .akku-glyph svg { width: 3.4vh; height: 3.4vh; display: block; }
+.akku-warnung .akku-text { display: flex; flex-direction: column; line-height: 1.25; }
+.akku-warnung .akku-text b { font-size: 2.1vh; font-weight: 700; color: var(--kachel-akzent); }
+.akku-warnung .akku-text span { font-size: 1.35vh; color: var(--muted); }
+
+/* Unter zehn Prozent wird aus dem Hinweis eine Warnung: kraeftigere Farbe und ein langsamer
+   Puls. Der Puls laeuft ueber transform/opacity, damit die Grafikeinheit ihn allein traegt. */
+.akku-warnung.kritisch { --kachel-akzent: #ff5c5c; }
+.akku-warnung.kritisch .akku-glyph { animation: akku-pulsieren 1.6s ease-in-out infinite alternate; }
+
+@keyframes akku-auftauchen {
+  from { opacity: 0; transform: translateX(-50%) translateY(-1.5vh); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes akku-pulsieren { from { opacity: 0.45; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .akku-warnung, .akku-warnung.kritisch .akku-glyph { animation: none; }
+}
+
 /* Nachtmodus: rein schwarzer, inhaltsloser Bildschirm (Energiesparen) -- verschwindet
    sofort bei Beruehrung und zeigt dann das normale Dashboard. */
 .night-overlay { position: fixed; inset: 0; background: #000; display: none; z-index: 5001; }
@@ -1348,6 +1391,13 @@ body.light-theme .notify-box {
   border-color: rgba(58, 48, 82, 0.14);
   box-shadow: 0 2vh 5vh rgba(40, 34, 58, 0.20);
 }
+/* Die Akkuwarnung traegt einen festen Akzent -- und der war fuer dunkles Glas gewaehlt.
+   Auf hellem Grund verschwand das Orange fast vollstaendig: Die Warnung stand da und war
+   nicht zu lesen. Hier die dunkleren Gegenstuecke. */
+body.light-theme .akku-warnung { --kachel-akzent: #b06000; }
+body.light-theme .akku-warnung.kritisch { --kachel-akzent: #c22a2a; }
+body.light-theme .akku-warnung .akku-text span { color: rgba(23, 21, 29, 0.66); }
+
 body.light-theme .notify-overlay { --kachel-akzent: #b8791a; }
 body.light-theme .notify-overlay .notify-text,
 body.light-theme .notify-kurz { color: rgba(23, 21, 29, 0.92); }

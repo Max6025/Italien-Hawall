@@ -95,12 +95,19 @@
         <span class="eb-unter">Warnung bei schwachem Geräte-Akku</span>
       </summary>
       <div class="eb-inhalt">
-    <p class="note">Zeigt im Dashboard oben ein rotes Warn-Symbol, sobald der Akku
-      dieses Windows-Geräts (Tablet/Notebook) unter diesen Wert fällt und gerade
-      nicht am Ladegerät hängt. Betrifft nicht HA-Sensoren, sondern nur das Gerät,
-      auf dem diese App läuft.</p>
+    <p class="note">Blendet auf der Wand oben eine Warnung ein, sobald der Akku dieses
+      Windows-Geräts unter diesen Wert fällt und es gerade nicht am Ladegerät hängt. Unter
+      <strong>10 %</strong> wird sie rot und pulsiert. Betrifft nicht HA-Sensoren, sondern nur
+      das Gerät, auf dem diese App läuft.</p>
+    <p class="note">Den aktuellen Stand siehst du immer rechts oben in dieser Leiste – auch
+      dann, wenn noch gar nichts zu warnen ist. Er kommt vom Panel selbst; bleibt er aus, hat
+      sich das Panel seit einer Viertelstunde nicht gemeldet.</p>
     <label>Warnen ab wieviel % Geräte-Akku</label>
     <input type="number" id="batteryThreshold" min="1" max="100" value="20">
+    <label style="margin-top:1rem;"><input type="checkbox" id="batterySound" style="width:auto; margin-right:0.5rem;">Dazu ein Warnton</label>
+    <p class="hint-text">Zwei kurze absteigende Töne, alle zehn Minuten, solange der Akku knapp
+      ist. Aus fünf Metern sieht man eine Anzeige nur, wenn man gerade hinschaut – hören tut man
+      sie auch aus dem Nebenraum.</p>
       </div>
     </details>
 
