@@ -23,6 +23,7 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `control/calendar.js` | HA-Kalender abrufen, Treffer finden, Anzeigefenster berechnen |
 | `control/panel.js` | Panel per `SC_MONITORPOWER` schalten, über einen dauerhaft offenen PowerShell-Prozess |
 | `control/controller.js` | Zustandsautomat; die Rangfolge steht vollständig in `decide()` |
+| `control/ankunft.js` | Warten auf die Ankunft: erst Dashboard, wenn die Alarmanlage „zu Hause“ meldet |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
 | `server/dashboard-austausch.js` | Dashboards als Datei aus- und eingeben; Prüfung beim Import |
 | `server/ha-live.js` | Dauerverbindung zu HA; meldet jede Zustandsänderung weiter |
@@ -84,6 +85,29 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
 - **Doppelte Nachtlogik**: Der alte Nachtmodus im Renderer ist deaktiviert, solange die
   Kalendersteuerung aktiv ist (`panelControlActive` in `dashboard.html`). Beide gleichzeitig
   laufen zu lassen führt zu Flackern.
+
+- **Ganztägige Termine beginnen um Mitternacht.** Ein Anzeigefenster steht damit einen halben
+  Tag, bevor jemand da ist — die Wand leuchtet gegen ein leeres Haus, und der Ankunftsschirm hat
+  seine Anzeigedauer aufgebraucht, bevor der erste Gast zur Tür hereinkommt. Deshalb wartet
+  `control/ankunft.js` auf ein besseres Signal: Die Alarmanlage steht im Regelfall auf
+  *abwesend* und wird kurz vor dem Betreten auf *zu Hause* gestellt. Drei Punkte daran sind
+  nicht verhandelbar:
+  1. **Ein unbekannter Zustand lässt nicht warten.** Tippfehler in der Entitäts-ID, umbenannte
+     Anlage, Home Assistant nicht erreichbar — die Alternative wäre eine Wand, die nie wieder
+     angeht und deren Ursache niemand sieht. Lieber einen halben Tag zu früh hell als einen
+     ganzen Termin lang dunkel.
+  2. **Die Ankunft gilt für das ganze Anzeigefenster**, nicht nur für den Moment. Wer tagsüber
+     wegfährt und scharf stellt, soll abends nicht vor einer dunklen Wand stehen. Die Frage
+     lautet „ist die Anreise passiert?“, nicht „ist gerade jemand zu Hause?“.
+  3. **Der Vermerk liegt im Store, nicht nur im Speicher** — und `ankunftAktualisieren()` fasst
+     ihn nicht an, solange noch kein Kalender-Abruf geglückt ist. Beim Start ist die
+     Fensterliste leer, weil noch niemand gefragt hat, nicht weil kein Termin läuft; wer dort
+     aufräumt, wartet nach jedem Update wieder auf eine Ankunft, die längst passiert ist.
+
+  Direkt nach der Ankunft schlägt das Panel die **Nachtsperre** für eine einstellbare Frist
+  (ab Werk eine Stunde). Wer um halb eins nachts ankommt, soll begrüßt werden und nicht vor
+  einer schwarzen Wand stehen. Und der Ankunftsschirm zählt seine Anzeigedauer **ab der
+  Ankunft** (`ankunftZeit` in `sollAnzeigen()`), nicht ab Terminbeginn.
 
 - **Karten-Einstellungen leben an genau zwei Stellen.** `settingsFieldsForType()` in
   `editor.js` entscheidet, welche Felder ein Typ bekommt; `buildCard()` in
@@ -186,6 +210,15 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   Wer die Einstellungen nie öffnet, braucht die Hilfe am dringendsten. Deshalb: sinnvolle
   Vorgabe ab Werk, Einstellung nur zum Abweichen. `symbolErraten()` rät ein Knopfsymbol aus
   Beschriftung und Entitäts-ID, statt auf eine Auswahl zu warten.
+- **Eine CSS-Animation fängt in einem neu gebauten Element bei null an.** Die Karte wird bei
+  jeder Änderung neu gebaut, und seit der Live-Verbindung passiert das oft und unregelmäßig —
+  die Schneeflocke der Klima-Karte sprang dadurch mitten in der Drehung zurück. `hvacPhasenStil()`
+  hängt die Bewegung deshalb an die **Uhr** statt an das Alter des Elements: ein negativer
+  `animation-delay` aus der aktuellen Uhrzeit. Das trägt, weil `T − (T mod Zyklus)` immer ein
+  Vielfaches des Zyklus ist — die Phase hängt danach nur noch von der Uhrzeit ab. Bei
+  `alternate` zählt der **doppelte** Zyklus. Die Dauern stehen in `dashboard.css` **und** in
+  `HVAC_ANIMATIONEN`; wer eine nur an einer Stelle ändert, bekommt keinen Fehler, sondern genau
+  den Sprung zurück, den das hier verhindern soll.
 - **Kein Mauszeiger auf der Anzeige.** `body.wandanzeige` blendet ihn überall aus. Er taucht
   sonst von allein auf, weil das Aufwecken mit dem Mauszeiger wackeln muss (`panel.js`), und
   bleibt dann mitten auf der Wand stehen. Bewusst an die Body-Klasse gebunden: Der
@@ -315,8 +348,8 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-240 Tests über Kalenderauswertung, Zustandslogik, Zugangsschutz, Kartenaufbau, Ankunftsschirm,
-die Live-Verbindung und den PowerShell-Vorspann.
+276 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+Kartenaufbau, Ankunftsschirm, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
 Neue Regeln in `decide()` gehören durch einen Test abgedeckt — dort steckt die Logik. Aber die

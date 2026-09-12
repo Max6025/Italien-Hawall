@@ -83,6 +83,13 @@ async function load() {
     calSelect.innerHTML = '<option value="">– keine Kalender in Home Assistant gefunden –</option>';
   }
 
+  // Auf Ankunft warten
+  $('ankunftEnabled').checked = !!configRes.ankunftEnabled;
+  $('ankunftEntity').value = configRes.ankunftEntity || '';
+  $('ankunftZuhause').value = configRes.ankunftZuhause || 'disarmed, armed_home';
+  $('ankunftNachMinuten').value = configRes.ankunftNachMinuten === undefined ? 60 : configRes.ankunftNachMinuten;
+  ankunftEntitaetenLaden();
+
   // Ankunftsschirm
   $('welcomeEnabled').checked = !!configRes.welcomeEnabled;
   $('welcomeHeading').value = configRes.welcomeHeading || '';
@@ -318,7 +325,11 @@ function alleFelder() {
     welcomeImageEntity2: $('welcomeImage2Quelle').value === 'entity' ? $('welcomeImageEntity2').value : '',
     welcomeImageSeconds: zahl('welcomeImageSeconds', 8),
     welcomeTestmodus: $('welcomeTestmodus').checked,
-    welcomeTestSekunden: zahl('welcomeTestSekunden', 10)
+    welcomeTestSekunden: zahl('welcomeTestSekunden', 10),
+    ankunftEnabled: $('ankunftEnabled').checked,
+    ankunftEntity: $('ankunftEntity').value.trim(),
+    ankunftZuhause: $('ankunftZuhause').value.trim(),
+    ankunftNachMinuten: zahl('ankunftNachMinuten', 60)
   };
 
   // Der Zugangscode NUR, wenn wirklich etwas eingegeben wurde. Ein leeres Feld heisst
@@ -380,3 +391,46 @@ document.addEventListener('keydown', (e) => {
 load();
 // Status live halten, solange die Seite offen ist
 setInterval(refreshCalStatus, 10000);
+
+// --- Auf Ankunft warten: Auswahlliste und Zustandsanzeige --------------------------------------
+//
+// Die Zustandsnamen einer Alarmanlage gehoeren der Anlage, nicht dieser App: armed_home heisst
+// nicht ueberall dasselbe, und manche Integrationen melden ganz eigene Namen. Wer sie raten muss,
+// traegt frueher oder spaeter einen ein, den es nicht gibt -- und merkt es erst, wenn die Wand
+// einen ganzen Termin lang dunkel bleibt. Deshalb steht hier, was die gewaehlte Entitaet GERADE
+// meldet, und ob dieser Zustand als "zu Hause" zaehlt.
+let ankunftEntitaeten = [];
+
+async function ankunftEntitaetenLaden() {
+  const liste = document.getElementById('ankunftListe');
+  const res = await fetch('/api/entities?domain=alarm_control_panel').then(r => r.json()).catch(() => ({ ok: false }));
+  ankunftEntitaeten = (res.ok && res.entities) ? res.entities : [];
+  liste.innerHTML = ankunftEntitaeten
+    .map(e => `<option value="${e.entity_id}">${e.name} — ${e.zustand}</option>`).join('');
+  ankunftZustandZeigen();
+}
+
+function ankunftZustandZeigen() {
+  const feld = document.getElementById('ankunftZustandAnzeige');
+  const id = document.getElementById('ankunftEntity').value.trim();
+  if (!id) {
+    feld.textContent = 'Ohne Entität wird nie gewartet – der Bildschirm geht wie bisher zu Terminbeginn an.';
+    return;
+  }
+  const treffer = ankunftEntitaeten.find(e => e.entity_id === id);
+  if (!treffer) {
+    feld.textContent = 'Diese Entität ist keine Alarmanlage in Home Assistant. Das kann richtig sein '
+      + '(z. B. ein Schalter), nur lässt sich ihr Zustand hier nicht anzeigen.';
+    return;
+  }
+  const zuhause = document.getElementById('ankunftZuhause').value.trim() || 'disarmed, armed_home';
+  const liste = zuhause.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+  const passt = liste.includes(String(treffer.zustand).toLowerCase());
+  feld.textContent = `Steht gerade auf „${treffer.zustand}“ – das zählt hier als `
+    + (passt ? 'ZU HAUSE (Bildschirm ginge an).' : 'abwesend (es würde gewartet).');
+}
+
+['ankunftEntity', 'ankunftZuhause'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', ankunftZustandZeigen);
+});

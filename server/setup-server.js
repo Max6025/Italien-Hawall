@@ -10,6 +10,7 @@ const austausch = require('./dashboard-austausch');
 // zweites Mal zu pflegen und beim naechsten neuen Kartentyp zu vergessen.
 const { CARD_TYPES } = require('../renderer/shared/dashboard-render.js');
 const { HaLive } = require('./ha-live');
+const { ZUHAUSE_VORGABE } = require('../control/ankunft');
 
 // Domains, die keine sinnvollen Wall-Display-Karten sind (Helfer/System-Entitaeten)
 // -- werden weder im Editor angeboten noch als Karten dargestellt.
@@ -212,7 +213,11 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
         .map(s => ({
           entity_id: s.entity_id,
           name: s.attributes.friendly_name || s.entity_id,
-          domain: s.entity_id.split('.')[0]
+          domain: s.entity_id.split('.')[0],
+          // Damit die Einstellungsseite zeigen kann, was eine Entitaet GERADE meldet. Bei der
+          // Ankunftserkennung muss man die Zustandsnamen der eigenen Anlage eintragen, und die
+          // heissen nicht ueberall gleich -- ohne diese Anzeige raet man.
+          zustand: s.state
         }));
       res.json({ ok: true, entities });
     } catch (err) {
@@ -269,6 +274,12 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       rueckkehrSekunden: store.get('rueckkehrSekunden') === undefined ? 90 : store.get('rueckkehrSekunden'),
       welcomeTestmodus: !!store.get('welcomeTestmodus'),
       welcomeTestSekunden: store.get('welcomeTestSekunden') || 10,
+      // Auf Ankunft warten: Die Termine sind ganztaegig, das Anzeigefenster begaenne also um
+      // Mitternacht. Siehe control/ankunft.js.
+      ankunftEnabled: !!store.get('ankunftEnabled'),
+      ankunftEntity: store.get('ankunftEntity') || '',
+      ankunftZuhause: store.get('ankunftZuhause') || ZUHAUSE_VORGABE,
+      ankunftNachMinuten: store.get('ankunftNachMinuten') === undefined ? 60 : store.get('ankunftNachMinuten'),
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
       hasSetupCode: !!store.get('setupCode')
       // Token bewusst NICHT an den Dashboard-Client zurueckgeben; HA-Aufrufe laufen ueber /api/ha/*
@@ -286,7 +297,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       setupCode,
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
       welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle,
-      welcomeTestmodus, welcomeTestSekunden, hintergrundBewegung, rueckkehrSekunden
+      welcomeTestmodus, welcomeTestSekunden, hintergrundBewegung, rueckkehrSekunden,
+      ankunftEnabled, ankunftEntity, ankunftZuhause, ankunftNachMinuten
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -336,6 +348,18 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       store.set('welcomeTestSekunden', v);
     }
     if (welcomeImageSeconds !== undefined) store.set('welcomeImageSeconds', Math.max(2, Number(welcomeImageSeconds) || 8));
+
+    if (ankunftEnabled !== undefined) store.set('ankunftEnabled', !!ankunftEnabled);
+    if (ankunftEntity !== undefined) store.set('ankunftEntity', String(ankunftEntity || '').trim());
+    if (ankunftZuhause !== undefined) {
+      // Ein leeres Feld heisst "Vorgabe", nicht "keine Zustaende". Ohne das waere die Liste
+      // leer, nichts gaelte je als "zu Hause", und das Panel bliebe den ganzen Termin dunkel.
+      const roh = String(ankunftZuhause || '').trim();
+      store.set('ankunftZuhause', roh || ZUHAUSE_VORGABE);
+    }
+    if (ankunftNachMinuten !== undefined) {
+      store.set('ankunftNachMinuten', Math.max(0, Math.min(1440, parseInt(ankunftNachMinuten, 10) || 0)));
+    }
 
     // Mindestlaenge, damit das Feld nicht versehentlich leer bleibt und der Schutz still ausfaellt.
     if (setupCode !== undefined && String(setupCode).length > 0) {
@@ -814,6 +838,12 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
   const haLive = new HaLive({
     getConfig: () => ({ haUrl: store.get('haUrl'), token: store.get('token') }),
     onAenderung: (aenderung) => {
+      // Die Steuerung im Hauptprozess wartet unter Umstaenden genau auf diese eine Entitaet:
+      // Stellt jemand die Alarmanlage auf "zu Hause", ist das die Ankunft, und das Panel soll
+      // in dem Moment angehen -- nicht erst beim naechsten Abruf zwei Minuten spaeter.
+      if (controller && controller.zustandGemeldet) {
+        try { controller.zustandGemeldet(aenderung.entity_id, aenderung.state); } catch (e) { /* die Anzeige darf davon nichts merken */ }
+      }
       const zeile = 'data: ' + JSON.stringify(aenderung) + '\n\n';
       for (const res of liveHoerer) {
         try { res.write(zeile); } catch (e) { liveHoerer.delete(res); }

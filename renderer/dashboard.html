@@ -1055,6 +1055,9 @@ function ankunftsschirmPruefen() {
     anzeigefenster: zustand ? zustand.activeWindow : null,
     verworfenFuer: config.welcomeDismissedFor || '',
     stunden: config.welcomeHours,
+    // Die Anzeigedauer zaehlt ab der Ankunft, nicht ab Terminbeginn -- bei ganztaegigen
+    // Terminen waere sie sonst um Mitternacht losgelaufen.
+    ankunftZeit: (zustand && zustand.ankunft) ? zustand.ankunft.erkannt : 0,
     erzwungenBis: config.welcomeErzwungenBis || 0,
     testmodus: !!config.welcomeTestmodus,
     testSekunden: config.welcomeTestSekunden,

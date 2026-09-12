@@ -29,6 +29,7 @@
    * @param {object|null} p.anzeigefenster  { start, end } als ISO-Zeichenketten, oder null
    * @param {string} p.verworfenFuer     Beginn des Anzeigefensters, für das weggetippt wurde
    * @param {number} p.stunden           Anzeigedauer ab Beginn des Anzeigefensters
+   * @param {number} p.ankunftZeit       Zeitpunkt der erkannten Ankunft in ms, oder 0
    * @param {Date}   p.jetzt
    */
   function sollAnzeigen(p) {
@@ -67,8 +68,17 @@
     // Beim nächsten Termin hat das Fenster einen anderen Beginn, und der Schirm kommt wieder.
     if (p.verworfenFuer && p.verworfenFuer === fenster.start) return false;
 
-    const beginn = new Date(fenster.start).getTime();
+    let beginn = new Date(fenster.start).getTime();
     if (isNaN(beginn)) return false;
+
+    // Ab wann die Anzeigedauer zählt: ab der Ankunft, sonst ab Terminbeginn.
+    //
+    // Die Termine sind ganztägig, ein Anzeigefenster beginnt also um 00:00 Uhr des Anreisetags.
+    // Ohne diese Verschiebung wäre die Anzeigedauer längst abgelaufen, bevor der erste Gast zur
+    // Tür hereinkommt -- der Begrüßungsschirm hätte die ganze Nacht eine leere Wand begrüßt.
+    // Wann jemand angekommen ist, weiß die Steuerung (siehe control/ankunft.js).
+    const ankunftZeit = Number(p.ankunftZeit) || 0;
+    if (ankunftZeit > beginn) beginn = ankunftZeit;
 
     const stunden = Number(p.stunden);
     // 0 Stunden heißt ausdrücklich "bis zum Wegtippen", nicht "gar nicht".

@@ -43,6 +43,14 @@ _Vermeiden_: Willkommensbildschirm, Splashscreen, Startbildschirm, Begrüßungsd
 Der Zustand eines Ankunftsschirms, den jemand weggetippt hat. Gilt für das laufende
 Anzeigefenster und überdauert einen Neustart der Anwendung.
 
+**Ankunft**:
+Der Zeitpunkt, zu dem die Alarmanlage während eines laufenden Anzeigefensters zum ersten Mal
+„zu Hause“ meldet. Sie wird je Anzeigefenster genau einmal erkannt und danach nicht mehr
+widerrufen — auch dann nicht, wenn die Anlage später wieder scharf gestellt wird. Bis zur
+Ankunft bleibt das Panel aus, obwohl das Anzeigefenster läuft.
+_Vermeiden_: Anwesenheit, Präsenz (beides beschreibt einen fortlaufenden Zustand, die Ankunft
+ist ein einmaliges Ereignis)
+
 ### Bildschirmzustand
 
 **Panel**:
@@ -56,7 +64,7 @@ _Vermeiden_: App, Kiosk, Frontend
 **Panel aus**:
 Das Panel ist über Windows stromlos geschaltet, die Hintergrundbeleuchtung ist dunkel.
 Abzugrenzen vom Nachtschwarz.
-_Vermeiden_: Standby, Schlafmodus, Bildschirmschoner
+_Vermeiden_: Standby, Schlafmodus
 
 **Nachtschwarz**:
 Der Zustand aus HA Wall Display, bei dem ein schwarzes Overlay über dem Wall Display liegt und
@@ -65,7 +73,8 @@ kein Ersatz für Panel aus.
 
 **Nachtsperre**:
 Ein wiederkehrendes Uhrzeit-Fenster, in dem das Panel aus bleibt, auch wenn ein Anzeigefenster
-läuft. Hat immer Vorrang vor der Kalendersteuerung.
+läuft. Hat Vorrang vor der Kalendersteuerung — mit genau einer Ausnahme: kurz nach einer
+Ankunft. Wer nachts ankommt, soll begrüßt werden.
 _Vermeiden_: Nachtmodus (heißt in HA Wall Display etwas anderes)
 
 ### Schutzmechanismen

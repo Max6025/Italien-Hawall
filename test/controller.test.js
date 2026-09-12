@@ -246,3 +246,172 @@ test('Ohne laufenden Termin bleibt activeWindow leer', () => {
   const z = c.buildState(c.decide(new Date()), new Date());
   assert.strictEqual(z.activeWindow, null);
 });
+
+// --- Auf Ankunft warten -----------------------------------------------------------------------
+//
+// Die Rangfolge ist hier das Eigentliche: "gerade angekommen" steht ueber der Nachtsperre,
+// "noch nicht angekommen" darunter. Wer die beiden vertauscht, bekommt entweder eine Wand, die
+// nachts nicht angeht, wenn jemand ankommt, oder eine, die ab Mitternacht gegen ein leeres Haus
+// leuchtet. Beides sieht man erst am Geraet.
+
+const ANKUNFT_CONFIG = {
+  ...FULL_CONFIG,
+  ankunftEnabled: true,
+  ankunftEntity: 'alarm_control_panel.haus'
+};
+
+function ankunftController(werte, jetzt, zustand) {
+  const c = controllerWith({ ...ANKUNFT_CONFIG, ...werte }, windowAround(jetzt, 600, 600));
+  c.startedAt = jetzt.getTime() - GRACE_MS - 1000;   // Karenzzeit vorbei
+  c.ankunftZustand = zustand;
+  return c;
+}
+
+test('Termin laeuft, Anlage scharf: das Panel bleibt aus', () => {
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const c = ankunftController({}, jetzt, 'armed_away');
+  c.ankunftAktualisieren(jetzt);
+  const d = c.decide(jetzt);
+  assert.strictEqual(d.on, false);
+  assert.strictEqual(d.reason, 'warte-auf-ankunft');
+});
+
+test('Anlage wechselt auf zu Hause: das Panel geht an', () => {
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const c = ankunftController({}, jetzt, 'armed_away');
+  c.ankunftAktualisieren(jetzt);
+  assert.strictEqual(c.decide(jetzt).on, false);
+
+  c.ankunftZustand = 'disarmed';
+  c.ankunftAktualisieren(jetzt);
+  assert.strictEqual(c.decide(jetzt).on, true);
+});
+
+test('Die Ankunft wird gemerkt -- spaeter wieder scharf schaltet nichts ab', () => {
+  // Wer tagsueber wegfaehrt, soll abends nicht vor einer dunklen Wand stehen.
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const c = ankunftController({}, jetzt, 'disarmed');
+  c.ankunftAktualisieren(jetzt);
+
+  c.ankunftZustand = 'armed_away';
+  const spaeter = new Date(2026, 5, 3, 15, 0);
+  c.ankunftAktualisieren(spaeter);
+  assert.strictEqual(c.decide(spaeter).on, true);
+  assert.strictEqual(c.decide(spaeter).reason, 'anzeigefenster');
+});
+
+test('Nach der Ankunft schlaegt das Panel die Nachtsperre', () => {
+  // Wer um halb eins nachts ankommt, wird begruesst, statt vor einer schwarzen Wand zu stehen.
+  const jetzt = new Date(2026, 5, 3, 0, 30);
+  const c = ankunftController(
+    { nightModeEnabled: true, nightStart: '23:00', nightEnd: '06:30', ankunftNachMinuten: 60 },
+    jetzt, 'disarmed');
+  c.ankunftAktualisieren(jetzt);
+  const d = c.decide(jetzt);
+  assert.strictEqual(d.on, true);
+  assert.strictEqual(d.reason, 'ankunft');
+});
+
+test('Nach Ablauf der Frist greift die Nachtsperre wieder', () => {
+  const ankunftZeit = new Date(2026, 5, 3, 0, 30);
+  const c = ankunftController(
+    { nightModeEnabled: true, nightStart: '23:00', nightEnd: '06:30', ankunftNachMinuten: 60 },
+    ankunftZeit, 'disarmed');
+  c.ankunftAktualisieren(ankunftZeit);
+
+  const spaeter = new Date(2026, 5, 3, 2, 0);   // 90 Minuten nach der Ankunft
+  assert.strictEqual(c.decide(spaeter).reason, 'nachtsperre');
+});
+
+test('Ein unbekannter Zustand haelt das Panel NICHT auf', () => {
+  // Ein Tippfehler in der Entitaets-ID darf nicht heissen, dass die Wand nie wieder angeht.
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const c = ankunftController({}, jetzt, null);
+  c.ankunftAktualisieren(jetzt);
+  assert.strictEqual(c.decide(jetzt).on, true);
+  assert.strictEqual(c.decide(jetzt).reason, 'anzeigefenster');
+});
+
+test('Abgeschaltet verhaelt sich alles wie vorher', () => {
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const c = ankunftController({ ankunftEnabled: false }, jetzt, 'armed_away');
+  c.ankunftAktualisieren(jetzt);
+  assert.strictEqual(c.decide(jetzt).on, true);
+});
+
+test('Ein neuer Termin wartet wieder auf eine neue Ankunft', () => {
+  // Sonst begruesste das Geraet die naechsten Gaeste gar nicht mehr: Der Vermerk vom letzten
+  // Aufenthalt haette gereicht, um sofort anzugehen.
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const c = ankunftController({}, jetzt, 'disarmed');
+  c.ankunftAktualisieren(jetzt);
+  assert.ok(c.ankunftZeit > 0);
+
+  c.windows = windowAround(new Date(2026, 8, 1, 10, 0), 600, 600);
+  c.ankunftZustand = 'armed_away';
+  const naechster = new Date(2026, 8, 1, 10, 0);
+  c.ankunftAktualisieren(naechster);
+  assert.strictEqual(c.ankunftZeit, 0);
+  assert.strictEqual(c.decide(naechster).reason, 'warte-auf-ankunft');
+});
+
+test('Die Ankunft ueberlebt einen Neustart', () => {
+  // Ein Update mitten im Aufenthalt wuerde sonst wieder auf eine Ankunft warten, die laengst
+  // passiert ist -- und die Wand bliebe dunkel, bis jemand die Anlage anfasst.
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const fenster = windowAround(jetzt, 600, 600);
+  const store = fakeStore({ ...ANKUNFT_CONFIG });
+  const c1 = new Controller({ store, logDir: null });
+  c1.panel.supported = false;
+  c1.windows = fenster;
+  c1.ankunftZustand = 'disarmed';
+  c1.ankunftAktualisieren(jetzt);
+
+  const c2 = new Controller({ store, logDir: null });   // "Neustart" mit demselben Speicher
+  c2.panel.supported = false;
+  c2.windows = fenster;
+  c2.startedAt = jetzt.getTime() - GRACE_MS - 1000;
+  c2.ankunftZustand = 'armed_away';                      // wieder scharf, HA gerade befragt
+  c2.ankunftAktualisieren(jetzt);
+  assert.strictEqual(c2.decide(jetzt).on, true);
+});
+
+test('Eine Live-Meldung fuer eine fremde Entitaet aendert nichts', () => {
+  const jetzt = new Date(2026, 5, 3, 10, 0);
+  const c = ankunftController({}, jetzt, 'armed_away');
+  c.zustandGemeldet('light.kueche', 'on');
+  assert.strictEqual(c.ankunftZustand, 'armed_away');
+});
+
+test('Eine Live-Meldung fuer die eigene Entitaet schaltet sofort', () => {
+  // Vor der Haustuer sind zwei Minuten dunkle Wand eine lange Zeit.
+  //
+  // Hier liegt das Anzeigefenster um die ECHTE Uhrzeit herum: zustandGemeldet() loest einen
+  // Takt aus, und der rechnet mit der echten Uhr -- ein erfundener Zeitpunkt haette hier gar
+  // kein laufendes Fenster.
+  const jetzt = new Date();
+  const c = ankunftController({}, jetzt, 'armed_away');
+  c.ankunftAktualisieren(jetzt);
+  assert.strictEqual(c.decide(jetzt).on, false);
+
+  c.zustandGemeldet('alarm_control_panel.haus', 'disarmed');
+  assert.strictEqual(c.ankunftZustand, 'disarmed');
+  assert.ok(c.ankunftZeit > 0, 'die Ankunft muss im selben Takt vermerkt sein');
+  assert.strictEqual(c.decide(new Date()).on, true);
+});
+
+test('Der Start der App loescht keinen Ankunftsvermerk', () => {
+  // Beim ersten Takt ist die Fensterliste leer, weil noch niemand gefragt hat -- nicht, weil
+  // kein Termin laeuft. Wer hier aufraeumt, wartet nach jedem Neustart wieder auf eine Ankunft,
+  // die laengst passiert ist.
+  const store = fakeStore({
+    ...ANKUNFT_CONFIG,
+    ankunftErkanntFuer: '2026-06-03T00:00:00.000Z',
+    ankunftErkanntZeit: Date.parse('2026-06-03T18:00:00Z')
+  });
+  const c = new Controller({ store, logDir: null });
+  c.panel.supported = false;
+  c.ankunftAktualisieren(new Date());       // Takt ohne je abgerufene Fenster
+  assert.strictEqual(c.ankunftFuer, '2026-06-03T00:00:00.000Z');
+  assert.ok(c.ankunftZeit > 0);
+});

@@ -118,7 +118,16 @@ class HaLive {
 
   _schliessen() {
     if (this.ws) {
-      try { this.ws.removeAllListeners(); this.ws.terminate(); } catch (e) { /* war schon zu */ }
+      try {
+        this.ws.removeAllListeners();
+        // Ein halb offener Socket meldet beim Abbruch noch einen Fehler ("WebSocket was closed
+        // before the connection was established"). Ohne Zuhoerer wird daraus in Node eine
+        // unbehandelte Ausnahme -- und die reisst den ganzen Prozess mit, obwohl hier nur
+        // planmaessig aufgeraeumt wird. Der leere Zuhoerer ist deshalb kein Verschlucken eines
+        // echten Fehlers: Er gehoert zu einer Verbindung, die uns nicht mehr interessiert.
+        this.ws.on('error', () => {});
+        this.ws.terminate();
+      } catch (e) { /* war schon zu */ }
       this.ws = null;
     }
     this._setzeVerbunden(false);

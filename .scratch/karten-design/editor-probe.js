@@ -43,7 +43,12 @@ const ANTWORTEN = {
     ok: true, haUrl: 'http://ha.invalid', title: 'Wall Display', hasSetupCode: false,
     layout: LAYOUT,
     panelGroesse: { breite: 1280, hoehe: 854, fenster: { breite: 1280, hoehe: 854 }, skalierung: 1.5, drehung: 0 },
-    entities: ZUSTAENDE.map(z => z[0])
+    entities: ZUSTAENDE.map(z => z[0]),
+    // Damit sich auch die Einstellungsseite (/setup/theme.html) ansehen laesst
+    ankunftEnabled: true,
+    ankunftEntity: 'alarm_control_panel.alarmo',
+    ankunftZuhause: 'disarmed, armed_home',
+    ankunftNachMinuten: 60
   },
   '/api/ha/states': {
     ok: true,
@@ -56,8 +61,8 @@ const ANTWORTEN = {
   // der App aus und war einer der Probe.
   '/api/entities': {
     ok: true,
-    entities: ZUSTAENDE.map(([id, name]) => ({
-      entity_id: id, name, domain: id.split('.')[0]
+    entities: ZUSTAENDE.map(([id, name, state]) => ({
+      entity_id: id, name, domain: id.split('.')[0], zustand: state
     }))
   },
   '/api/dashboards': { ok: true, dashboards: [] },

@@ -174,6 +174,48 @@
 
     <details class="einstellungsblock">
       <summary>
+        <span class="eb-titel">Auf Ankunft warten</span>
+        <span class="eb-unter">Dashboard erst, wenn wirklich jemand da ist</span>
+      </summary>
+      <div class="eb-inhalt">
+    <p class="note">Ganztägige Termine beginnen um <strong>00:00 Uhr</strong>. Ohne diese
+      Einstellung leuchtet die Wand ab Mitternacht gegen ein leeres Haus – und der
+      Ankunftsschirm hat seine Anzeigedauer aufgebraucht, bevor der erste Gast zur Tür
+      hereinkommt.</p>
+    <p class="note">Die Alarmanlage weiß es besser als der Kalender: Sie steht im Regelfall auf
+      <em>abwesend</em> und wird kurz vor dem Betreten auf <em>zu Hause</em> gestellt. Genau
+      dieser Wechsel gilt hier als Ankunft. Steht sie zu Terminbeginn schon auf <em>zu
+      Hause</em>, geht der Bildschirm sofort an.</p>
+
+    <label><input type="checkbox" id="ankunftEnabled" style="width:auto; margin-right:0.5rem;">Auf Ankunft warten</label>
+
+    <label style="margin-top:1rem;">Entität der Anlage</label>
+    <input type="text" id="ankunftEntity" list="ankunftListe" placeholder="alarm_control_panel.haus">
+    <datalist id="ankunftListe"></datalist>
+    <p class="hint-text" id="ankunftZustandAnzeige"></p>
+
+    <label style="margin-top:1rem;">Zustände, die „zu Hause“ bedeuten (mit Komma getrennt)</label>
+    <input type="text" id="ankunftZuhause" placeholder="disarmed, armed_home">
+    <p class="hint-text">Groß- und Kleinschreibung spielt keine Rolle. Leer lassen setzt die
+      Vorgabe <code>disarmed, armed_home</code> zurück. Die Namen gehören der Anlage, nicht
+      dieser App – welche sie wirklich meldet, steht oben.</p>
+
+    <label style="margin-top:1rem;">Nach der Ankunft an bleiben (Min.)</label>
+    <input type="number" id="ankunftNachMinuten" min="0" max="1440" step="10" value="60" style="max-width:140px;">
+    <p class="hint-text">So lange nach der Ankunft bleibt der Bildschirm an, <strong>auch wenn
+      die Nachtsperre greift</strong>. Wer um halb eins nachts ankommt, soll begrüßt werden und
+      nicht vor einer schwarzen Wand stehen. 0 schaltet das ab – dann gilt die Nachtsperre
+      sofort wieder.</p>
+
+    <p class="hint-text">Ist der Zustand der Anlage nicht abrufbar (falsche Entität, Home
+      Assistant nicht erreichbar), wird <strong>nicht</strong> gewartet: Der Bildschirm geht
+      dann wie früher zu Terminbeginn an. Lieber einen halben Tag zu früh hell als einen ganzen
+      Termin lang dunkel.</p>
+      </div>
+    </details>
+
+    <details class="einstellungsblock">
+      <summary>
         <span class="eb-titel">Ankunftsschirm</span>
         <span class="eb-unter">Begrüssung zu Terminbeginn</span>
       </summary>
