@@ -658,18 +658,10 @@ body.ankuendigung-in-leiste .unterleiste > .card {
   .notify-overlay, .notify-box, .notify-kopf, .notify-text, .notify-kurz { transition: none; }
 }
 
-/* Dialoge sind DECKEND, Karten nicht.
-   --surface ist eine Glasfarbe mit sieben Prozent Deckkraft -- auf einer Karte genau richtig,
-   in einem Dialog nicht: Dort stand das Dashboard durch den Text hindurch, und man las zwei
-   Oberflaechen uebereinander. Deshalb liegt --bg darunter und --surface darueber; das ergibt
-   dieselbe Farbe wie bisher, nur undurchsichtig. */
-.modal, .picker { background-color: var(--bg); }
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none;
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
   align-items: center; justify-content: center; z-index: 30; }
 .modal-backdrop.show { display: flex; }
-.modal { background-image: linear-gradient(var(--surface), var(--surface)); border-radius: 14px;
-  padding: 3vh 3vw; max-width: 60vw; color: var(--text);
-  border: 1px solid var(--card-border); box-shadow: 0 2vh 6vh rgba(0,0,0,0.5); }
+.modal { background: var(--surface); border-radius: 14px; padding: 3vh 3vw; max-width: 60vw; color: var(--text); }
 .modal h3 { margin-top: 0; }
 .modal .close { margin-top: 2vh; background: #4f7cff; border: none; color: #fff; padding: 1vh 2vw;
   border-radius: 8px; cursor: pointer; }
@@ -707,7 +699,14 @@ body.ankuendigung-in-leiste .unterleiste > .card {
 .picker-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none;
   align-items: center; justify-content: center; z-index: 20; }
 .picker-backdrop.show { display: flex; }
-.picker { background-image: linear-gradient(var(--surface), var(--surface)); border-radius: 14px;
+/* Der Auswahldialog ist DECKEND -- und zwar nur er.
+   --surface ist eine Glasfarbe mit sieben Prozent Deckkraft. Auf einer Karte ist das genau
+   richtig; hier stand das ganze Dashboard durch die Liste hindurch, und man las zwei
+   Oberflaechen uebereinander. --bg darunter ergibt dieselbe Farbe, nur undurchsichtig.
+   Die Dialoge AUF DER ANZEIGE (.modal) bleiben bewusst unveraendert: Dort ist das Glas Teil
+   des Entwurfs, und es liegt ohnehin nie eine Liste mit dreissig Zeilen darin. */
+.picker { background-color: var(--bg);
+  background-image: linear-gradient(var(--surface), var(--surface)); border-radius: 14px;
   padding: 2.4vh 2vw;
   width: min(46vw, 560px); max-width: 92vw; max-height: 86vh;
   display: flex; flex-direction: column; color: var(--text);
