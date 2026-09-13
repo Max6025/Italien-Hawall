@@ -219,6 +219,15 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   hintereinander unbrauchbar ausgeliefert wurde. `.scratch/karten-design/editor-probe.js`
   stellt die nötigen API-Aufrufe mit Beispieldaten nach: `node` starten, dann
   `http://localhost:9930/setup/editor.html`.
+- **Im Auswahldialog gibt es zwei Wege, und einer davon füllt sein Raster selbst.** „Nach
+  Kartentyp" wird in `showTypeStep()` **aufgebaut** — `wegZeigen('typ')` darf deshalb nicht nur
+  die Sichtbarkeit umschalten, sonst steht dort ein leerer Tab. Genau so war er nach dem Umbau
+  auf zwei Wege: Alle dreißig Kartentypen waren weg, und zu sehen war nichts, was nach einem
+  Fehler aussah.
+- **Nach dem Anlegen öffnen sich die Einstellungen.** Wer eine Karte anlegt, hat sie noch nicht
+  so, wie er sie haben will — und das Zahnrad auf einer 1×1-Kachel ist ein kleines Ziel. Das
+  übernimmt jetzt `kartenEintragAnlegen()` für alle Karten; die Sonderfälle (Energie, Foto,
+  Kacheln) hatten es vorher einzeln getan und würden es sonst doppelt tun.
 - **Der Editor läuft auf einem anderen Gerät als das Panel.** Ohne die Panelgröße
   (`panelGroesse` aus `/api/config`, gefüllt von `getPanelSize` in `main.js`) zieht man Karten
   auf einem breiten Notebook zurecht und sieht erst auf der Wand, dass es nicht passt. Und es

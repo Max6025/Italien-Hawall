@@ -247,6 +247,7 @@ function kartenListeRendern() {
   el.innerHTML = eintraege.map((e, i) => {
     const typ = e.card_type || defaultCardType(e.entity_id, statesById[e.entity_id]);
     const label = (e.settings && e.settings.name)
+      || haNamen[e.entity_id]
       || ((statesById[e.entity_id] || {}).attributes || {}).friendly_name
       || e.entity_id;
     const platz = e.unterleiste ? 'untere Leiste' : `${e.cols || 1}×${e.rows || 1} bei ${e.x || 0},${e.y || 0}`;
@@ -659,7 +660,11 @@ function openSettings(entityId) {
   settingsThresholds = (settings.thresholds || []).map(t => ({ ...t }));
   settingsBaseColorEntfernt = !settings.baseColor;
 
-  $('settingsTitle').textContent = 'Einstellungen: ' + (settings.name || attrs.friendly_name || entityId);
+  // Derselbe Name wie ueberall sonst: erst der eigene, dann der kurze aus Home Assistant.
+  // Ohne den stuende hier "Ecowitt Sensor 11DC2 Solar Radiation" und auf der Karte daneben
+  // "Solar Radiation" -- und man fragt sich, ob man die richtige Karte erwischt hat.
+  const haName = haNamen[entityId] || attrs.friendly_name;
+  $('settingsTitle').textContent = 'Einstellungen: ' + (settings.name || haName || entityId);
 
   let html = '';
   if (fields.entitaetWechseln) {
@@ -681,8 +686,8 @@ function openSettings(entityId) {
         Bereits von anderen Karten belegte Entitäten stehen nicht zur Auswahl.</p>`;
   }
   if (fields.name) {
-    html += `<label>Anzeigename (leer = Name aus Home Assistant${attrs.friendly_name ? ': ' + attrs.friendly_name : ''})</label>
-      <input type="text" id="setName" value="${settings.name || ''}" placeholder="${attrs.friendly_name || entityId}">`;
+    html += `<label>Anzeigename (leer = Name aus Home Assistant${haName ? ': ' + haName : ''})</label>
+      <input type="text" id="setName" value="${settings.name || ''}" placeholder="${haName || entityId}">`;
   }
   if (fields.suffix) {
     html += `<label>Einheit / Suffix (leer = automatisch${attrs.unit_of_measurement ? ': ' + attrs.unit_of_measurement : ''})</label>
@@ -1596,19 +1601,21 @@ function entitaetsWegRendern(query) {
 }
 
 function wegZeigen(weg) {
-  const entitaet = weg !== 'typ';
-  $('entitaetStep').style.display = entitaet ? '' : 'none';
-  $('typeGrid').style.display = entitaet ? 'none' : 'grid';
-  $('entityStep').style.display = 'none';
-  document.querySelectorAll('#pickerWege .weg').forEach(b => {
-    b.classList.toggle('aktiv', (b.dataset.weg === 'typ') !== entitaet);
-  });
-  $('pickerTitle').textContent = 'Karte hinzufügen';
-  if (entitaet) {
-    $('entitaetFilter').value = '';
-    entitaetsWegRendern('');
-    $('entitaetFilter').focus();
+  if (weg === 'typ') {
+    // Das Raster wird in showTypeStep() GEFUELLT -- nur die Sichtbarkeit umzuschalten ergab
+    // einen leeren Tab. Genau so war er nach dem Umbau: Die Kartentypen waren weg.
+    $('entitaetStep').style.display = 'none';
+    showTypeStep();
+    return;
   }
+  $('entitaetStep').style.display = '';
+  $('typeGrid').style.display = 'none';
+  $('entityStep').style.display = 'none';
+  document.querySelectorAll('#pickerWege .weg').forEach(b => b.classList.toggle('aktiv', b.dataset.weg !== 'typ'));
+  $('pickerTitle').textContent = 'Karte hinzufügen';
+  $('entitaetFilter').value = '';
+  entitaetsWegRendern('');
+  $('entitaetFilter').focus();
 }
 
 document.querySelectorAll('#pickerWege .weg').forEach(b => {
@@ -1653,7 +1660,7 @@ function showTypeStep() {
  * einmal in der Entitaetsauswahl. Fuer die Unterleiste haette sie ein sechstes Mal
  * dazugemusst -- und beim naechsten Kartentyp ein siebtes.
  */
-function kartenEintragAnlegen(entity_id, type, settings) {
+function kartenEintragAnlegen(entity_id, type, settings, einstellungenOeffnen = true) {
   if (unterleisteWahl) {
     unterleisteWahl = false;
     // In die Leiste passt genau eine Karte. Eine vorhandene wird ersetzt, statt still eine
@@ -1680,6 +1687,15 @@ function kartenEintragAnlegen(entity_id, type, settings) {
   markDirty();
   $('picker').classList.remove('show');
   render();
+
+  // Gleich die Einstellungen aufmachen.
+  //
+  // Wer eine Karte anlegt, hat sie noch nicht so, wie er sie haben will: Name, Nachkommastellen,
+  // Symbol, bei manchen Typen sogar die eigentlichen Entitaeten. Bisher musste man die Karte
+  // erst im Raster suchen und das Zahnrad treffen -- auf einer 1x1-Kachel ein kleines Ziel.
+  //
+  // Wer nichts aendern will, drueckt Abbrechen; die Karte bleibt in jedem Fall.
+  if (einstellungenOeffnen) openSettings(entity_id);
 }
 
 /** Eine eindeutige Kennung fuer Karten, die keine Home-Assistant-Entitaet haben. */
@@ -1693,21 +1709,15 @@ function addNavigateCard() {
 }
 
 function addEnergyCard() {
-  const id = eigeneKartenKennung('energy');
-  kartenEintragAnlegen(id, 'energy', {});
-  openSettings(id); // gleich die Entitaeten abfragen, da die Karte sonst leer ist
+  kartenEintragAnlegen(eigeneKartenKennung('energy'), 'energy', {});
 }
 
 function addPhotoCard() {
-  const id = eigeneKartenKennung('photo');
-  kartenEintragAnlegen(id, 'photo', {});
-  openSettings(id); // gleich das Bild hochladen, da die Karte sonst leer ist
+  kartenEintragAnlegen(eigeneKartenKennung('photo'), 'photo', {});
 }
 
 function addQuickTilesCard() {
-  const id = eigeneKartenKennung('quicktiles');
-  kartenEintragAnlegen(id, 'quicktiles', { tiles: [] });
-  openSettings(id); // gleich Kacheln anlegen, da die Karte sonst leer ist
+  kartenEintragAnlegen(eigeneKartenKennung('quicktiles'), 'quicktiles', { tiles: [] });
 }
 
 function showEntityStep(type) {
