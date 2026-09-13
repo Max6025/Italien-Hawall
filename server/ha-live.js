@@ -87,6 +87,10 @@ class HaLive {
     this.log = log || (() => {});
     this.ws = null;
     this.versuch = 0;
+    // Fuer Befehle mit Antwort (z.B. die Entitaetsregistrierung). Die Ereignis-Anmeldung
+    // belegt fest die 1, alles Weitere zaehlt ab 2 hoch.
+    this.naechsteId = 2;
+    this.offen = new Map();
     this.verbunden = false;
     this.gestoppt = false;
     this.timer = null;
@@ -108,6 +112,34 @@ class HaLive {
     this._schliessen();
   }
 
+  /**
+   * Schickt einen Befehl und wartet auf die Antwort.
+   *
+   * Die WebSocket-Verbindung steht ohnehin -- ueber sie ist mehr zu holen als Ereignisse. Die
+   * Entitaetsregistrierung zum Beispiel gibt es NUR hier: Die REST-Schnittstelle kennt nur
+   * `friendly_name`, und der enthaelt bei den meisten Integrationen den Geraetenamen davor
+   * ("Ecowitt Sensor 11DC2 Solar Radiation" statt "Solar Radiation").
+   */
+  befehl(type, zusatz = {}, timeoutMs = 15000) {
+    return new Promise((gut, schlecht) => {
+      if (!this.verbunden || !this.ws) return schlecht(new Error('keine Live-Verbindung'));
+      const id = this.naechsteId++;
+      const wecker = setTimeout(() => {
+        this.offen.delete(id);
+        schlecht(new Error('keine Antwort von Home Assistant'));
+      }, timeoutMs);
+      if (wecker.unref) wecker.unref();
+      this.offen.set(id, { gut, schlecht, wecker });
+      try {
+        this.ws.send(JSON.stringify(Object.assign({ id, type }, zusatz)));
+      } catch (e) {
+        this.offen.delete(id);
+        clearTimeout(wecker);
+        schlecht(e);
+      }
+    });
+  }
+
   /** Nach einer Konfigurationsänderung (andere Adresse, neuer Token) neu aufbauen. */
   neuVerbinden() {
     if (this.gestoppt) return;
@@ -117,6 +149,13 @@ class HaLive {
   }
 
   _schliessen() {
+    // Offene Befehle sterben mit der Verbindung -- sonst wartet ein Versprechen bis zum
+    // Zeitlimit auf eine Antwort, die nie kommen kann.
+    for (const [, warten] of this.offen) {
+      clearTimeout(warten.wecker);
+      warten.schlecht(new Error('Verbindung beendet'));
+    }
+    this.offen.clear();
     if (this.ws) {
       try {
         this.ws.removeAllListeners();
@@ -189,6 +228,15 @@ class HaLive {
       }
       if (data.type === 'auth_ok') {
         ws.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 'state_changed' }));
+        return;
+      }
+      // Antwort auf einen eigenen Befehl?
+      if (data.type === 'result' && this.offen.has(data.id)) {
+        const warten = this.offen.get(data.id);
+        this.offen.delete(data.id);
+        clearTimeout(warten.wecker);
+        if (data.success) warten.gut(data.result);
+        else warten.schlecht(new Error((data.error && data.error.message) || 'abgelehnt'));
         return;
       }
       if (data.type === 'result' && data.id === 1) {

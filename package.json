@@ -13,12 +13,13 @@
     "test": "node --test"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@mdi/js": "^7.4.47",
     "electron": "^31.7.5",
     "electron-builder": "26.15.7"
   },

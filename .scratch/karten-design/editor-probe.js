@@ -25,7 +25,12 @@ const ZUSTAENDE = [
   // Zweite Klimaanlage und zweiter Sensor, damit sich der Entitaetstausch pruefen laesst:
   // mit nur einem Kandidaten je Art gibt es nichts zu tauschen.
   ['climate.schlafzimmer', 'Klima Schlafzimmer', 'heat', { hvac_modes: ['off', 'heat'], current_temperature: 19 }],
-  ['sensor.keller', 'Kellertemperatur', '7.2', { unit_of_measurement: '°C' }]
+  ['sensor.keller', 'Kellertemperatur', '7.2', { unit_of_measurement: '°C' }],
+  // Fuer die Sonneneinstrahlungs-Karte und die Sensorfarben
+  ['sensor.solar', 'Ecowitt Sensor 11DC2 Solar Radiation', '412', { unit_of_measurement: 'W/m²', device_class: 'irradiance' }],
+  ['sensor.text1', 'Betriebsart', 'Automatik', { icon: 'mdi:robot' }],
+  ['sensor.text2', 'Letzter Abruf', 'vor 3 min', { icon: 'mdi:cloud-download' }],
+  ['sensor.text3', 'Zustand', 'bereit', {}]
 ];
 
 const LAYOUT = [
@@ -68,6 +73,13 @@ const ANTWORTEN = {
   // Der Akkustand des Panels fuer die Navigationsleiste. Ohne diesen Eintrag antwortet die
   // Probe nur mit {ok:true}, die Leiste blendet sich aus -- und man haelt es fuer einen Fehler.
   '/api/geraet/akku': { ok: true, akku: { prozent: 14, laedt: false }, alterSekunden: 12 },
+  // Die kurzen Namen aus der Entitaetsregistrierung. Ohne sie faellt der Editor auf
+  // friendly_name zurueck -- pruefbar ist der Unterschied nur mit Beispieldaten.
+  '/api/ha/namen': { ok: true, namen: {
+    'sensor.aussen': 'Außentemperatur',
+    'sensor.solar': 'Solar Radiation',
+    'sensor.keller': 'Kellertemperatur'
+  } },
   '/api/dashboards': { ok: true, dashboards: [] },
   '/api/dashboard-format': { ok: true, anleitung: { kartenarten: [] } }
 };

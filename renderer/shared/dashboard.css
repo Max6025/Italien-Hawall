@@ -213,6 +213,9 @@ body { background: var(--page-bg-image, none) center/cover fixed, var(--bg); }
 .card.type-pressure    { --kachel-akzent: #bd9cf5; }
 .card.type-temperature { --kachel-akzent: #ff9d7a; }
 .card.type-humidity    { --kachel-akzent: #7fc7e6; }
+/* Sonneneinstrahlung: ein warmes Gelb, das sonst nirgends vorkommt -- Lampe (#ffc061) liegt
+   deutlich weiter im Orange, und die Sonne soll nicht wie ein eingeschaltetes Licht aussehen. */
+.card.type-solar       { --kachel-akzent: #f2d867; }
 .card.type-graph       { --kachel-akzent: #9db4d8; }
 .card.type-gate        { --kachel-akzent: #9db4d8; }
 .card.type-alarm       { --kachel-akzent: #ff8f8f; }
@@ -655,10 +658,18 @@ body.ankuendigung-in-leiste .unterleiste > .card {
   .notify-overlay, .notify-box, .notify-kopf, .notify-text, .notify-kurz { transition: none; }
 }
 
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
+/* Dialoge sind DECKEND, Karten nicht.
+   --surface ist eine Glasfarbe mit sieben Prozent Deckkraft -- auf einer Karte genau richtig,
+   in einem Dialog nicht: Dort stand das Dashboard durch den Text hindurch, und man las zwei
+   Oberflaechen uebereinander. Deshalb liegt --bg darunter und --surface darueber; das ergibt
+   dieselbe Farbe wie bisher, nur undurchsichtig. */
+.modal, .picker { background-color: var(--bg); }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none;
   align-items: center; justify-content: center; z-index: 30; }
 .modal-backdrop.show { display: flex; }
-.modal { background: var(--surface); border-radius: 14px; padding: 3vh 3vw; max-width: 60vw; color: var(--text); }
+.modal { background-image: linear-gradient(var(--surface), var(--surface)); border-radius: 14px;
+  padding: 3vh 3vw; max-width: 60vw; color: var(--text);
+  border: 1px solid var(--card-border); box-shadow: 0 2vh 6vh rgba(0,0,0,0.5); }
 .modal h3 { margin-top: 0; }
 .modal .close { margin-top: 2vh; background: #4f7cff; border: none; color: #fff; padding: 1vh 2vw;
   border-radius: 8px; cursor: pointer; }
@@ -693,12 +704,14 @@ body.ankuendigung-in-leiste .unterleiste > .card {
   justify-content: center; font-size: 4vh; color: var(--muted); cursor: pointer; grid-column: span 1; grid-row: span 1; }
 .add-tile:hover { color: var(--text); border-color: var(--text); }
 
-.picker-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
+.picker-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none;
   align-items: center; justify-content: center; z-index: 20; }
 .picker-backdrop.show { display: flex; }
-.picker { background: var(--surface); border-radius: 14px; padding: 2.4vh 2vw;
+.picker { background-image: linear-gradient(var(--surface), var(--surface)); border-radius: 14px;
+  padding: 2.4vh 2vw;
   width: min(46vw, 560px); max-width: 92vw; max-height: 86vh;
-  display: flex; flex-direction: column; color: var(--text); }
+  display: flex; flex-direction: column; color: var(--text);
+  border: 1px solid var(--card-border); box-shadow: 0 2vh 6vh rgba(0,0,0,0.5); }
 @media (max-width: 900px) { .picker { width: 92vw; max-height: 90vh; } }
 .picker input[type="text"] { padding: 1vh; border-radius: 8px; border: 1px solid #444; background: var(--bg);
   color: var(--text); margin-bottom: 1.4vh; font-size: 1.6vh; }
@@ -1398,6 +1411,7 @@ body.light-theme .card.type-wind        { --kachel-akzent: #2e968a; }
 body.light-theme .card.type-rain        { --kachel-akzent: #4470c4; }
 body.light-theme .card.type-pressure    { --kachel-akzent: #7f5bc4; }
 body.light-theme .card.type-humidity    { --kachel-akzent: #2f8cb4; }
+body.light-theme .card.type-solar       { --kachel-akzent: #9a7b11; }
 body.light-theme .card.type-graph,
 body.light-theme .card.type-gate        { --kachel-akzent: #5a6b8c; }
 body.light-theme .card.type-alarm       { --kachel-akzent: #c94a4a; }

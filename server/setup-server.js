@@ -988,6 +988,9 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       }
     },
     onStatus: (verbunden) => {
+      // Frisch verbunden: Die Namen aus der Entitaetsregistrierung holen. Sie aendern sich fast
+      // nie, deshalb einmal je Verbindung und nicht auf Zuruf.
+      if (verbunden) namenHolen();
       const zeile = 'event: status\ndata: ' + JSON.stringify({ verbunden }) + '\n\n';
       for (const res of liveHoerer) {
         try { res.write(zeile); } catch (e) { liveHoerer.delete(res); }
@@ -996,6 +999,45 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     log: (text) => console.log('[HA-Live] ' + text)
   });
   haLive.start();
+
+  // --- Die kurzen Namen der Entitaeten ----------------------------------------------------------
+  //
+  // Ueber REST liefert Home Assistant nur `friendly_name` -- und der enthaelt bei den meisten
+  // Integrationen den Geraetenamen davor: "Ecowitt Sensor 11DC2 Solar Radiation". Auf einer
+  // Karte, die zwei Zentimeter breit ist, steht davon die Haelfte.
+  //
+  // Den kurzen Namen ("Solar Radiation") kennt nur die Entitaetsregistrierung, und die gibt es
+  // ausschliesslich ueber die WebSocket-Verbindung. Die steht ohnehin.
+  //
+  // Kein Store, nur Speicher: Ein Name von gestern ist kein Schaden, aber auch kein Gewinn --
+  // und nach einem Neustart ist die Verbindung binnen Sekunden wieder da.
+  let entitaetsNamen = null;
+
+  async function namenHolen() {
+    try {
+      const liste = await haLive.befehl('config/entity_registry/list');
+      if (!Array.isArray(liste)) return;
+      const zu = {};
+      liste.forEach((e) => {
+        if (!e || !e.entity_id) return;
+        // `name` ist der selbst vergebene Name, `original_name` der der Integration. Der selbst
+        // vergebene gewinnt -- wer eine Entitaet umbenennt, will das auch hier sehen.
+        const n = (e.name || e.original_name || '').trim();
+        if (n) zu[e.entity_id] = n;
+      });
+      entitaetsNamen = zu;
+      console.log('[HA-Live] ' + Object.keys(zu).length + ' Entitaetsnamen geholt');
+    } catch (err) {
+      // Ohne Administratorrechte lehnt Home Assistant die Registrierung ab. Kein Beinbruch:
+      // Dann bleibt es bei friendly_name, so wie es vorher war.
+      entitaetsNamen = null;
+      console.log('[HA-Live] Entitaetsnamen nicht verfuegbar: ' + String(err.message || err));
+    }
+  }
+
+  app.get('/api/ha/namen', (req, res) => {
+    res.json({ ok: true, namen: entitaetsNamen || {} });
+  });
 
   app.get('/api/ha/live', (req, res) => {
     res.set({

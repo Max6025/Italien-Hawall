@@ -7,6 +7,16 @@
 <link rel="stylesheet" href="/shared/nav.css">
 <link rel="stylesheet" href="/shared/dashboard.css">
 <style>
+  /* Die zwei Wege in die Kartenauswahl. Bewusst als Schalter und nicht als Aufklapper: Man
+     soll beide sehen, auch wenn man nur einen benutzt -- sonst kennt den zweiten niemand. */
+  .picker-wege { display: flex; gap: 0.4rem; margin: 0 0 0.8rem; }
+  .picker-wege .weg {
+    flex: 1; padding: 0.5rem 0.8rem; border-radius: 999px; cursor: pointer;
+    background: #1c1d21; color: #9aa0ac; border: 1px solid rgba(255,255,255,0.07);
+    font-size: 0.85rem; font-family: inherit;
+  }
+  .picker-wege .weg.aktiv { background: #4f7cff; color: #fff; border-color: transparent; }
+  .picker-item .typ { font-size: 0.75rem; color: #4f7cff; }
   /* --- Die Arbeitsflaeche ist ein Abbild des Panels -------------------------------------------
      Vorher waren Raster und untere Leiste zwei getrennte Kaesten. Die Leiste erbte dabei
      `flex: 1` aus dashboard.css und wuchs auf den halben Editor an, waehrend das Raster in
@@ -128,8 +138,19 @@
 
   <div class="picker-backdrop" id="picker">
     <div class="picker">
-      <h3 id="pickerTitle" style="margin-top:0;">Kartentyp wählen</h3>
-      <div class="type-grid" id="typeGrid"></div>
+      <h3 id="pickerTitle" style="margin-top:0;">Karte hinzufügen</h3>
+      <!-- Zwei Wege zur selben Karte. Wer weiss, WAS er anzeigen will, sucht die Entitaet;
+           wer weiss, WIE es aussehen soll, sucht den Kartentyp. Vorher gab es nur den zweiten
+           -- und dort muss man raten, unter welchem Typ die eigene Entitaet einsortiert ist. -->
+      <div class="picker-wege" id="pickerWege">
+        <button type="button" class="weg aktiv" data-weg="entitaet">Nach Entität</button>
+        <button type="button" class="weg" data-weg="typ">Nach Kartentyp</button>
+      </div>
+      <div id="entitaetStep">
+        <input type="text" id="entitaetFilter" placeholder="Entität suchen...">
+        <div class="picker-list" id="entitaetListe"></div>
+      </div>
+      <div class="type-grid" id="typeGrid" style="display:none;"></div>
       <div id="entityStep" style="display:none;">
         <button type="button" class="picker-back" id="pickerBack">← Anderer Typ</button>
         <input type="text" id="pickerFilter" placeholder="Suchen...">

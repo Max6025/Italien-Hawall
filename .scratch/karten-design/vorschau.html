@@ -24,6 +24,9 @@
 <div class="lebendig" aria-hidden="true"><span></span><span></span><span></span></div>
 <div id="grid"></div>
 <script src="../../renderer/shared/dashboard-render.js"></script>
+<!-- Die Symbole aus Home Assistant. Im Betrieb werden sie NACHGELADEN, nur wenn eine Karte
+     eines braucht -- hier direkt, damit die Vorschau ohne Zusatzlogik auskommt. -->
+<script src="../../renderer/shared/mdi-pfade.js"></script>
 <script>
 const Z = (state, attributes = {}) => ({ state, attributes });
 
@@ -56,6 +59,11 @@ const KARTEN = [
   ['climate.dry',  'climate', Z('dry',      { friendly_name: 'Entfeuchten', current_temperature: 23, temperature: 22, hvac_modes: ['dry','off'] }), 1, 1],
   ['climate.fan',  'climate', Z('fan_only', { friendly_name: 'Nur Lüfter', current_temperature: 23, temperature: 22, hvac_modes: ['fan_only','off'] }), 1, 1],
   ['climate.auto', 'climate', Z('auto',     { friendly_name: 'Automatik',  current_temperature: 23, temperature: 22, hvac_modes: ['auto','off'] }), 1, 1],
+  ['sensor.solar', 'solar',    Z('412',  { friendly_name: 'Solar Radiation', unit_of_measurement: 'W/m²' }), 1, 1],
+  ['sensor.t1',    'sensor',   Z('Automatik', { friendly_name: 'Betriebsart', icon: 'mdi:robot' }), 1, 1],
+  ['sensor.t2',    'sensor',   Z('vor 3 min', { friendly_name: 'Letzter Abruf', icon: 'mdi:cloud-download' }), 1, 1],
+  ['sensor.t3',    'sensor',   Z('bereit', { friendly_name: 'Zustand' }), 1, 1],
+  ['sensor.t4',    'sensor',   Z('offen',  { friendly_name: 'Fenster Bad', icon: 'mdi:window-open' }), 1, 1],
   ['nav.kueche',   'navigate', null, 1, 1],
   ['nav.bad',      'navigate', null, 2, 1]
 ];
@@ -84,10 +92,14 @@ const VERLAEUFE = {
   'sensor.zaehler':     verlauf(4180, 55, true)
 };
 
+// Sensorkarten bekommen ihre Farbe von aussen, genau wie auf der Wand.
+const sensorFarben = DashboardRender.sensorAkzente(KARTEN.filter(k => k[1] === 'sensor').map(k => k[0]),
+  new URLSearchParams(location.search).has('hell'));
+
 const nur = new URLSearchParams(location.search).get('nur');
 (nur ? KARTEN.filter(k => k[1] === nur) : KARTEN).forEach(([id, typ, zustand, c, r]) => {
   const el = DashboardRender.buildCard(id, zustand, typ, { cols: c, rows: r }, {
-    editable: false, apiBase: '', statesById: {}, history: VERLAEUFE[id],
+    editable: false, apiBase: '', statesById: {}, history: VERLAEUFE[id], akzent: sensorFarben[id],
     settings: typ === 'navigate' ? { targetDashboardId: 'db_1', targetDashboardName: id === 'nav.bad' ? 'Badezimmer' : 'Küche' }
       : typ === 'gate' ? { gateButtons: [
       { label: 'Tor', entity: 'switch.a', icon: 'gate' },

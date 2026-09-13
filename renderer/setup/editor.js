@@ -22,6 +22,7 @@ let statesById = {};
 let historyCache = {};
 let forecastCache = {};
 let allEntities = [];
+let haNamen = {};
 let allDashboards = []; // [{id,name}] fuer Navigations-Karten
 let currentSunEntity = '';
 let settingsEntityId = null;
@@ -33,15 +34,20 @@ let isDirty = false; // true sobald ungespeicherte Aenderungen vorliegen -> eige
 function markDirty() { isDirty = true; }
 
 async function loadAll() {
-  const [configRes, entitiesRes, dashboardsRes] = await Promise.all([
+  const [configRes, entitiesRes, dashboardsRes, namenRes] = await Promise.all([
     fetch('/api/config').then(r => r.json()),
     fetch('/api/entities').then(r => r.json()),
-    fetch('/api/dashboards').then(r => r.json()).catch(() => ({ ok: false }))
+    fetch('/api/dashboards').then(r => r.json()).catch(() => ({ ok: false })),
+    // Die kurzen Namen aus der Entitaetsregistrierung -- dieselben, die Home Assistant in
+    // seiner eigenen Oberflaeche zeigt. Ohne sie steht hier ueberall der Geraetename davor.
+    fetch('/api/ha/namen').then(r => r.json()).catch(() => ({ ok: false }))
   ]);
+  haNamen = (namenRes && namenRes.ok && namenRes.namen) ? namenRes.namen : {};
   allDashboards = dashboardsRes.ok ? dashboardsRes.dashboards : [];
   currentSunEntity = configRes.sunEntity || '';
   DashboardRender.applyCustomTheme(configRes.customTheme || DashboardRender.DEFAULT_THEME);
-  allEntities = entitiesRes.ok ? entitiesRes.entities : [];
+  allEntities = (entitiesRes.ok ? entitiesRes.entities : [])
+    .map(e => Object.assign({}, e, { name: haNamen[e.entity_id] || e.name }));
 
   if (DASHBOARD_ID === 'main') {
     $('title').textContent = 'Wall Display – Karten einrichten (' + (configRes.title || 'Wall Display') + ')';
@@ -283,7 +289,8 @@ async function unterleisteRendern() {
   if (type === 'graph' || type === 'gauge') history = await ensureHistory(entry.entity_id, (entry.settings || {}).graphHours);
 
   const card = buildCard(entry.entity_id, state, type, { cols: 1, rows: 1 }, {
-    editable: true, freeMove: false, history, apiBase: '', settings: entry.settings || {}, statesById
+    editable: true, freeMove: false, history, apiBase: '', settings: entry.settings || {}, statesById,
+    namen: haNamen
   });
   card.style.flex = '1';
   el.appendChild(card);
@@ -309,6 +316,11 @@ async function render() {
   arbeitsflaecheAnpassen();
   await unterleisteRendern();
   kartenListeRendern();
+  // Dieselben Farben wie auf der Wand -- der Editor soll zeigen, was dort steht, und nicht
+  // etwas, das man erst am Panel sieht.
+  const sensorFarben = DashboardRender.sensorAkzente(currentLayout
+    .filter(e => (e.card_type || defaultCardType(e.entity_id, statesById[e.entity_id])) === 'sensor')
+    .map(e => e.entity_id), document.body.classList.contains('light-theme'));
   for (const entry of currentLayout.filter(e => !e.unterleiste)) {
     const state = statesById[entry.entity_id];
     const type = entry.card_type || defaultCardType(entry.entity_id, state);
@@ -338,6 +350,8 @@ async function render() {
       photoVersion: type === 'photo' ? (entry.settings || {}).photoVersion : null,
       onPhoto: !!findOverlappingPhoto(entry),
       settings: entry.settings || {},
+      namen: haNamen,
+      akzent: sensorFarben[entry.entity_id],
       callbacks: {
         onRemove: removeEntity,
         onChangeType: changeType,
@@ -574,9 +588,9 @@ let settingsBaseColorEntfernt = false;
 function settingsFieldsForType(type) {
   // humidity und climate fehlten hier, obwohl beide settings.suffix lesen -- das Feld war im
   // Editor schlicht nicht erreichbar.
-  const withSuffix = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure', 'humidity', 'climate'];
+  const withSuffix = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure', 'humidity', 'solar', 'climate'];
   // Nachkommastellen ergeben nur dort Sinn, wo ueberhaupt eine Zahl gross dasteht.
-  const mitZahl = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure', 'humidity'];
+  const mitZahl = ['gauge', 'graph', 'wind', 'rain', 'temperature', 'sensor', 'pressure', 'humidity', 'solar'];
   // Karten ohne eigenes Symbol (Uhr, Foto, Kacheln, Energiefluss, Media Player) haben nichts
   // zu tauschen -- ein Auswahlfeld dort waere eine Einstellung ohne Wirkung.
   const ohneSymbol = ['clock', 'photo', 'quicktiles', 'energy', 'media_player', 'navigate', 'gate', 'light', 'switch', 'climate', 'cover', 'lock', 'alarm'];
@@ -1545,15 +1559,71 @@ $('settingsSave').addEventListener('click', () => {
 function openPicker() {
   duplicateSourceId = null;
   $('picker').classList.add('show');
-  showTypeStep();
+  wegZeigen('entitaet');
 }
+
+/**
+ * Der Weg "Entitaet zuerst".
+ *
+ * Wer weiss, WAS er anzeigen will, soll danach suchen duerfen. Vorher gab es nur "Kartentyp
+ * zuerst" -- und dort muss man raten, unter welchem der dreissig Typen die eigene Entitaet
+ * einsortiert ist. Welcher Kartentyp passt, weiss die App selbst (defaultCardType); aendern
+ * laesst er sich danach an der Karte.
+ */
+function entitaetsWegRendern(query) {
+  const q = String(query || '').toLowerCase();
+  const vorhanden = currentLayout.map(l => l.entity_id);
+  const liste = allEntities
+    .filter(e => !vorhanden.includes(e.entity_id))
+    .filter(e => e.name.toLowerCase().includes(q) || e.entity_id.toLowerCase().includes(q))
+    .slice(0, 200);   // eine Liste mit tausend Zeilen sucht niemand durch
+  const el = $('entitaetListe');
+  el.innerHTML = '';
+  if (!liste.length) {
+    el.innerHTML = '<p style="font-size:1.3vh; color:var(--muted);">Keine passenden Entitäten gefunden.</p>';
+    return;
+  }
+  liste.forEach(e => {
+    const typ = DashboardRender.defaultCardType(e.entity_id, statesById[e.entity_id]);
+    const row = document.createElement('div');
+    row.className = 'picker-item';
+    row.innerHTML = `<span>${e.name}</span>`
+      + `<span class="typ">${(CARD_TYPES[typ] || {}).label || typ}</span>`
+      + `<span class="domain">${e.domain}</span>`;
+    row.addEventListener('click', () => kartenEintragAnlegen(e.entity_id, typ, {}));
+    el.appendChild(row);
+  });
+}
+
+function wegZeigen(weg) {
+  const entitaet = weg !== 'typ';
+  $('entitaetStep').style.display = entitaet ? '' : 'none';
+  $('typeGrid').style.display = entitaet ? 'none' : 'grid';
+  $('entityStep').style.display = 'none';
+  document.querySelectorAll('#pickerWege .weg').forEach(b => {
+    b.classList.toggle('aktiv', (b.dataset.weg === 'typ') !== entitaet);
+  });
+  $('pickerTitle').textContent = 'Karte hinzufügen';
+  if (entitaet) {
+    $('entitaetFilter').value = '';
+    entitaetsWegRendern('');
+    $('entitaetFilter').focus();
+  }
+}
+
+document.querySelectorAll('#pickerWege .weg').forEach(b => {
+  b.addEventListener('click', () => wegZeigen(b.dataset.weg));
+});
+$('entitaetFilter').addEventListener('input', e => entitaetsWegRendern(e.target.value));
 
 function showTypeStep() {
   pickerType = null;
-  $('pickerTitle').textContent = 'Kartentyp wählen';
+  $('pickerTitle').textContent = 'Karte hinzufügen';
   $('entityStep').style.display = 'none';
+  $('entitaetStep').style.display = 'none';
   const grid = $('typeGrid');
   grid.style.display = 'grid';
+  document.querySelectorAll('#pickerWege .weg').forEach(b => b.classList.toggle('aktiv', b.dataset.weg === 'typ'));
   grid.innerHTML = '';
   PICKER_TYPES.forEach(t => {
     const tile = document.createElement('div');
@@ -1644,6 +1714,7 @@ function showEntityStep(type) {
   pickerType = type;
   $('pickerTitle').textContent = CARD_TYPES[type].label + ' – Entität wählen';
   $('typeGrid').style.display = 'none';
+  $('entitaetStep').style.display = 'none';
   $('entityStep').style.display = '';   // Layout kommt aus dem CSS (Flex-Spalte, scrollbar)
   $('pickerFilter').value = '';
   renderPickerList('');

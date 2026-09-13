@@ -25,6 +25,7 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `control/controller.js` | Zustandsautomat; die Rangfolge steht vollständig in `decide()` |
 | `control/ankunft.js` | Warten auf die Ankunft: erst Dashboard, wenn die Alarmanlage „zu Hause“ meldet |
 | `renderer/shared/alarm.js` | Was die Alarmanlage über das Haus sagt: zu Hause, abwesend, unbekannt |
+| `renderer/shared/mdi-pfade.js` | **Erzeugt.** Alle Material-Design-Symbole; wird nur bei Bedarf nachgeladen |
 | `control/lautstaerke.js` | Systemlautstärke anheben (nur während einer Akkuwarnung, nie senken) |
 | `renderer/shared/akku.js` | Wie dringend die Akkuwarnung ist: Stufe, Abstand, Lautstärke, Stummschalten |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
@@ -312,6 +313,34 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   nicht". Jetzt: ein Pfeil, der in eine Fläche **hineingeht**, derselbe Aufbau wie bei jeder
   anderen Karte, ein fester Akzent, ein Pfeil am rechten Rand und die Bildunterschrift
   „Dashboard wechseln". Das Symbol allein reicht nicht, und der Text allein auch nicht.
+- **`friendly_name` ist nicht der Name, den Home Assistant anzeigt.** Er trägt bei den meisten
+  Integrationen den Gerätenamen davor: „Ecowitt Sensor 11DC2 Solar Radiation" statt
+  „Solar Radiation". Auf einer zwei Zentimeter breiten Karte steht davon die Hälfte. Den kurzen
+  Namen kennt nur die **Entitätsregistrierung**, und die gibt es ausschließlich über die
+  WebSocket-Verbindung (`haLive.befehl('config/entity_registry/list')`, gecacht im Server unter
+  `/api/ha/namen`). Ohne Administratorrechte lehnt Home Assistant sie ab — dann bleibt es bei
+  `friendly_name`, so wie vorher. Reihenfolge überall: eigener Name > Registrierungsname >
+  `friendly_name` > Kennung.
+- **Symbole aus Home Assistant kommen nur als NAME** („mdi:weather-sunny"), nie als Zeichnung.
+  Die Zeichnungen liegen in der **erzeugten** Datei `renderer/shared/mdi-pfade.js` (7447
+  Symbole, 2,6 MB, erzeugt von `.scratch/karten-design/mdi-erzeugen.js` aus der
+  Entwicklungsabhängigkeit `@mdi/js`). Sie wird **nicht beim Start** geladen: Die meisten
+  Dashboards brauchen sie nie. Nur die **Sensorkarte** greift auf das HA-Symbol zurück — sie
+  ist der Sammelfall, und was dort landet, hat kein eigens entworfenes Symbol. Bei einer
+  Klimakarte wäre es umgekehrt falsch: Dort sagt die Bewegung des eigenen Symbols etwas, das
+  ein fremdes nicht sagen kann.
+- **Die Sensorkarte ist der Sammelfall — und sah deshalb immer gleich aus.** Drei nebeneinander
+  waren nur an der Bildunterschrift zu unterscheiden. `sensorAkzente()` verteilt Farben aus
+  einer Palette, die in den **Lücken** zwischen den festen Kartenakzenten liegt (kein Blau,
+  kein Rot, kein Orange — sonst sieht eine Sensorkarte aus wie eine Klimakarte). Die Farbe wird
+  aus der Kennung gewürfelt, damit eine Karte ihre Farbe behält, wenn daneben eine dazukommt;
+  ist sie schon vergeben, wird die nächste freie genommen. Für das helle Design gibt es eine
+  **zweite Palette in JS** — nicht im CSS, weil der Akzent direkt am Element gesetzt wird und
+  eine CSS-Regel dagegen nicht ankäme.
+- **Dialoge sind deckend, Karten nicht.** `--surface` ist eine Glasfarbe mit sieben Prozent
+  Deckkraft. Auf einer Karte ist das genau richtig; in einem Dialog stand das Dashboard durch
+  den Text hindurch, und man las zwei Oberflächen übereinander. `.modal` und `.picker` legen
+  deshalb `--bg` darunter.
 - **Ein Knopf muss erkennbar sein, nicht lesbar.** Aus fünf Metern liest niemand „Tor" und
   „Garage" auseinander — ein Tor und eine Garage schon. Deshalb trägt jeder Tor-Knopf ein
   wählbares Symbol, groß, mit dem Text als Bestätigung darunter. Ein Symbol, das man suchen
@@ -449,7 +478,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-329 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+343 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
 Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

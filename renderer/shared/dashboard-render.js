@@ -23,6 +23,9 @@
     // Strichen und einem Kreis -- das liest sich als "Standort" oder "Ziel", nicht als
     // "hier geht es weiter". Gemeldet wurde das als "man versteht die Karte nicht".
     navigate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5h4.5A2 2 0 0 1 20.5 5.5v13a2 2 0 0 1-2 2H14"/><path d="M3.5 12h10"/><path d="m9.5 8 4 4-4 4"/></svg>',
+    // Sonne mit Strahlen -- und zwar geschlossen gezeichnet, damit sie auch auf 1x1 noch als
+    // Sonne lesbar ist und nicht als Zahnrad.
+    solar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4M5.1 5.1l1.7 1.7M17.2 17.2l1.7 1.7M18.9 5.1l-1.7 1.7M6.8 17.2l-1.7 1.7"/></svg>',
     pfeilRechts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
     forecast: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18a4 4 0 0 1 .5-7.97A5.5 5.5 0 0 1 18 11.5 3.5 3.5 0 0 1 17.5 18H7z"/><path d="M8 21l1-2M12 21l1-2M16 21l1-2"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
@@ -95,6 +98,7 @@
     sensor: { label: 'Sensor (Text)',  defaultSize: 'sm' },
     clock:  { label: 'Uhr',            defaultSize: 'md' },
     pressure: { label: 'Luftdruck',    defaultSize: 'lg' },
+    solar:  { label: 'Sonneneinstrahlung', defaultSize: 'lg' },
     select: { label: 'Auswahl',        defaultSize: 'md' },
     navigate: { label: 'Dashboard wechseln', defaultSize: 'sm' },
     forecast: { label: 'Wettervorhersage', defaultSize: 'xl' },
@@ -123,6 +127,7 @@
       case 'cover': return ['cover'];
       case 'radar': return ['camera', 'image'];
       case 'gauge': case 'graph': case 'temperature': case 'wind': case 'rain': case 'pressure': case 'humidity':
+      case 'solar':
         return NUMERIC_DOMAINS;
       case 'sensor': return [...NUMERIC_DOMAINS, 'binary_sensor'];
       case 'select': return ['input_select', 'select'];
@@ -219,6 +224,23 @@
     return /wind/.test(name);
   }
 
+  /**
+   * Sonneneinstrahlung: Leistung pro Flaeche, W/m2.
+   *
+   * Die Einheit ist der zuverlaessige Teil -- `irradiance` als device_class gibt es erst seit
+   * HA 2022, und aeltere Integrationen (Ecowitt, OpenDTU) liefern sie oft gar nicht. Der Name
+   * ist die letzte Wahl, weil "Solar" auch an Wechselrichtern und Batterien steht, die Watt
+   * liefern und keine Einstrahlung.
+   */
+  function isSolar(entity_id, attrs) {
+    if (attrs.device_class === 'irradiance') return true;
+    const unit = String(attrs.unit_of_measurement || '').replace(/\s/g, '');
+    if (['W/m²', 'W/m2', 'W/qm', 'kW/m²', 'kW/m2'].includes(unit)) return true;
+    if (attrs.device_class) return false;   // eine andere Messgroesse hat sich schon erklaert
+    const name = ((attrs.friendly_name || '') + ' ' + (entity_id || '')).toLowerCase();
+    return /(solar|sonnen)(_|\s)?(radiation|einstrahlung|strahlung)|irradian/.test(name);
+  }
+
   function isRain(entity_id, attrs) {
     if (attrs.device_class === 'precipitation' || attrs.device_class === 'precipitation_intensity') return true;
     if (attrs.unit_of_measurement === 'mm' || attrs.unit_of_measurement === 'mm/h') return true;
@@ -264,6 +286,7 @@
     if (NUMERIC_DOMAINS.includes(domain) && isRain(entity_id, attrs)) return 'rain';
     if (NUMERIC_DOMAINS.includes(domain) && isPressure(entity_id, attrs)) return 'pressure';
     if (NUMERIC_DOMAINS.includes(domain) && isHumidity(entity_id, attrs)) return 'humidity';
+    if (NUMERIC_DOMAINS.includes(domain) && isSolar(entity_id, attrs)) return 'solar';
     if (NUMERIC_DOMAINS.includes(domain) && isNumeric(state)) return 'gauge';
     return 'sensor';
   }
@@ -288,9 +311,52 @@
       if (isWind(entity_id, attrs)) return ['wind', ...base];
       if (isTemperature(entity_id, attrs)) return ['temperature', ...base];
       if (isPressure(entity_id, attrs)) return ['pressure', ...base];
+      if (isHumidity(entity_id, attrs)) return ['humidity', ...base];
+      if (isSolar(entity_id, attrs)) return ['solar', ...base];
       return base;
     }
     return ['sensor'];
+  }
+
+  // --- Farben fuer Karten ohne eigene Farbe ------------------------------------------------------
+  //
+  // Jeder Kartentyp hat einen festen Akzent -- ausser der Sensorkarte. Die ist der Sammelfall:
+  // Sie nimmt alles auf, wofuer es keine eigene Karte gibt. Stehen drei davon nebeneinander,
+  // sahen sie bisher identisch aus, und man musste jedes Mal die Bildunterschrift lesen.
+  //
+  // Die Farben liegen bewusst in Luecken zwischen den festen Akzenten: Rosa, Gelbgruen, Flieder,
+  // Malve, Moosgruen, Bernstein. Kein Blau (Klima, Regen, Verlauf), kein Rot (Alarm), kein
+  // Orange (Lampe, Temperatur) -- sonst sieht eine Sensorkarte aus wie eine Klimakarte.
+  const SENSOR_FARBEN = ['#e79ec5', '#c2d96e', '#a9a0ea', '#d79ae0', '#8fc79a', '#ddc06f'];
+
+  // Dieselben Farbtoene, aber fuer hellen Grund: Die pastelligen oben verschwinden dort fast
+  // vollstaendig. Sie stehen hier und nicht im CSS, weil der Akzent direkt am Element gesetzt
+  // wird -- eine CSS-Regel kaeme dagegen nicht an, egal wie sie geschrieben waere.
+  const SENSOR_FARBEN_HELL = ['#b3417f', '#5f7a1c', '#5b4ec2', '#9c3fae', '#2f7a48', '#8a6510'];
+
+  /**
+   * Ordnet jeder Kennung eine Farbe zu -- moeglichst verschieden voneinander.
+   *
+   * Erst wird aus der Kennung selbst eine Farbe gewuerfelt: So bleibt eine Karte bei ihrer
+   * Farbe, auch wenn daneben eine andere dazukommt oder verschwindet. Ist die Farbe schon
+   * vergeben, wird die naechste freie genommen -- zwei gleiche waeren genau das, was hier
+   * vermieden werden soll. Erst ab der siebten Karte wiederholt sich etwas.
+   */
+  function sensorAkzente(kennungen, hell) {
+    const palette = hell ? SENSOR_FARBEN_HELL : SENSOR_FARBEN;
+    const zu = {};
+    const vergeben = new Set();
+    (kennungen || []).forEach((id) => {
+      let h = 0;
+      const s = String(id || '');
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      let i = h % palette.length;
+      for (let n = 0; n < palette.length && vergeben.has(i); n++) i = (i + 1) % palette.length;
+      vergeben.add(i);
+      if (vergeben.size >= palette.length) vergeben.clear();
+      zu[s] = palette[i];
+    });
+    return zu;
   }
 
   function defaultSize(cardType) { return (CARD_TYPES[cardType] || {}).defaultSize || 'sm'; }
@@ -321,6 +387,34 @@
   function symbolFuer(settings, standard) {
     const w = settings && settings.icon;
     return (w && ICONS[w]) ? ICONS[w] : standard;
+  }
+
+  // --- Symbole aus Home Assistant ----------------------------------------------------------------
+  //
+  // Home Assistant gibt das Symbol einer Entitaet nur als NAMEN zurueck ("mdi:weather-sunny").
+  // Die Zeichnung dazu liegt in renderer/shared/mdi-pfade.js -- einer erzeugten Datei mit allen
+  // 7447 Material-Design-Symbolen, die BEWUSST nicht beim Start geladen wird: 2,6 MB fuer einen
+  // Fall, den die meisten Dashboards nie brauchen, waeren beim Aufwachen jedes Mal zu bezahlen.
+  //
+  // Die Sensorkarte ist der einzige Ort, an dem das Symbol aus Home Assistant gewinnt. Sie ist
+  // der Sammelfall: Was hier landet, hat keine eigene Karte -- und damit auch kein Symbol, das
+  // jemand fuer diesen Fall entworfen haette. Bei einer Klimakarte waere es umgekehrt falsch:
+  // Dort sagt die Bewegung des eigenen Symbols etwas, das ein fremdes nicht sagen kann.
+  function mdiSymbol(name) {
+    const roh = String(name || '').trim().replace(/^mdi:/, '');
+    if (!roh) return '';
+    const pfade = (typeof window !== 'undefined' && window.MDI_PFADE) || null;
+    const d = pfade && pfade[roh];
+    if (!d) return '';
+    // Material-Design-Symbole sind Flaechen, keine Striche -- deshalb fill und kein stroke.
+    return '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="' + d + '"/></svg>';
+  }
+
+  /** Braucht diese Karte ein Symbol aus Home Assistant? (Fuer das Nachladen der Pfade.) */
+  function brauchtMdi(type, state, settings) {
+    if (type !== 'sensor') return false;
+    if (settings && settings.icon) return false;    // eigene Wahl schlaegt alles
+    return !!(state && state.attributes && state.attributes.icon);
   }
 
   // --- Schnellzugriff ---------------------------------------------------------------------------
@@ -1011,7 +1105,13 @@
     const attrs = (state && state.attributes) || {};
     const domain = domainOf(entity_id);
     // An der Quelle maskiert: "name" landet in saemtlichen Kartenvorlagen in innerHTML.
-    const name = esc((settings.name && String(settings.name).trim()) || attrs.friendly_name || entity_id);
+    // Reihenfolge: eigener Name > kurzer Name aus der Entitaetsregistrierung > friendly_name >
+    // Kennung. Der kurze Name ist der, den Home Assistant in seiner Oberflaeche zeigt
+    // ("Solar Radiation"); friendly_name traegt bei den meisten Integrationen den Geraetenamen
+    // davor ("Ecowitt Sensor 11DC2 Solar Radiation") und passt auf keine Karte.
+    const name = esc((settings.name && String(settings.name).trim())
+      || (opts.namen && opts.namen[entity_id])
+      || attrs.friendly_name || entity_id);
     const dis = editable ? 'disabled' : '';
 
     // Verlauf und Tendenz stehen allen Zahlenkarten zur Verfuegung. Ohne Verlaufsdaten bleiben
@@ -1031,6 +1131,9 @@
     const card = document.createElement('div');
     card.dataset.entityId = entity_id;
     card.className = `card type-${type}`;
+    // Eine von aussen zugewiesene Farbe schlaegt den Typ-Akzent. Gebraucht wird das fuer die
+    // Sensorkarte, die sonst immer gleich aussieht (siehe sensorAkzente).
+    if (opts.akzent) card.style.setProperty('--kachel-akzent', opts.akzent);
     if (opts.onPhoto) card.classList.add('card-on-photo');
     if (hasFixedPos) {
       card.style.gridColumn = `${spanObj.x + 1} / span ${cols}`;
@@ -1264,6 +1367,14 @@
       card.innerHTML = `
         ${verlaufTeil}
         <div class="row"><span class="icon">${symbolFuer(settings, ICONS.rain)}</span>${tendenzTeil}</div>
+        <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
+        <div class="name">${name}</div>`;
+    } else if (type === 'solar') {
+      const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : (attrs.unit_of_measurement || 'W/m²');
+      const val = state ? state.state : '–';
+      card.innerHTML = `
+        ${verlaufTeil}
+        <div class="row"><span class="icon">${symbolFuer(settings, ICONS.solar)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     } else if (type === 'pressure') {
@@ -1837,7 +1948,7 @@
       const unit = (settings.suffix !== undefined && settings.suffix !== '') ? settings.suffix : attrs.unit_of_measurement;
       card.innerHTML = `
         ${verlaufTeil}
-        <div class="row"><span class="icon">${symbolFuer(settings, ICONS[domain] || ICONS.sensor)}</span>${tendenzTeil}</div>
+        <div class="row"><span class="icon">${symbolFuer(settings, mdiSymbol(attrs.icon) || ICONS[domain] || ICONS.sensor)}</span>${tendenzTeil}</div>
         <div class="value">${fmt(zahlFormatieren(val, settings.decimals), unit)}</div>
         <div class="name">${name}</div>`;
     }
@@ -2083,7 +2194,8 @@
     ICONS, DOMAIN_LABEL, CARD_TYPES, TOGGLE_DOMAINS, PRESS_DOMAINS,
     defaultCardType, allowedCardTypes, defaultSize, buildCard,
     sizeToSpan, minSpanFor, clampSpan, resolveSpan, thresholdColor,
-    domainsForType, typesForEntity, renderClockNow, canOverlayOnPhoto, applyCustomTheme, esc,
+    domainsForType, typesForEntity, renderClockNow, sensorAkzente, SENSOR_FARBEN, SENSOR_FARBEN_HELL, isSolar,
+    mdiSymbol, brauchtMdi, canOverlayOnPhoto, applyCustomTheme, esc,
     serviceFuerEntitaet,
     wasteColor, zahlFormatieren, symbolFuer, symbolNamen,
     quickTileAktion, quickTileAktiv, quickTileText,

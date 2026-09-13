@@ -136,7 +136,7 @@ let statesById = {};
 let historyCache = {};
 // Welche Kartentypen einen Verlauf brauchen. Die Zahlenkarten zeigen ihn als ruhige Flaeche
 // hinter dem Text -- eine Zahl allein beantwortet nicht, ob sie gerade steigt oder faellt.
-const MIT_VERLAUF = ['graph', 'gauge', 'temperature', 'humidity', 'pressure', 'wind', 'rain', 'sensor'];
+const MIT_VERLAUF = ['graph', 'gauge', 'temperature', 'humidity', 'pressure', 'wind', 'rain', 'solar', 'sensor'];
 
 let forecastCache = {};
 let currentDashboardId = 'main';
@@ -173,6 +173,7 @@ async function loadConfig() {
   document.body.classList.toggle('ohne-bewegung', config.hintergrundBewegung === false);
   testmodusTaktAnpassen();
   rueckkehrTaktAnpassen();
+  namenLaden();
   abwesenheitAnwenden();
   helligkeitAnpassen();
   await loadDashboardOrder();
@@ -593,7 +594,7 @@ async function unterleisteAufbauen(entry) {
   el.innerHTML = '';
   el.appendChild(buildCard(entry.entity_id, s, type, { cols: 1, rows: 1 }, {
     editable: false, history, apiBase: API, settings: entry.settings || {}, statesById,
-    callbacks: dashboardRueckrufe()
+    namen: haNamen, callbacks: dashboardRueckrufe()
   }));
 }
 
@@ -667,6 +668,21 @@ async function render() {
   const unterEintrag = layout.find(e => e.unterleiste);
   await unterleisteAufbauen(unterEintrag);
 
+  // Sensorkarten sind der Sammelfall: Sie nehmen alles auf, wofuer es keine eigene Karte gibt.
+  // Drei nebeneinander sahen identisch aus -- man musste jedes Mal die Bildunterschrift lesen.
+  // Die Zuordnung passiert hier und nicht in buildCard, weil sie die NACHBARN kennen muss.
+  const sensorIds = layout
+    .filter(e => (e.card_type || defaultCardType(e.entity_id, statesById[e.entity_id])) === 'sensor')
+    .map(e => e.entity_id);
+  const sensorFarben = DashboardRender.sensorAkzente(sensorIds, document.body.classList.contains('light-theme'));
+
+  // Symbole aus Home Assistant erst nachladen, wenn eine Karte wirklich eines braucht.
+  if (layout.some(e => DashboardRender.brauchtMdi(
+      e.card_type || defaultCardType(e.entity_id, statesById[e.entity_id]),
+      statesById[e.entity_id], e.settings || {}))) {
+    await mdiPfadeLaden();
+  }
+
   for (const entry of layout.filter(e => !e.unterleiste)) {
     const type = entry.card_type || defaultCardType(entry.entity_id, statesById[entry.entity_id]);
     const s = (type === 'clock' || type === 'navigate' || type === 'energy' || type === 'photo' || type === 'quicktiles') ? null : statesById[entry.entity_id];
@@ -696,6 +712,8 @@ async function render() {
       photoVersion: type === 'photo' ? (entry.settings || {}).photoVersion : null,
       onPhoto: !!findOverlappingPhotoInLayout(entry, layout),
       statesById,
+      namen: haNamen,
+      akzent: sensorFarben[entry.entity_id],
       settings: entry.settings || {},
       callbacks: dashboardRueckrufe()
     }));
@@ -1631,6 +1649,48 @@ function showPauseToast() {
 //
 // Eine Uhr gehoert deshalb nicht an den Neuaufbau, sondern an die Sekunde. Das Nachfuehren
 // kostet nichts: Es schreibt zwei Texte, es baut nichts neu.
+// Die Zeichnungen aller Home-Assistant-Symbole: 2,6 MB, und deshalb NICHT beim Start.
+//
+// Die meisten Dashboards brauchen sie nie -- sie zeigen Temperaturen, Lampen und Rollladen,
+// und fuer all das gibt es eigene Karten mit eigenen Symbolen. Nur die Sensorkarte, der
+// Sammelfall, greift auf das Symbol aus Home Assistant zurueck. Geladen wird deshalb genau
+// dann, wenn die erste solche Karte gezeichnet werden soll, und danach nie wieder.
+let mdiVersprechen = null;
+
+function mdiPfadeLaden() {
+  if (window.MDI_PFADE) return Promise.resolve();
+  if (mdiVersprechen) return mdiVersprechen;
+  mdiVersprechen = new Promise((fertig) => {
+    const s = document.createElement('script');
+    s.src = 'shared/mdi-pfade.js';
+    // Auch bei einem Fehlschlag weitermachen: Ohne die Datei fehlt ein Symbol, ohne das
+    // `fertig()` haengt das ganze Dashboard.
+    s.onload = () => fertig();
+    s.onerror = () => { mdiVersprechen = null; fertig(); };
+    document.head.appendChild(s);
+  });
+  return mdiVersprechen;
+}
+
+// Die kurzen Namen der Entitaeten, wie Home Assistant sie in seiner eigenen Oberflaeche zeigt.
+//
+// Sie kommen aus der Entitaetsregistrierung ueber die Live-Verbindung (siehe setup-server.js).
+// Steht sie nicht -- kein Administratorzugang, Home Assistant gerade weg --, bleibt es bei
+// friendly_name, so wie es vorher war. Eine Karte ohne Namen waere der schlechtere Tausch.
+let haNamen = {};
+
+async function namenLaden() {
+  try {
+    const d = await fetch(`${API}/api/ha/namen`).then(r => r.json());
+    if (d && d.ok && d.namen) {
+      haNamen = d.namen;
+      // Beim Start ist das Dashboard schon gezeichnet, bevor die Namen da sind. Einmal
+      // nachziehen, sonst stehen bis zur naechsten Aenderung die langen Namen auf der Wand.
+      aufbauErzwingen = true;
+    }
+  } catch (e) { /* dann eben friendly_name */ }
+}
+
 function uhrenKartenAktualisieren() {
   document.querySelectorAll('.card.type-clock').forEach(DashboardRender.renderClockNow);
 }
