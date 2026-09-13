@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Windows-Hintergrund – Vorschau</title>
+<!--
+  Zeigt die beiden Fassungen des Windows-Hintergrundbilds nebeneinander: die normale und die
+  mit dem Wartungshinweis. Gezeichnet mit derselben Funktion wie im Betrieb
+  (DashboardRender.wolkenMalen) und denselben Farbwolken -- so lässt sich prüfen, ob das Bild
+  zum Dashboard passt, ohne ein Update auszulösen.
+
+  Oben die echte Fläche als Vergleich: dasselbe CSS, das hinter dem Dashboard liegt.
+-->
+<link rel="stylesheet" href="../../renderer/shared/dashboard.css">
+<style>
+  body { margin: 0; padding: 3vh 3vw; font-family: 'Segoe UI', system-ui, sans-serif; }
+  h2 { color: var(--muted); font-size: 1.5vh; font-weight: 600; margin: 2.4vh 0 0.8vh;
+       text-transform: uppercase; letter-spacing: 0.1em; }
+  canvas, .vergleich { width: 100%; max-width: 900px; display: block; border-radius: 10px;
+                       border: 1px solid var(--card-border); }
+  .vergleich { aspect-ratio: 1280 / 854; }
+</style>
+</head>
+<body>
+<h2>Zum Vergleich: die CSS-Fläche hinter dem Dashboard</h2>
+<div class="vergleich" id="vergleich"></div>
+
+<h2>Windows-Hintergrund – normal</h2>
+<canvas id="normal"></canvas>
+
+<h2>Windows-Hintergrund – während eines Updates</h2>
+<canvas id="wartung"></canvas>
+
+<script src="../../renderer/shared/dashboard-render.js"></script>
+<script>
+const T = DashboardRender.DEFAULT_THEME;
+DashboardRender.applyCustomTheme(T);
+document.getElementById('vergleich').style.background = T.pageBgGradient;
+
+// Dieselben Texte wie in dashboard.html. Stehen hier ein zweites Mal, damit die Probe ohne
+// die App auskommt -- ein Unterschied fällt im Bild sofort auf.
+const TITEL = 'System wird gewartet';
+const TEXT = 'Das Wall Display wird gerade aktualisiert und startet gleich von selbst.';
+
+function malen(leinwand, mitText) {
+  const breite = 1280, hoehe = 854;         // die echte Größe des Go
+  leinwand.width = breite;
+  leinwand.height = hoehe;
+  const ctx = leinwand.getContext('2d');
+  DashboardRender.wolkenMalen(ctx, breite, hoehe, DashboardRender.HINTERGRUND_WOLKEN, T.dark.bg);
+  if (!mitText) return;
+  const gross = Math.round(hoehe * 0.075);
+  const klein = Math.round(hoehe * 0.030);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = T.dark.text;
+  ctx.font = '200 ' + gross + 'px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText(TITEL, breite / 2, hoehe / 2 - gross * 0.45);
+  ctx.fillStyle = 'rgba(243,241,247,0.62)';
+  ctx.font = '300 ' + klein + 'px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText(TEXT, breite / 2, hoehe / 2 + gross * 0.6);
+}
+
+malen(document.getElementById('normal'), false);
+malen(document.getElementById('wartung'), true);
+</script>
+</body>
+</html>

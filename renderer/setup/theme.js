@@ -103,6 +103,7 @@ async function load() {
   $('welcomeCaption2').value = configRes.welcomeCaption2 || '';
   $('welcomeImageSeconds').value = configRes.welcomeImageSeconds === undefined ? 8 : configRes.welcomeImageSeconds;
   $('hintergrundBewegung').checked = configRes.hintergrundBewegung !== false;
+  $('desktopHintergrund').checked = !!configRes.desktopHintergrund;
   $('rueckkehrSekunden').value = configRes.rueckkehrSekunden === undefined ? 90 : configRes.rueckkehrSekunden;
   $('welcomeTestmodus').checked = !!configRes.welcomeTestmodus;
   $('welcomeTestSekunden').value = configRes.welcomeTestSekunden || 10;
@@ -301,6 +302,7 @@ function alleFelder() {
   };
   const felder = {
     hintergrundBewegung: $('hintergrundBewegung').checked,
+    desktopHintergrund: $('desktopHintergrund').checked,
     rueckkehrSekunden: zahl('rueckkehrSekunden', 90),
     sunEntity: $('sunEntity').value,
     notifyEntity: $('notifyEntity').value,

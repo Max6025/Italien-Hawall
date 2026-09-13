@@ -43,6 +43,19 @@
       Ankunftsschirm, nur viel langsamer. Eine Runde dauert über eine Minute. Abschalten, wenn
       es zu unruhig ist.</p>
 
+    <label style="display:flex; align-items:center; gap:0.6rem; margin-top:1.2rem;">
+      <input type="checkbox" id="desktopHintergrund" style="width:auto; margin:0;">
+      Windows-Desktop im selben Design
+    </label>
+    <p class="hint-text">Legt dieselben Farbwolken als <strong>Windows-Hintergrundbild</strong> auf
+      dem Panel ab. Zu sehen ist das nur in den Sekunden, in denen die App <em>nicht</em> läuft:
+      Bei einem Update beendet sie sich, der Installer läuft still durch – und weil die Taskleiste
+      ausgeblendet ist, schaut man sonst auf den nackten Desktop. Während des Updates steht dort
+      „System wird gewartet“, danach nur noch das Bild.</p>
+    <p class="hint-text">Ändert eine Windows-Einstellung des Geräts, deshalb ab Werk aus. Auf einem
+      Wandpanel sieht den Desktop ohnehin niemand; auf einem normalen Rechner wäre es ein
+      Übergriff. Das Bild entsteht ein paar Sekunden nach dem Start der Anzeige.</p>
+
     <label>Nach wie vielen Sekunden zurück zum Hauptdashboard</label>
     <input type="number" id="rueckkehrSekunden" min="0" max="3600" step="10" value="90" style="max-width:140px;">
     <p class="hint-text">Wer auf einem Unterdashboard etwas nachgesehen hat, lässt es dort stehen –

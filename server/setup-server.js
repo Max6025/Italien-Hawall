@@ -400,6 +400,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       abwesendEnabled: !!store.get('abwesendEnabled'),
       abwesendHelligkeit: store.get('abwesendHelligkeit') === undefined ? 20 : store.get('abwesendHelligkeit'),
       abwesendSekunden: store.get('abwesendSekunden') === undefined ? 20 : store.get('abwesendSekunden'),
+      desktopHintergrund: !!store.get('desktopHintergrund'),
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
       hasSetupCode: !!store.get('setupCode')
       // Token bewusst NICHT an den Dashboard-Client zurueckgeben; HA-Aufrufe laufen ueber /api/ha/*
@@ -419,7 +420,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle,
       welcomeTestmodus, welcomeTestSekunden, hintergrundBewegung, rueckkehrSekunden,
       ankunftEnabled, ankunftEntity, ankunftZuhause, ankunftNachMinuten,
-      abwesendEnabled, abwesendHelligkeit, abwesendSekunden
+      abwesendEnabled, abwesendHelligkeit, abwesendSekunden, desktopHintergrund
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -498,6 +499,7 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     if (abwesendSekunden !== undefined) {
       store.set('abwesendSekunden', Math.max(5, Math.min(600, parseInt(abwesendSekunden, 10) || 20)));
     }
+    if (desktopHintergrund !== undefined) store.set('desktopHintergrund', !!desktopHintergrund);
 
     // Mindestlaenge, damit das Feld nicht versehentlich leer bleibt und der Schutz still ausfaellt.
     if (setupCode !== undefined && String(setupCode).length > 0) {
@@ -1034,6 +1036,34 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       console.log('[HA-Live] Entitaetsnamen nicht verfuegbar: ' + String(err.message || err));
     }
   }
+
+  // --- Das Windows-Hintergrundbild --------------------------------------------------------------
+  //
+  // Gezeichnet wird es in der Anzeige (dort liegen Farben, Schrift und die Groesse des Panels),
+  // gespeichert hier. Zwei Fassungen: die normale und eine mit dem Hinweis, dass gerade ein
+  // Update laeuft. Sie werden gebraucht, wenn die App gerade NICHT laeuft -- dann kann sie
+  // nichts mehr zeichnen.
+  function hintergrundPfad(art) {
+    return path.join(bgDir(), art === 'wartung' ? 'desktop-wartung.png' : 'desktop.png');
+  }
+
+  app.post('/api/hintergrund', (req, res) => {
+    const { normal, wartung } = req.body || {};
+    const schreiben = (dataUrl, art) => {
+      const m = dataUrl && String(dataUrl).match(/^data:image\/png;base64,(.+)$/);
+      if (!m) return false;
+      fs.writeFileSync(hintergrundPfad(art), Buffer.from(m[1], 'base64'));
+      return true;
+    };
+    try {
+      const a = schreiben(normal, 'normal');
+      const b = schreiben(wartung, 'wartung');
+      if (!a || !b) return res.status(400).json({ ok: false, error: 'PNG erwartet' });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: String(err.message || err) });
+    }
+  });
 
   app.get('/api/ha/namen', (req, res) => {
     res.json({ ok: true, namen: entitaetsNamen || {} });

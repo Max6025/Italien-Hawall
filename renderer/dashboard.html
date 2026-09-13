@@ -1691,6 +1691,76 @@ async function namenLaden() {
   } catch (e) { /* dann eben friendly_name */ }
 }
 
+// --- Das Windows-Hintergrundbild -------------------------------------------------------------
+//
+// Bei einem Update beendet sich die App, der Installer laeuft still durch, und die App startet
+// neu. In diesen Sekunden ist nichts von ihr zu sehen -- die Taskleiste ist ausgeblendet, also
+// schaut man auf den nackten Windows-Desktop. Auf einer Wand im Wohnzimmer ist das der einzige
+// Moment, in dem das Geraet wie ein Computer aussieht statt wie eine Anzeige.
+//
+// Gezeichnet wird hier, weil hier die Farben liegen, die Schrift und die Groesse des Panels.
+// Gespeichert wird auf dem Geraet; gesetzt wird es vom Hauptprozess -- und zwar auch dann,
+// wenn diese Seite laengst weg ist (siehe updater.install in main.js).
+const HINTERGRUND_TITEL = 'System wird gewartet';
+const HINTERGRUND_TEXT = 'Das Wall Display wird gerade aktualisiert und startet gleich von selbst.';
+
+function hintergrundZeichnen(breite, hoehe, text) {
+  const leinwand = document.createElement('canvas');
+  leinwand.width = breite;
+  leinwand.height = hoehe;
+  const ctx = leinwand.getContext('2d');
+  const design = (config && config.customTheme) || DashboardRender.DEFAULT_THEME;
+  const grund = (design.dark && design.dark.bg) || '#0a0810';
+  DashboardRender.wolkenMalen(ctx, breite, hoehe, DashboardRender.HINTERGRUND_WOLKEN, grund);
+
+  if (text) {
+    // Die Schrift richtet sich nach der Hoehe, nicht nach festen Pixeln: Dasselbe Bild soll auf
+    // einem kleinen Panel und auf einem grossen Bildschirm gleich aussehen.
+    const gross = Math.round(hoehe * 0.075);
+    const klein = Math.round(hoehe * 0.030);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = (design.dark && design.dark.text) || '#f3f1f7';
+    ctx.font = '200 ' + gross + 'px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText(HINTERGRUND_TITEL, breite / 2, hoehe / 2 - gross * 0.45);
+    ctx.fillStyle = 'rgba(243,241,247,0.62)';
+    ctx.font = '300 ' + klein + 'px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText(HINTERGRUND_TEXT, breite / 2, hoehe / 2 + gross * 0.6);
+  }
+  return leinwand.toDataURL('image/png');
+}
+
+/**
+ * Zeichnet beide Fassungen und legt sie auf dem Geraet ab.
+ *
+ * Beide auf einmal: Die Wartungsfassung wird gebraucht, wenn die App gerade verschwindet --
+ * sie dann erst zu zeichnen waere zu spaet.
+ */
+async function hintergrundAblegen() {
+  if (!config || !config.desktopHintergrund) return false;
+  const g = (config && config.panelGroesse) || {};
+  const breite = Math.max(640, Math.round(Number(g.breite) || 1920));
+  const hoehe = Math.max(480, Math.round(Number(g.hoehe) || 1080));
+  try {
+    const antwort = await fetch(`${API}/api/hintergrund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        normal: hintergrundZeichnen(breite, hoehe, false),
+        wartung: hintergrundZeichnen(breite, hoehe, true)
+      })
+    }).then(r => r.json());
+    if (!antwort || !antwort.ok) return false;
+    // Und gleich setzen: Laeuft die App, gehoert auf den Desktop die Fassung ohne Text.
+    if (window.wallApi && window.wallApi.desktopHintergrundSetzen) {
+      await window.wallApi.desktopHintergrundSetzen('normal');
+    }
+    return true;
+  } catch (e) {
+    return false;   // ohne Hintergrundbild laeuft alles Uebrige unveraendert weiter
+  }
+}
+
 function uhrenKartenAktualisieren() {
   document.querySelectorAll('.card.type-clock').forEach(DashboardRender.renderClockNow);
 }
@@ -1715,6 +1785,9 @@ function uhrenKartenAktualisieren() {
   setInterval(ankunftsschirmPruefen, 60000);
 
   checkNightMode();
+  // Erst nach dem Aufbau: Das Bild wird nur gebraucht, wenn die App mal NICHT laeuft -- es hat
+  // keine Eile und soll den Start nicht aufhalten.
+  setTimeout(() => { hintergrundAblegen(); }, 4000);
   initDeviceBattery();
   // Die Battery-API meldet sich nur bei Aenderungen. Ein voll geladenes Geraet aendert
   // stundenlang nichts -- nachsehen muss man trotzdem, sonst haelt die Leiste das Panel fuer

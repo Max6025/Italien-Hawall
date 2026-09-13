@@ -2048,6 +2048,60 @@
   // Ankunftsschirm bewegt zeigt. Hinter Zahlen, Diagrammen und Schaltern konkurriert eine
   // laufende Animation mit dem Inhalt -- und ein Dashboard schaut man tagelang an, einen
   // Ankunftsschirm einmal.
+  // --- Die Farbwolken --------------------------------------------------------------------------
+  //
+  // Der Seitenhintergrund des eingebauten Designs: vier weiche Farbflecken auf fast schwarzem
+  // Grund, dieselben, die der Ankunftsschirm in Bewegung zeigt.
+  //
+  // Sie stehen als DATEN da und nicht als fertige CSS-Zeichenkette, weil dasselbe Bild auch als
+  // Windows-Hintergrund gebraucht wird -- und eine CSS-Zeichenkette laesst sich nicht malen.
+  // Beide Wege lesen dieselbe Tabelle; sonst haette man zwei Hintergruende, die einander
+  // aehnlich sehen sollen und es nach der ersten Aenderung nicht mehr tun.
+  //
+  // x/y = Mitte in Prozent, b/h = Radien in Prozent, ende = wo die Farbe verlaufen ist.
+  const HINTERGRUND_WOLKEN = [
+    { x: 14, y: 18, b: 52, h: 44, farbe: 'rgba(196,74,58,0.30)', ende: 68 },
+    { x: 86, y: 26, b: 46, h: 40, farbe: 'rgba(122,58,168,0.28)', ende: 66 },
+    { x: 74, y: 88, b: 60, h: 46, farbe: 'rgba(38,124,120,0.26)', ende: 70 },
+    { x: 38, y: 72, b: 40, h: 34, farbe: 'rgba(214,132,48,0.18)', ende: 68 }
+  ];
+
+  function wolkenCss(wolken, grundfarbe) {
+    return wolken
+      .map(w => `radial-gradient(${w.b}% ${w.h}% at ${w.x}% ${w.y}%, ${w.farbe} 0%, transparent ${w.ende}%)`)
+      .concat([grundfarbe])
+      .join(', ');
+  }
+
+  /**
+   * Malt die Farbwolken auf eine Zeichenflaeche -- fuer das Windows-Hintergrundbild.
+   *
+   * `createRadialGradient` kann nur Kreise. Die Wolken sind Ellipsen, deshalb wird die Flaeche
+   * kurz gestaucht, der Kreis gezeichnet und wieder entzerrt. Ohne das saehen die Wolken rund
+   * aus, und das Bild waere dem auf der Wand nur aehnlich statt gleich.
+   */
+  function wolkenMalen(ctx, breite, hoehe, wolken, grundfarbe) {
+    ctx.fillStyle = grundfarbe;
+    ctx.fillRect(0, 0, breite, hoehe);
+    (wolken || []).forEach((w) => {
+      const rx = (w.b / 100) * breite;
+      const ry = (w.h / 100) * hoehe;
+      const cx = (w.x / 100) * breite;
+      const cy = (w.y / 100) * hoehe;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(1, ry / rx);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      g.addColorStop(0, w.farbe);
+      g.addColorStop(w.ende / 100, w.farbe.replace(/,\s*[\d.]+\)$/, ',0)'));
+      g.addColorStop(1, w.farbe.replace(/,\s*[\d.]+\)$/, ',0)'));
+      ctx.fillStyle = g;
+      // Grosszuegig ueber den Rand hinaus: Nach dem Stauchen liegt die Flaeche anders.
+      ctx.fillRect(-breite * 2, -hoehe * 2, breite * 4, hoehe * 4);
+      ctx.restore();
+    });
+  }
+
   const DEFAULT_THEME = {
     name: 'Ankunft',
     dark: {
@@ -2088,13 +2142,7 @@
     // Auf hellem Grund traegt ein harter schwarzer Schatten auf; er wird weicher und
     // schwaecher, sonst sehen die Karten aus wie aufgeklebt.
     cardShadowLight: '0 1.2vh 3.4vh rgba(40,34,58,0.14), 0 0.2vh 0.6vh rgba(40,34,58,0.08)',
-    pageBgGradient: [
-      'radial-gradient(52% 44% at 14% 18%, rgba(196,74,58,0.30) 0%, transparent 68%)',
-      'radial-gradient(46% 40% at 86% 26%, rgba(122,58,168,0.28) 0%, transparent 66%)',
-      'radial-gradient(60% 46% at 74% 88%, rgba(38,124,120,0.26) 0%, transparent 70%)',
-      'radial-gradient(40% 34% at 38% 72%, rgba(214,132,48,0.18) 0%, transparent 68%)',
-      '#0a0810'
-    ].join(', '),
+    pageBgGradient: wolkenCss(HINTERGRUND_WOLKEN, '#0a0810'),
     // Schlankere Schrift und ruhigere Beschriftungen -- das ist der Teil des Aussehens, den
     // die strukturierten Felder oben nicht abdecken.
     extraCss: [
@@ -2195,7 +2243,7 @@
     defaultCardType, allowedCardTypes, defaultSize, buildCard,
     sizeToSpan, minSpanFor, clampSpan, resolveSpan, thresholdColor,
     domainsForType, typesForEntity, renderClockNow, sensorAkzente, SENSOR_FARBEN, SENSOR_FARBEN_HELL, isSolar,
-    mdiSymbol, brauchtMdi, canOverlayOnPhoto, applyCustomTheme, esc,
+    mdiSymbol, brauchtMdi, HINTERGRUND_WOLKEN, wolkenCss, wolkenMalen, canOverlayOnPhoto, applyCustomTheme, esc,
     serviceFuerEntitaet,
     wasteColor, zahlFormatieren, symbolFuer, symbolNamen,
     quickTileAktion, quickTileAktiv, quickTileText,

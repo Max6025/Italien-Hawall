@@ -7,6 +7,7 @@ const { autoUpdater } = require('electron-updater');
 const { startServer } = require('./server/setup-server');
 const { Controller } = require('./control/controller');
 const lautstaerke = require('./control/lautstaerke');
+const hintergrund = require('./control/hintergrund');
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -85,6 +86,9 @@ const updater = {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.loadFile(path.join(__dirname, 'renderer', 'updating.html')).catch(() => {});
     }
+    // Jetzt, nicht spaeter: Gleich ist die App weg, und dann kann niemand mehr etwas setzen.
+    // Der Desktop traegt waehrend des Updates den Hinweis, dass gerade gewartet wird.
+    hintergrundSetzen('wartung').catch(() => {});
     setTimeout(() => {
       autoUpdater.quitAndInstall(true, true); // isSilent, isForceRunAfter
     }, 1200);
@@ -412,6 +416,23 @@ ipcMain.handle('get-control-state', () => (controller ? controller.getState() : 
 // den Nachtmodus genutzt, um die Helligkeit zusaetzlich zum schwarzen Bildschirm zu senken.
 // Schlaegt auf nicht unterstuetzter Hardware oder Nicht-Windows-Systemen einfach still fehl --
 // das schwarze Overlay allein reicht dann weiterhin als Nachtmodus-Effekt aus.
+// --- Windows-Hintergrundbild ------------------------------------------------------------------
+//
+// Sichtbar wird es genau dann, wenn die App NICHT laeuft: waehrend eines Updates beendet sie
+// sich, der Installer laeuft still durch, und die Taskleiste ist ausgeblendet -- man schaut auf
+// den nackten Desktop. Mit diesem Bild sieht man stattdessen dieselben Farbwolken wie hinter
+// dem Dashboard, waehrend des Updates mit einem Satz darauf.
+function hintergrundPfad(art) {
+  return path.join(path.dirname(store.path), art === 'wartung' ? 'desktop-wartung.png' : 'desktop.png');
+}
+
+function hintergrundSetzen(art) {
+  if (!store.get('desktopHintergrund')) return Promise.resolve({ ok: false, fehler: 'abgeschaltet' });
+  return hintergrund.setzen(hintergrundPfad(art), { verzeichnis: app.getPath('userData') });
+}
+
+ipcMain.handle('desktop-hintergrund-setzen', (event, art) => hintergrundSetzen(art));
+
 // Hebt die Systemlautstaerke an, waehrend eine Akkuwarnung laeuft. Gesenkt wird sie nie --
 // und ausserhalb einer Warnung ruft niemand das hier auf.
 ipcMain.handle('system-lautstaerke-anheben', async (event, prozent) => {

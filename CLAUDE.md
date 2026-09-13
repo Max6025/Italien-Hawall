@@ -27,6 +27,7 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `renderer/shared/alarm.js` | Was die Alarmanlage über das Haus sagt: zu Hause, abwesend, unbekannt |
 | `renderer/shared/mdi-pfade.js` | **Erzeugt.** Alle Material-Design-Symbole; wird nur bei Bedarf nachgeladen |
 | `control/lautstaerke.js` | Systemlautstärke anheben (nur während einer Akkuwarnung, nie senken) |
+| `control/hintergrund.js` | Windows-Hintergrundbild setzen — sichtbar nur, während die App nicht läuft |
 | `renderer/shared/akku.js` | Wie dringend die Akkuwarnung ist: Stufe, Abstand, Lautstärke, Stummschalten |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
 | `server/dashboard-austausch.js` | Dashboards als Datei aus- und eingeben; Prüfung beim Import |
@@ -307,6 +308,25 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   `display: none`.** Sie funktionierte, berechnete den richtigen Schwellwert und wurde nie von
   irgendjemandem gesehen. Wer eine Warnung in ein vorhandenes Element hängt, muss nachsehen,
   ob dieses Element überhaupt sichtbar ist.
+- **Der einzige Moment, in dem das Gerät wie ein Computer aussieht, ist das Update.** Die App
+  beendet sich, der Installer läuft still durch, die App startet neu — und weil die Taskleiste
+  ausgeblendet ist, schaut man in diesen Sekunden auf den nackten Windows-Desktop. Deshalb legt
+  die App dort dieselben **Farbwolken** ab wie hinter dem Dashboard, während des Updates mit dem
+  Hinweis „System wird gewartet". Drei Dinge daran sind leicht zu übersehen:
+  1. Gezeichnet wird im **Renderer** (dort liegen Farben, Schrift und Panelgröße), gesetzt vom
+     **Hauptprozess** — denn gesetzt werden muss es in dem Moment, in dem der Renderer
+     verschwindet (`updater.install()`).
+  2. **Beide** Fassungen entstehen im Voraus. Die Wartungsfassung erst zu zeichnen, wenn das
+     Update beginnt, wäre zu spät.
+  3. Es ist eine **Einstellung, ab Werk aus**: Es ändert eine Windows-Einstellung des Benutzers.
+     Auf einem Wandpanel sieht den Desktop niemand; auf einem normalen Rechner wäre es ein
+     Übergriff.
+- **Die Farbwolken stehen als Daten, nicht als CSS-Zeichenkette.** `HINTERGRUND_WOLKEN` speist
+  sowohl `pageBgGradient` (über `wolkenCss`) als auch das gemalte Bild (über `wolkenMalen`) —
+  eine CSS-Zeichenkette lässt sich nicht malen. Zwei getrennte Definitionen wären zwei
+  Hintergründe, die einander ähnlich sehen sollen und es nach der ersten Änderung nicht mehr
+  tun. `createRadialGradient` kann außerdem nur Kreise: Die Fläche wird für jede Wolke kurz
+  gestaucht, sonst sind die Wolken rund statt oval.
 - **Kein Mauszeiger auf der Anzeige.** `body.wandanzeige` blendet ihn überall aus. Er taucht
   sonst von allein auf, weil das Aufwecken mit dem Mauszeiger wackeln muss (`panel.js`), und
   bleibt dann mitten auf der Wand stehen. Bewusst an die Body-Klasse gebunden: Der
@@ -487,7 +507,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-343 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+351 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
 Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 
