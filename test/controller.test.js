@@ -389,8 +389,15 @@ test('Eine Live-Meldung fuer die eigene Entitaet schaltet sofort', () => {
   // Hier liegt das Anzeigefenster um die ECHTE Uhrzeit herum: zustandGemeldet() loest einen
   // Takt aus, und der rechnet mit der echten Uhr -- ein erfundener Zeitpunkt haette hier gar
   // kein laufendes Fenster.
+  //
+  // Der Beginn ist die HEUTIGE Mitternacht, nicht "zehn Stunden zurueck": Gewartet wird nur am
+  // ersten Tag, und zehn Stunden vor 00:30 Uhr liegen im Vortag -- der Test waere dann
+  // zwischen Mitternacht und zehn Uhr morgens durchgefallen und sonst nicht. Genau so ist er
+  // beim ersten Mal um 23 Uhr durchgelaufen und um 1 Uhr rot geworden.
   const jetzt = new Date();
+  const heuteBeginn = new Date(jetzt); heuteBeginn.setHours(0, 0, 0, 0);
   const c = ankunftController({}, jetzt, 'armed_away');
+  c.windows = [{ title: 'Italien', start: heuteBeginn, end: new Date(jetzt.getTime() + 10 * 3600000) }];
   c.ankunftAktualisieren(jetzt);
   assert.strictEqual(c.decide(jetzt).on, false);
 

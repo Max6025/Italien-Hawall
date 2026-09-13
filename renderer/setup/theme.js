@@ -90,6 +90,9 @@ async function load() {
   $('ankunftEntity').value = configRes.ankunftEntity || '';
   $('ankunftZuhause').value = configRes.ankunftZuhause || 'disarmed, armed_home';
   $('ankunftNachMinuten').value = configRes.ankunftNachMinuten === undefined ? 60 : configRes.ankunftNachMinuten;
+  $('abwesendEnabled').checked = !!configRes.abwesendEnabled;
+  $('abwesendHelligkeit').value = configRes.abwesendHelligkeit === undefined ? 20 : configRes.abwesendHelligkeit;
+  $('abwesendSekunden').value = configRes.abwesendSekunden === undefined ? 20 : configRes.abwesendSekunden;
   ankunftEntitaetenLaden();
 
   // Ankunftsschirm
@@ -333,7 +336,10 @@ function alleFelder() {
     ankunftEnabled: $('ankunftEnabled').checked,
     ankunftEntity: $('ankunftEntity').value.trim(),
     ankunftZuhause: $('ankunftZuhause').value.trim(),
-    ankunftNachMinuten: zahl('ankunftNachMinuten', 60)
+    ankunftNachMinuten: zahl('ankunftNachMinuten', 60),
+    abwesendEnabled: $('abwesendEnabled').checked,
+    abwesendHelligkeit: zahl('abwesendHelligkeit', 20),
+    abwesendSekunden: zahl('abwesendSekunden', 20)
   };
 
   // Der Zugangscode NUR, wenn wirklich etwas eingegeben wurde. Ein leeres Feld heisst

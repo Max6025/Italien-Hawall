@@ -10,7 +10,7 @@ const austausch = require('./dashboard-austausch');
 // zweites Mal zu pflegen und beim naechsten neuen Kartentyp zu vergessen.
 const { CARD_TYPES } = require('../renderer/shared/dashboard-render.js');
 const { HaLive } = require('./ha-live');
-const { ZUHAUSE_VORGABE } = require('../control/ankunft');
+const { ZUHAUSE_VORGABE } = require('../renderer/shared/alarm.js');
 const { SCHWELLE_MINDESTENS } = require('../renderer/shared/akku.js');
 
 // Domains, die keine sinnvollen Wall-Display-Karten sind (Helfer/System-Entitaeten)
@@ -395,6 +395,11 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       ankunftEntity: store.get('ankunftEntity') || '',
       ankunftZuhause: store.get('ankunftZuhause') || ZUHAUSE_VORGABE,
       ankunftNachMinuten: store.get('ankunftNachMinuten') === undefined ? 60 : store.get('ankunftNachMinuten'),
+      // Abwesenheit: dieselbe Entitaet, andere Frage. Steht die Anlage auf abwesend, schaut
+      // ohnehin niemand hin.
+      abwesendEnabled: !!store.get('abwesendEnabled'),
+      abwesendHelligkeit: store.get('abwesendHelligkeit') === undefined ? 20 : store.get('abwesendHelligkeit'),
+      abwesendSekunden: store.get('abwesendSekunden') === undefined ? 20 : store.get('abwesendSekunden'),
       // Der Code selbst wird nie zurueckgegeben, nur ob einer gesetzt ist.
       hasSetupCode: !!store.get('setupCode')
       // Token bewusst NICHT an den Dashboard-Client zurueckgeben; HA-Aufrufe laufen ueber /api/ha/*
@@ -413,7 +418,8 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
       welcomeEnabled, welcomeHeading, welcomeText, welcomeImageEntity, welcomeCaption, welcomeCaption2, welcomeHours,
       welcomeImageEntity2, welcomeImageSeconds, welcomeImage2Quelle,
       welcomeTestmodus, welcomeTestSekunden, hintergrundBewegung, rueckkehrSekunden,
-      ankunftEnabled, ankunftEntity, ankunftZuhause, ankunftNachMinuten
+      ankunftEnabled, ankunftEntity, ankunftZuhause, ankunftNachMinuten,
+      abwesendEnabled, abwesendHelligkeit, abwesendSekunden
     } = req.body || {};
     const finalHaUrl = haUrl || store.get('haUrl');
     const finalToken = token || store.get('token');
@@ -481,6 +487,16 @@ function startServer({ port, store, onConfigSaved, getLocalIps, updater, control
     }
     if (ankunftNachMinuten !== undefined) {
       store.set('ankunftNachMinuten', Math.max(0, Math.min(1440, parseInt(ankunftNachMinuten, 10) || 0)));
+    }
+
+    if (abwesendEnabled !== undefined) store.set('abwesendEnabled', !!abwesendEnabled);
+    if (abwesendHelligkeit !== undefined) {
+      // Nicht bis null: Ein Bildschirm, der sich nicht mehr ablesen laesst, ist von einem
+      // kaputten nicht zu unterscheiden -- und wer davorsteht, sucht den Fehler woanders.
+      store.set('abwesendHelligkeit', Math.max(5, Math.min(100, parseInt(abwesendHelligkeit, 10) || 20)));
+    }
+    if (abwesendSekunden !== undefined) {
+      store.set('abwesendSekunden', Math.max(5, Math.min(600, parseInt(abwesendSekunden, 10) || 20)));
     }
 
     // Mindestlaenge, damit das Feld nicht versehentlich leer bleibt und der Schutz still ausfaellt.

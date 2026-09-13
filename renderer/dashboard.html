@@ -123,6 +123,7 @@
 
 <script src="shared/dashboard-render.js"></script>
 <script src="shared/akku.js"></script>
+<script src="shared/alarm.js"></script>
 <script src="shared/ankunftsschirm.js"></script>
 <script>
 const { ICONS, defaultCardType, buildCard, resolveSpan } = DashboardRender;
@@ -172,6 +173,8 @@ async function loadConfig() {
   document.body.classList.toggle('ohne-bewegung', config.hintergrundBewegung === false);
   testmodusTaktAnpassen();
   rueckkehrTaktAnpassen();
+  abwesenheitAnwenden();
+  helligkeitAnpassen();
   await loadDashboardOrder();
   ankunftsschirmPruefen();
 }
@@ -645,6 +648,10 @@ async function render() {
   });
   if (config && config.sunEntity) letzteAnzeigeEntitaeten.add(config.sunEntity);
   if (config && config.notifyEntity) letzteAnzeigeEntitaeten.add(config.notifyEntity);
+  // Die Alarmanlage steht in aller Regel auf gar keinem Dashboard -- und ist trotzdem die
+  // einzige Entitaet, die waehrend der Abwesenheit noch zaehlt: An ihr haengt, wann alles
+  // wieder hell und aktuell wird. Ohne diese Zeile kaeme das erst beim naechsten Abruf.
+  if (config && config.ankunftEntity) letzteAnzeigeEntitaeten.add(config.ankunftEntity);
 
   const signatur = zustandsSignatur(layout);
   if (!aufbauErzwingen && grid.children.length && signatur === letzteSignatur) return;
@@ -732,6 +739,7 @@ async function refresh() {
   if (!data.ok) return;
   statesById = Object.fromEntries(data.states.map(s => [s.entity_id, s]));
   erwartungenAnwenden();
+  abwesenheitAnwenden();
   applyTheme();
   applyNotify();
   if (!nightActive) {
@@ -1149,6 +1157,66 @@ function setBrightnessSafe(pct) {
   } catch (e) { /* Geraet/Plattform unterstuetzt das evtl. nicht -- unkritisch, Overlay bleibt */ }
 }
 
+// --- Abwesenheit: niemand da, also niemand, der hinsieht ---------------------------------------
+//
+// Steht die Alarmanlage auf abwesend, ist das Haus leer. Ein Dashboard, das dann in voller
+// Helligkeit leuchtet und im Sekundentakt nachfragt, arbeitet fuer niemanden -- es kostet nur
+// Strom, Bildschirmlebensdauer und Anfragen an Home Assistant.
+//
+// Die Entitaet ist DIESELBE wie beim Warten auf die Ankunft (siehe shared/alarm.js): Zwei
+// Auslegungen von "zu Hause" waeren eine zu viel.
+//
+// Unbekannt heisst ausdruecklich NICHT abwesend. Ein Tippfehler in der Entitaets-ID wuerde
+// sonst den Bildschirm dauerhaft herunterdimmen, und wer davorsteht, sucht den Fehler am
+// Geraet statt in einem Textfeld.
+let abwesend = false;
+
+function abwesendPruefen() {
+  if (!config || !config.abwesendEnabled) return false;
+  const id = String(config.ankunftEntity || '').trim();
+  if (!id) return false;
+  const s = statesById[id];
+  return AlarmModul.istAbwesend(s ? s.state : null, config.ankunftZuhause);
+}
+
+/**
+ * Setzt die Helligkeit aus dem GESAMTEN Zustand, nicht aus dem letzten Ereignis.
+ *
+ * Nacht und Abwesenheit greifen beide auf dieselbe Schraube zu. Wer sie an zwei Stellen
+ * einzeln dreht, bekommt einen Bildschirm, der nach dem Ende der Nacht auf volle Helligkeit
+ * springt, obwohl noch niemand zu Hause ist -- und niemand sieht, warum.
+ */
+function helligkeitAnpassen() {
+  if (nightActive && $('nightOverlay').classList.contains('show')) return setBrightnessSafe(5);
+  if (abwesend) return setBrightnessSafe(abwesendHelligkeit());
+  setBrightnessSafe(100);
+}
+
+function abwesendHelligkeit() {
+  const v = config ? Number(config.abwesendHelligkeit) : NaN;
+  return Number.isFinite(v) ? Math.max(5, Math.min(100, v)) : 20;
+}
+
+/**
+ * Nach jedem Abruf: Hat sich die Anwesenheit geaendert?
+ *
+ * Der Rueckweg ist der wichtigere: Wer heimkommt und die Anlage entschaerft, soll ein
+ * Dashboard vorfinden, das SOFORT wieder hell und aktuell ist -- nicht eins, das noch zwanzig
+ * Sekunden ueber den Stand von vorhin nachdenkt.
+ */
+function abwesenheitAnwenden() {
+  const jetztAbwesend = abwesendPruefen();
+  if (jetztAbwesend === abwesend) return false;
+  abwesend = jetztAbwesend;
+  helligkeitAnpassen();
+  if (!abwesend) {
+    // Zurueck zu Hause: alles auf einmal nachziehen, nicht beim naechsten Takt.
+    aufbauErzwingen = true;
+    refresh();
+  }
+  return true;
+}
+
 function showNightBlack() {
   $('nightOverlay').classList.add('show');
   setBrightnessSafe(5);
@@ -1157,7 +1225,7 @@ function showNightBlack() {
 async function wakeFromNight() {
   if (!nightActive) return;
   $('nightOverlay').classList.remove('show');
-  setBrightnessSafe(100);
+  helligkeitAnpassen();
   clearTimeout(nightWakeTimer);
   // render() war waehrend der Nacht pausiert -- kurz "Tag" simulieren, damit refresh()
   // wirklich das echte, aktuelle Dashboard zeichnet statt der letzten alten Anzeige.
@@ -1178,7 +1246,7 @@ function leaveNightMode() {
   nightActive = false;
   clearTimeout(nightWakeTimer);
   $('nightOverlay').classList.remove('show');
-  setBrightnessSafe(100);
+  helligkeitAnpassen();
   refresh(); // Refresh war waehrend der Nacht pausiert -- sofort aktuell holen
 }
 
@@ -1363,10 +1431,24 @@ function liveVerbinden() {
     let aenderung;
     try { aenderung = JSON.parse(e.data); } catch (err) { return; }
     if (!aenderung || !aenderung.entity_id) return;
-    // Nur, was auf DIESEM Dashboard steht. Ein Haushalt meldet hunderte Aenderungen pro
+
+    // Waehrend der Abwesenheit zaehlt genau EINE Entitaet: die Alarmanlage. Alles andere darf
+    // bis zum naechsten Abruf warten -- sonst waere der langsamere Takt wirkungslos, weil
+    // jede Lampe im Haus weiterhin sofort einen Neuaufbau ausloest.
+    const alarmId = String((config && config.ankunftEntity) || '').trim();
+    if (abwesend && aenderung.entity_id !== alarmId) return;
+
+    // Sonst: nur, was auf DIESEM Dashboard steht. Ein Haushalt meldet hunderte Aenderungen pro
     // Minute; fuer die allermeisten gibt es hier keine Karte.
     if (!betrifftDiesesDashboard(aenderung.entity_id)) return;
 
+    // Die Alarmanlage wird nicht gesammelt: Wer heimkommt, soll nicht auf einen Sammeltakt
+    // warten, sondern auf einen hellen Bildschirm treffen.
+    if (alarmId && aenderung.entity_id === alarmId) {
+      clearTimeout(liveSammler);
+      aufbauErzwingen = true;
+      return void refresh();
+    }
     // Nicht bei jeder einzelnen Meldung neu zeichnen: Eine Automation schaltet gern fuenf
     // Dinge in derselben Sekunde, und fuenf Neuaufbauten hintereinander sieht man.
     clearTimeout(liveSammler);
@@ -1595,7 +1677,11 @@ function uhrenKartenAktualisieren() {
   function scheduleRefresh() {
     // Steht die Live-Verbindung, ist der Abruf nur noch das Netz -- dann genuegt er seltener.
     // Ist sie weg, uebernimmt er wieder allein und laeuft entsprechend haeufig.
-    const takt = nightActive ? (liveVerbunden ? 60000 : 30000) : (liveVerbunden ? 20000 : 5000);
+    // Abwesend zaehlt wie Nacht: Es schaut niemand hin. Die Alarmanlage selbst bleibt davon
+    // unberuehrt -- sie kommt ueber die Live-Verbindung und nicht ueber diesen Takt.
+    const takt = nightActive ? (liveVerbunden ? 60000 : 30000)
+      : abwesend ? Math.max(5000, (Number(config && config.abwesendSekunden) || 20) * 1000)
+      : (liveVerbunden ? 20000 : 5000);
     setTimeout(async () => { await refresh(); scheduleRefresh(); }, takt);
   }
   scheduleRefresh();

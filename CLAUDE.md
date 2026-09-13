@@ -24,6 +24,7 @@ auch laufen, wenn gerade kein Dashboard geladen ist.
 | `control/panel.js` | Panel per `SC_MONITORPOWER` schalten, über einen dauerhaft offenen PowerShell-Prozess |
 | `control/controller.js` | Zustandsautomat; die Rangfolge steht vollständig in `decide()` |
 | `control/ankunft.js` | Warten auf die Ankunft: erst Dashboard, wenn die Alarmanlage „zu Hause“ meldet |
+| `renderer/shared/alarm.js` | Was die Alarmanlage über das Haus sagt: zu Hause, abwesend, unbekannt |
 | `control/lautstaerke.js` | Systemlautstärke anheben (nur während einer Akkuwarnung, nie senken) |
 | `renderer/shared/akku.js` | Wie dringend die Akkuwarnung ist: Stufe, Abstand, Lautstärke, Stummschalten |
 | `server/setup-server.js` | Express auf Port 8788, HA-Proxy, Zugangscode |
@@ -88,6 +89,23 @@ sein soll. Neue Sonderfälle gehören dorthin und nirgendwo sonst.
   Kalendersteuerung aktiv ist (`panelControlActive` in `dashboard.html`). Beide gleichzeitig
   laufen zu lassen führt zu Flackern.
 
+- **An der Alarmanlage hängen zwei Funktionen, und sie dürfen sich nicht widersprechen.**
+  „Auf Ankunft warten" (`control/ankunft.js`, Hauptprozess) und „bei Abwesenheit dimmen"
+  (`dashboard.html`, Renderer) fragen dieselbe Entität dasselbe. Die Auslegung steht deshalb an
+  **einer** Stelle: `renderer/shared/alarm.js` — unter `renderer/`, weil nur von dort ein
+  `<script src>` hinkommt; Hauptprozess und Server holen sie sich per `require`. Die Frage hat
+  **drei** Antworten, nicht zwei: zu Hause, abwesend, **unbekannt**. Wer „unbekannt" zu
+  „abwesend" macht, dimmt den Bildschirm dauerhaft herunter, weil eine Entitäts-ID einen
+  Tippfehler hat — und wer davorsteht, sucht den Fehler am Gerät.
+- **Nacht und Abwesenheit greifen auf dieselbe Schraube zu.** Beide stellen die Helligkeit.
+  Wer sie an zwei Stellen einzeln dreht, bekommt einen Bildschirm, der nach dem Ende der Nacht
+  auf volle Helligkeit springt, obwohl noch niemand zu Hause ist. `helligkeitAnpassen()`
+  rechnet sie deshalb aus dem **gesamten** Zustand aus, nicht aus dem letzten Ereignis.
+- **Während der Abwesenheit lässt die Live-Verbindung nur die Alarmanlage durch.** Sonst wäre
+  der langsamere Abruftakt wirkungslos: Jede Lampe im Haus löst weiterhin sofort einen
+  Neuaufbau aus. Die Alarmanlage dagegen wird **nicht** gesammelt (kein 120-ms-Fenster) — wer
+  heimkommt, soll auf einen hellen Bildschirm treffen und nicht auf einen Sammeltakt warten.
+  Dafür steht sie auch dann in `letzteAnzeigeEntitaeten`, wenn sie auf keiner Karte liegt.
 - **Ganztägige Termine beginnen um Mitternacht.** Ein Anzeigefenster steht damit einen halben
   Tag, bevor jemand da ist — die Wand leuchtet gegen ein leeres Haus, und der Ankunftsschirm hat
   seine Anzeigedauer aufgebraucht, bevor der erste Gast zur Tür hereinkommt. Deshalb wartet
@@ -431,7 +449,7 @@ JavaScript. Wer das ändert und pro Bild rechnet, kostet das Gerät die Bildrate
 npm test
 ```
 
-323 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
+329 Tests über Kalenderauswertung, Zustandslogik, Ankunftserkennung, Zugangsschutz,
 Kartenaufbau, Ankunftsschirm, Akkumeldung, die Live-Verbindung und den PowerShell-Vorspann.
 Electron wird dafür nicht gebraucht.
 

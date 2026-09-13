@@ -35,33 +35,10 @@
 // allen drei Faellen waere die Alternative ein Panel, das nie wieder angeht und dessen Ursache
 // niemand sieht. Lieber einen halben Tag zu frueh hell als einen ganzen Termin lang dunkel.
 
-// Vorgabe fuer "zu Hause". alarm_control_panel kennt beides: Wer die Anlage beim Betreten
-// komplett abschaltet, steht auf disarmed; wer nur den Innenbereich freigibt, auf armed_home.
-const ZUHAUSE_VORGABE = 'disarmed, armed_home';
-
-// Zustaende, aus denen sich nichts ablesen laesst. "unknow" ohne letztes n ist kein Versehen
-// in diesem Code, sondern ein haeufiger Tippfehler in Home Assistant selbst.
-const UNBEKANNT = ['', 'unknown', 'unknow', 'unavailable', 'none', 'null', 'undefined'];
-
-/** Die eingetragenen "zu Hause"-Zustaende als Liste. */
-function zuhauseListe(roh) {
-  const liste = String(roh === undefined || roh === null || roh === '' ? ZUHAUSE_VORGABE : roh)
-    .split(',')
-    .map(s => s.trim().toLowerCase())
-    .filter(Boolean);
-  return liste.length ? liste : zuhauseListe(ZUHAUSE_VORGABE);
-}
-
-/** Laesst sich aus diesem Zustand ueberhaupt etwas ablesen? */
-function zustandBekannt(zustand) {
-  return !UNBEKANNT.includes(String(zustand === undefined || zustand === null ? '' : zustand).trim().toLowerCase());
-}
-
-/** Steht die Anlage auf "zu Hause"? */
-function istZuhause(zustand, roheListe) {
-  if (!zustandBekannt(zustand)) return false;
-  return zuhauseListe(roheListe).includes(String(zustand).trim().toLowerCase());
-}
+// Die Zustandsnamen der Anlage stehen in renderer/shared/alarm.js -- dieselbe Entitaet traegt
+// zwei Funktionen (Ankunft und Abwesenheits-Dimmen), und zwei Auslegungen von "zu Hause" waeren
+// eine zu viel. Weitergereicht, damit Aufrufer dieses Moduls nichts davon wissen muessen.
+const { ZUHAUSE_VORGABE, zuhauseListe, zustandBekannt, istZuhause } = require('../renderer/shared/alarm.js');
 
 /**
  * Die Lage zu einem Zeitpunkt.

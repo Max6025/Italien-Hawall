@@ -203,6 +203,58 @@
 
     <details class="einstellungsblock">
       <summary>
+        <span class="eb-titel">Alarmanlage</span>
+        <span class="eb-unter">Woran das Panel erkennt, ob jemand da ist</span>
+      </summary>
+      <div class="eb-inhalt">
+    <p class="note">Die Alarmanlage weiß besser als jeder Kalender, ob jemand im Haus ist: Sie
+      steht im Regelfall auf <em>abwesend</em> und wird beim Betreten auf <em>zu Hause</em>
+      gestellt. Zwei Funktionen hängen daran – <strong>auf Ankunft warten</strong> und
+      <strong>bei Abwesenheit dimmen</strong>. Beide lassen sich einzeln ein- und ausschalten;
+      die Entität hier gilt für beide.</p>
+
+    <label>Entität der Anlage</label>
+    <input type="text" id="ankunftEntity" list="ankunftListe" placeholder="alarm_control_panel.haus">
+    <datalist id="ankunftListe"></datalist>
+    <p class="hint-text" id="ankunftZustandAnzeige"></p>
+
+    <label style="margin-top:1rem;">Zustände, die „zu Hause“ bedeuten (mit Komma getrennt)</label>
+    <input type="text" id="ankunftZuhause" placeholder="disarmed, armed_home">
+    <p class="hint-text">Groß- und Kleinschreibung spielt keine Rolle. Leer lassen setzt die
+      Vorgabe <code>disarmed, armed_home</code> zurück. Die Namen gehören der Anlage, nicht
+      dieser App – welche sie wirklich meldet, steht oben. Alles, was nicht in dieser Liste
+      steht, gilt als <em>abwesend</em>; ein <em>unbekannter</em> Zustand gilt als keines von
+      beidem und lässt alles beim Alten.</p>
+      </div>
+    </details>
+
+    <details class="einstellungsblock">
+      <summary>
+        <span class="eb-titel">Bei Abwesenheit dimmen</span>
+        <span class="eb-unter">Leeres Haus, dunkler Bildschirm</span>
+      </summary>
+      <div class="eb-inhalt">
+    <p class="note">Steht die Alarmanlage auf <em>abwesend</em>, ist niemand da, der hinsieht.
+      Der Bildschirm wird heruntergedimmt und fragt Home Assistant seltener – das spart Strom,
+      Bildschirmlebensdauer und Anfragen.</p>
+    <p class="note">Sobald sie wieder auf <em>zu Hause</em> steht, ist alles <strong>sofort</strong>
+      wieder hell und aktuell – nicht erst beim nächsten Takt. Die Alarmanlage selbst wird
+      nämlich weiterhin in Echtzeit beobachtet; nur alles andere wartet.</p>
+
+    <label><input type="checkbox" id="abwesendEnabled" style="width:auto; margin-right:0.5rem;">Bei Abwesenheit dimmen</label>
+
+    <div class="row2" style="margin-top:0.8rem;">
+      <div><label>Helligkeit (%)</label><input type="number" id="abwesendHelligkeit" min="5" max="100" step="5" value="20"></div>
+      <div><label>Abfrage alle (Sek.)</label><input type="number" id="abwesendSekunden" min="5" max="600" step="5" value="20"></div>
+    </div>
+    <p class="hint-text">Nicht unter 5 % Helligkeit: Ein Bildschirm, der sich gar nicht mehr
+      ablesen lässt, ist von einem kaputten nicht zu unterscheiden – und wer davorsteht, sucht
+      den Fehler am Gerät statt in diesem Feld.</p>
+      </div>
+    </details>
+
+    <details class="einstellungsblock">
+      <summary>
         <span class="eb-titel">Auf Ankunft warten</span>
         <span class="eb-unter">Dashboard erst, wenn wirklich jemand da ist</span>
       </summary>
@@ -217,17 +269,8 @@
       Hause</em>, geht der Bildschirm sofort an.</p>
 
     <label><input type="checkbox" id="ankunftEnabled" style="width:auto; margin-right:0.5rem;">Auf Ankunft warten</label>
-
-    <label style="margin-top:1rem;">Entität der Anlage</label>
-    <input type="text" id="ankunftEntity" list="ankunftListe" placeholder="alarm_control_panel.haus">
-    <datalist id="ankunftListe"></datalist>
-    <p class="hint-text" id="ankunftZustandAnzeige"></p>
-
-    <label style="margin-top:1rem;">Zustände, die „zu Hause“ bedeuten (mit Komma getrennt)</label>
-    <input type="text" id="ankunftZuhause" placeholder="disarmed, armed_home">
-    <p class="hint-text">Groß- und Kleinschreibung spielt keine Rolle. Leer lassen setzt die
-      Vorgabe <code>disarmed, armed_home</code> zurück. Die Namen gehören der Anlage, nicht
-      dieser App – welche sie wirklich meldet, steht oben.</p>
+    <p class="hint-text">Entität und „zu Hause“-Zustände stehen weiter oben unter
+      <strong>Alarmanlage</strong>.</p>
 
     <label style="margin-top:1rem;">Nach der Ankunft an bleiben (Min.)</label>
     <input type="number" id="ankunftNachMinuten" min="0" max="1440" step="10" value="60" style="max-width:140px;">
